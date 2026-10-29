@@ -44,7 +44,7 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 - `DIT_API_DB_*`·`DIT_API_DATABASE*` 환경 변수 이름 검사에서 해당 키 없음. 비밀번호 조회나 추측 로그인을 하지 않았다.
 - 이 결과는 DB 비밀번호 오류 또는 MariaDB 서비스 장애의 증거가 아니다. 먼저 로컬 Tailscale 연결을 확보해야 한다.
 
-## 인프라 담당자에게 필요한 확인
+## 초기 네트워크 차단 당시 요청 이력
 
 1. 이 개발 PC의 Tailscale 로그인/연결 및 서버와 동일 tailnet 접근 허용. 인증은 사람이 수행한다.
 2. 대상 VM이 Tailscale online인지, 해당 노드 간 ACL/grant가 TCP 3307을 허용하는지 확인.
@@ -63,15 +63,15 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 - DIT_API_ 설정 정책을 유지하고 DB 필드는 명시 입력으로 확장한다. 기존 공개 health·시설 조회는 DB 없이 계속 동작하며 DB 준비 성공으로 표시하지 않는다.
 - 기존 챗봇의 async SQLAlchemy/aiomysql과 통합 API의 드라이버·pool·트랜잭션·문자셋/UTC 처리 호환을 단위/계약으로 먼저 확인한다. SQLite/DDL 컴파일은 MariaDB 11.4 통합 시험을 대신하지 않는다.
 
-## 후속 수용 기준
+## 현재 후속 수용 기준
 
 | 순서 | 검사 | 현재 |
 |---|---|---|
-| 1 | Tailscale online·대상 가시성·TCP 3307 | BLOCKED_NETWORK |
-| 2 | TLS·해당 계정 인증·버전/문자셋·현재 DB 읽기 | NOT_RUN |
-| 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | NOT_RUN |
-| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | NOT_RUN |
+| 1 | Tailscale online·대상 가시성·TCP 3307 | PASS, Codex 환경 재확인 |
+| 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | PASS(별도 읽기 진단); FastAPI 엄격 TLS는 BLOCKED_TLS |
+| 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | 직접 GRANT 확인 PASS; 실제 DML·DDL 거부 시험 NOT_RUN |
+| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 빈 스키마 확인 PASS; 백업·적용 NOT_RUN, PR #37 제안 검토 |
 | 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | NOT_RUN / 사람 승인 필요 |
 | 6 | 공통 가상 계정·두 계정 CRUD·재로그인/영속성·RAG 허용 자료만 접근 | NOT_RUN |
 
-DDL 거부 검사는 운영 DB에 임의 테스트 테이블을 만들거나 지워서 수행하지 않는다. 먼저 SHOW GRANTS/전용 검증 환경과 인프라 담당자 승인 방법을 사용한다. 네트워크가 막혀도 신규 앱·서비스·테스트·공개 RAG 및 92개 기능의 독립 구현은 계속한다.
+DDL 거부 검사는 운영 DB에 임의 테스트 테이블을 만들거나 지워서 수행하지 않는다. 먼저 SHOW GRANTS/전용 검증 환경과 인프라 담당자 승인 방법을 사용한다. 현재 DB TLS 연동만 차단하고 신규 앱·서비스·테스트·공개 RAG 및 92개 기능의 독립 구현은 계속한다. 인증서 도착 전 검증을 완화하거나 같은 원격 검사를 반복하지 않는다.
