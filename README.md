@@ -3,7 +3,7 @@
 > **동의과학대학교 학생을 위한 AI 스마트 캠퍼스 서비스**<br>
 > "학교의 모든 정보를 내 손안에서, 더욱 간편하고 편리하게"
 
-> **현재 구현 상태:** `mvp/`는 React/Vite/Tailwind의 브라우저 저장소 기반 시연 앱입니다. 아래 AI 비서·지도·학교 시스템 통합은 제품 목표와 제안 기능이며 구현 증거가 아닙니다. [DEC-015](docs/11_DECISION_LOG.md)에서 프런트 스택과 FastAPI 백엔드를 확정했지만 FastAPI 서버·공유 DB·실제 학교 연동은 아직 없습니다. 저장소 적격성은 사용자가 해결을 확인했으며, 해결 방식의 독립 증빙과 과거 조사 사실은 [심사 규정 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
+> **현재 구현 상태:** `mvp/`는 React/Vite/Tailwind의 브라우저 저장소 기반 시연 앱입니다. 아래 AI 비서·지도·학교 시스템 통합은 제품 목표와 제안 기능이며 구현 증거가 아닙니다. [DEC-015](docs/11_DECISION_LOG.md)에서 프런트 스택과 FastAPI 백엔드를 확정했지만 FastAPI 서버·공유 DB·실제 학교 연동은 아직 없습니다. 제출 자격의 별도 차단 사항은 [심사 규정 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
 
 <br>
 

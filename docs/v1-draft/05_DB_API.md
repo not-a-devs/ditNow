@@ -5,6 +5,8 @@
 ## 공통 컬럼·제약
 모든 저장 레코드는 id, created_at, updated_at, source_kind(OFFICIAL_PUBLIC/DEMO/USER_DEMO), source_url?, checked_at?, revision?, owner_scope를 가진다. 감사 대상 변경은 actor_id, action, entity_id, before/after의 민감정보 제거 요약, timestamp를 audit_logs에 남긴다. 시연 레코드는 실제 학교 공식 배지를 얻을 수 없다. 관계 FK·unique·check 제약과 서버 시간으로 마감/정원을 판정한다. 삭제는 공개 콘텐츠/거래/감사에 따라 soft delete 또는 보존으로 구분하고 실제 보존기간은 OPEN-R14 이후 결정한다.
 
+익명 글은 위 일반 감사 규칙의 예외다. actor와 공개 글 ID의 연결을 일반 audit_logs 조회에 남기지 않는다. 필요한 업무 연결은 [P0 계약](13_P0_SERVER_DB_RLS_CONTRACT.md)의 비식별화/별도 접근 경계를 따르며 멱등·접근 로그·rate-limit·분석·백업도 같은 제한을 검증한다. 물리 분리·키 관리·보존은 승인 전 미확정이다.
+
 ## 원장과 핵심 관계
 | 도메인 | 핵심 테이블과 키 | 필수 상태·무결성 |
 |---|---|---|
