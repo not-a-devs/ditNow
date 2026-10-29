@@ -19,6 +19,7 @@
 | --- | --- | --- |
 | 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 통합 홈·9개 영역 탐색·공개 연결 확인. 업무 기능은 모듈 통합 전 안내 상태 |
 | 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 현재 공개 서버 계약만 반영 |
+| 신규 앱의 캠퍼스 안내 | `apps/web/src/features/ai/index.tsx`, `services/api/app/api/v1/ai.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색. 기존 검색기 재사용, 개인 원장·LLM 생성·운영 배포는 미검증 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
 | 학생 홈·시간표 | `mvp/src/features/home/` | 현재 학생 UI |
 | 로그인 UI | `mvp/src/features/auth/` | 시연 인증 UI |
@@ -29,7 +30,7 @@
 | 공통 UI·타입 | `mvp/src/shared/ui/`, `mvp/src/shared/types.ts` | 공통 컴포넌트·계약 |
 | 모의 API | `mvp/src/shared/data/api/` | 현재 브라우저 기반 규칙; 서버 아님 |
 | 모의 저장소·시드 | `mvp/src/shared/data/store.ts`, `mvp/src/shared/data/seed.ts` | localStorage 및 테스트 데이터 |
-| 통합 대상 RAG | `chatbot/app/main.py`, `chatbot/CLAUDE.md`, `chatbot/requirements.txt` | 기존 RAG 재사용; 별도 시연 로그인은 최종 공통 세션으로 대체. 통합 연결은 브랜치 작업 중 |
+| 통합 RAG 구성요소 | `chatbot/README.md`, `chatbot/pyproject.toml`, `chatbot/app/retriever/keyword.py` | 설치 가능한 패키지와 공개 검색 통합. 기존 별도 로그인·관리자·개인 DB는 통합 경로에 mount하지 않음 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.
 
@@ -39,18 +40,19 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 
 신규 웹의 독립 생성기는 `apps/web/scripts/api-types.mjs`, 생성 결과는 `apps/web/src/lib/generated/api.d.ts`다. 실행과 구현 한계는 `apps/web/README.md`, 셸·전송 계층 테스트는 `apps/web/src/App.test.tsx`, `apps/web/src/lib/api.test.ts`를 본다.
 
-현재 main의 `chatbot/`과 `services/api/`는 각각 `app` 패키지여서 독립 환경이 필요하다. F 작업이 패키지 import와 공개 검색을 단계적으로 통합한다. DB 선택 근거는 사용자 DEC-016이며 기존 demo 세션은 공통 인증 승인 근거가 아니다. 외부 LLM·실DB·배포는 미검증이다.
+`services/api`는 잠금 로컬 의존성 `ditnow-chatbot`의 `chatbot.app`을 사용해 공개 시설 검색을 재사용한다. 내부 상대 import로 기존 `app` 이름 충돌을 피하며 독립 시연 실행도 회귀 검사한다. DB 선택 근거는 사용자 DEC-016이며 기존 demo 세션은 공통 인증 승인 근거가 아니다. 외부 LLM·실DB·배포는 미검증이다.
 
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
 - 현재 `.github/workflows/mvp-ci.yml`: 사전 프로토타입 보존 회귀; 최종 앱 완료 증거 아님.
 - 현재 `.github/workflows/web-ci.yml`: 신규 웹의 잠금 설치·OpenAPI 타입 일치·타입·테스트·빌드·운영 의존성 보안 검사.
 - 현재 `.github/workflows/python-api-ci.yml`: PR/main의 Python 3.13 잠금 설치·Ruff·pytest·앱 import/OpenAPI 생성·에이전트 설정 검사. 두 워크플로가 같은 PR HEAD에서 성공해야 한다.
+- 현재 `.github/workflows/chatbot-ci.yml`: 잠금 패키지 설치·Ruff·기존 챗봇 회귀 테스트·빌드. 외부 LLM과 운영 DB 없이 실행한다.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반.
 - 현재 `scripts/check-feature-progress.mjs`: 92개 FR 집합·중복·계층 상태·TC/DB/RBAC 연결 검사.
-- 현재 `apps/web/`: 기존 코드를 복사하지 않은 통합 탐색 셸. 공통 MariaDB 모델/인증 dependency, feature별 API/UI 및 RAG adapter는 별도 브랜치 작업 중이다. 브랜치와 소유 범위는 병렬 보드를 본다.
+- 현재 `apps/web/`: 기존 코드를 복사하지 않은 통합 탐색 셸과 공개 시설 검색. 공통 MariaDB 모델/인증 dependency와 나머지 업무 API/UI는 별도 브랜치 작업 중이다. 브랜치와 소유 범위는 병렬 보드를 본다.
 
 **주의:** MariaDB는 확정이다. 클라우드 접속·인증·호스팅/비용·관리자 권한은 OPEN-002/003 게이트를 유지한다.
 
