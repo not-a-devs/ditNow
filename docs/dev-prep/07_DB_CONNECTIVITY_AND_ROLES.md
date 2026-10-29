@@ -2,7 +2,28 @@
 
 2026-10-30 KST · TASK-DB-NETWORK · 관련 FR-AUTH-001/002, FR-COM-001/004, FR-OPP-004, FR-AI-001; NFR-SEC-001/002/004/005, NFR-PRIV-003, NFR-OPS-001/002. 승인 근거: 사용자가 현재 작업 대화에서 제공한 운영 정보(DEC-019). 서버 설정을 직접 확인한 사실과 구분한다.
 
-## 최신 상태 — 2026-10-30 갱신
+## 최신 실행 결과 — 명시적 추가 마이그레이션 완료
+
+2026-10-30 root 실제 실행 기준이다. **TLS 차단 해제와 비파괴 추가 스키마 적용은 성공**했다. 아래 초기 timeout·인증서 오류와 마이그레이션 전 9개 테이블 기록은 과거 이력이다. 코드 병합·현재 승인 상태는 [병합 실행 기록](TASK_PR_BATCH_MERGE_20261030.md)을 따른다.
+
+| 실제 실행 | 결과 |
+|---|---|
+| CA 인증서 DER SHA-256 | `0E9727B1E83140A2E6D7F219117A95279F77A391FE9D97FF136D8377B5216184` 일치 |
+| 엄격 SQLAlchemy + aiomysql | `CERT_REQUIRED`·`check_hostname=True` 유지, 인증·SELECT1·현재 DB 확인 성공 |
+| 세션 TLS | TLSv1.3 / TLS_AES_256_GCM_SHA384 |
+| 실행 소스 | PR #54 HEAD `a7859b558f899255d24709e8cf541c97a296b170`의 검토된 명시적 실행기 |
+| 마이그레이션 | 별도 ditnow_migrator, `p0-initial-v1`, CREATE 16개 적용 완료 |
+| DDL 체크섬 | `157fae7e2d0798a39c2f048f29c605b1d5625b0cb1b8081985731285c0268a1b` |
+| 기존 자료 보존 | 기존 9개 테이블 정의·행 수 동일, 기존 행 수정·DROP·ALTER·초기화·시드 0 |
+| 적용 후 메타데이터 | 총 25개 InnoDB·utf8mb4_unicode_ci, migrator 검사에서 스키마 트리거 0 |
+| 앱 읽기 검사 | 제안된 16개 테이블·필수 열 누락 없음. 개인 행 조회·영구 DML 0 |
+| 장부 | 저장소 밖 보호 경로의 적용 장부 16개 APPLIED 확인. 인증정보·장부 원문은 커밋하지 않음 |
+
+기존 9개 테이블의 적용 전/후 집계는 auth_sessions 1, course_sessions 8, courses 42, enrollments 61, exams 13, graduation_rule_categories 4, graduation_rules 2, question_logs 0, students 3으로 동일했다. 개인 행 값은 조회하지 않았다. 앱 계정은 DML/읽기에만 사용했고 migrator 자격을 앱 런타임에 넣지 않았다. 엄격 TLS·최소 권한 경계를 해제하지 않았다.
+
+**미실행:** 실제 핵심 3개 업무 CRUD 검사 도구, 시연 계정의 영구 생성, 로그인·신규 앱·FastAPI·MariaDB의 두 계정 E2E 및 재시작 영속성 검증. 기존의 가상 행 1개 DML/롤백 성공은 아래 범위이며 핵심 업무 완료가 아니다. 신규 테이블이 존재한다는 이유로 운영 로그인이나 전체 기능이 완성됐다고 표시하지 않는다.
+
+## 과거 엄격 TLS 검사 — 마이그레이션 적용 전
 
 **엄격 TLS·앱 계정 읽기 PASS, 실행 호환·스키마 통합 진행 중**. 사용자가 CA 배치를 알린 뒤 계정 정보를 보내지 않는 TLS 진단에서 CA·접속 주소 검증과 TLS1.3 연결이 성공했다. 동일한 엄격 FastAPI 엔진도 Windows `SelectorEventLoop`에서 `ditnow_app` 인증·SELECT1이 성공했다. 인증서 검증을 해제하지 않았다. 아래 초기 네트워크/인증서 차단 기록은 이력이며 운영 준비 완료를 뜻하지 않는다.
 
@@ -96,8 +117,8 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 | 1 | Tailscale online·대상 가시성·TCP 3307 | PASS, Codex 환경 재확인 |
 | 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | 엄격 TLS·Selector async 앱/migrator 인증 PASS, N27ff 연결 collation 보완 실검증 PASS |
 | 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | 직접 GRANT·가상 행 DML/롤백 PASS; 실제 DDL 거부 시험 NOT_RUN |
-| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 기존 9개 테이블/관계·집계 확인 PASS; 백업·적용 NOT_RUN, PR #37 제안 검토 |
-| 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | 사용자 실행 승인 있음; 스키마 비교·보존 확인 후 수행, 현재 NOT_RUN |
+| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 기존 9개 정의/관계·집계 보존과 독립 migration 리뷰 PASS. 별도 전체 백업은 NOT_RUN |
+| 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | migrator의 p0-initial-v1 신규16개 적용 및 앱 계정의 필수 열 읽기 PASS. 핵심 업무 CRUD 도구 실행은 NOT_RUN |
 | 6 | 공통 가상 계정·두 계정 CRUD·재로그인/영속성·RAG 허용 자료만 접근 | NOT_RUN |
 
 DDL 거부 검사는 운영 DB에 임의 테스트 테이블을 만들거나 지워서 수행하지 않는다. 먼저 SHOW GRANTS/전용 검증 환경과 인프라 담당자 승인 방법을 사용한다. DB 실행 호환·스키마/인증 통합의 남은 게이트만 보류하고 신규 앱·서비스·테스트·공개 RAG 및 92개 기능의 독립 구현은 계속한다. 인증서 검증을 완화하거나 같은 원격 검사를 맹목적으로 반복하지 않는다.
