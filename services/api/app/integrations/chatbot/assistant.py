@@ -143,11 +143,14 @@ def build_assistant(settings: Settings) -> Assistant:
             )
         )
     url = settings.database_url.get_secret_value() if settings.database_url else ""
+    # This legacy student/session ledger has no approved common UUID/current-grant bridge.
+    # Even an approved DB engine alone must not activate it. Only isolated test memory is allowed.
+    memory_demo = settings.environment == "test" and url == "sqlite+aiosqlite:///:memory:"
     return Assistant(
         campus=campus,
         retriever=KeywordRetriever(list(campus.facilities.values())),
         llm=llm,
-        engine=make_engine(url) if url else None,
+        engine=make_engine(url) if memory_demo else None,
         semester=settings.current_semester,
         rate_limit_per_min=settings.ask_rate_limit_per_min,
     )

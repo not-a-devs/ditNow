@@ -42,6 +42,13 @@ class SafeRequestMiddleware:
                     if pair[0].lower() != b"x-request-id"
                 ]
                 headers.append((b"x-request-id", request_id.encode("ascii")))
+                if scope.get("path") in {
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/logout",
+                    "/api/v1/ai/ask",
+                }:
+                    headers = [pair for pair in headers if pair[0].lower() != b"cache-control"]
+                    headers.append((b"cache-control", b"private, no-store"))
                 message = {**message, "headers": headers}
             await send(message)
 

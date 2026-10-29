@@ -1,17 +1,14 @@
-"""학번 로그인·개인 질문용 테이블을 만들고 가상 학적 데이터를 넣는다 (DB가 비어 있을 때만).
+"""격리 메모리 테스트 전용 가상 학적 초기화. 운영 migration/seed 명령이 아니다.
 
-서버 시작 시 자동 실행하지 않는다 (DEC-019). 테이블을 만들 수 있는 migration 계정으로 실행한다.
-
-    export DIT_API_ENVIRONMENT=development
-    export DIT_API_DATABASE_URL='mysql+aiomysql://ditnow_migrator:<pw>@<host>:3307/ditnow'
-    uv run --locked python -m app.seed_demo
+DEC-020의 명시적 시드 방향은 유지하지만 공통 UUID 원장·migration 승인은 별개다.
+기존 원격 자료에 legacy 테이블을 생성하거나 병합하지 않는다.
 """
 
 import asyncio
 from importlib.resources import as_file, files
 
 from chatbot.app.data_loader import load_data, load_mock_data
-from chatbot.app.db import init_db, make_engine
+from chatbot.app.db import DatabaseNotReady, init_db, make_engine
 from chatbot.app.schemas import MockData
 
 from app.core.config import Settings
@@ -24,7 +21,9 @@ def load_demo_mock() -> MockData:
 
 
 async def seed(url: str) -> bool:
-    """테이블을 만들고, 학생이 없으면 시드한다. 시드했으면 True."""
+    """폐기 가능한 canonical 메모리 DB에만 시드한다. 다른 대상은 연결 전에 거부한다."""
+    if url != "sqlite+aiosqlite:///:memory:":
+        raise DatabaseNotReady("가상 학적 초기화는 격리 SQLite 메모리 테스트에서만 허용됩니다.")
     engine = make_engine(url)
     try:
         return await init_db(engine, load_demo_mock())
@@ -36,7 +35,12 @@ def main() -> None:
     settings = Settings()
     if settings.database_url is None:
         raise SystemExit("DIT_API_DATABASE_URL이 필요합니다")
-    seeded = asyncio.run(seed(settings.database_url.get_secret_value()))
+    try:
+        seeded = asyncio.run(seed(settings.database_url.get_secret_value()))
+    except DatabaseNotReady:
+        raise SystemExit(
+            "원격 초기화는 차단되었습니다. 승인된 공통 원장 migration 절차가 필요합니다."
+        ) from None
     print("가상 학적 데이터를 넣었습니다" if seeded else "이미 데이터가 있어 시드를 건너뛰었습니다")
 
 

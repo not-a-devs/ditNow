@@ -21,7 +21,7 @@
 
 - 통합 어댑터: `services/api/app/integrations/chatbot/assistant.py`. `route`·`condense`·`load_student`·`answer_question`과 `auth`의 로그인·토큰 함수를 그대로 호출한다.
 - 계약: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `POST /api/v1/ai/ask` (자세한 내용은 `services/api/README.md`).
-- 통합 경로는 `chatbot/.env`를 읽지 않고 `DIT_API_*` 설정만 쓴다. 서버 시작 시 DDL·시드를 하지 않는다. 가상 학적 데이터(`data/mock/`)는 패키지에 포함되어 `python -m app.seed_demo`로 넣는다.
+- 통합 경로는 `chatbot/.env`를 읽지 않고 `DIT_API_*` 설정만 쓴다. 서버 시작 시 DDL·시드를 하지 않는다. 가상 학적 데이터(`data/mock/`)의 초기화는 격리 메모리 테스트에서만 허용하며 `app.seed_demo`는 원격 DB 초기화를 거부한다. 운영 학번 로그인·개인 질문은 공통 UUID/현재 권한 bridge 승인 전 503이다.
 - 기존 `app/main.py` 단독 실행 경로와 관리자 API는 통합 앱에 mount하지 않는다.
 
 ## 설치와 검증
@@ -60,7 +60,7 @@ uv run --locked pytest -q
 - 운영 스키마 변경·시드는 공통 MariaDB 마이그레이션 책임자와 별도 계정의 승인 작업이다. 기존 `students`/`auth_sessions`를 별도 원격 스키마에 새로 만들어 플랫폼 신원 원장과 이중으로 운영하는 마이그레이션은 제공하지 않는다. 통합 신원 매핑과 허용 학적 조회 계약 확정 전 이 작업은 BLOCKED다.
 - 앱 DML 계정과 마이그레이션 계정의 분리는 운영 요구사항이며, 실제 GRANT를 확인했다는 뜻이 아니다. DB 접속 비밀번호·클라우드 접속이 준비되지 않아 실제 MariaDB 접근·DDL·데이터 변경·마이그레이션은 NOT_RUN이다. 기존 인스턴스 외 새 컨테이너를 만들지 않았다.
 - DSN·LLM 키·관리자 토큰은 SecretStr로 다루며 설정 repr/JSON 출력에서 숨긴다. 메모리 테스트 엔진에도 hide_parameters를 적용한다. 정확한 `sqlite+aiosqlite:///:memory:` 이외의 연결은 승인된 공통 엔진 factory가 주입되기 전 생성 단계에서 거부한다. TLS·서버 인증서·연결/읽기/쓰기 timeout은 공통 DB 소유자의 정책을 주입해야 하며 별도 중복 드라이버 hook은 만들지 않는다. 현재 그 원격 factory는 연결하지 않았다.
-- DB 오류의 SQL·바인딩된 질문·연결 정보를 질문 감사 실패 로그에 기록하지 않는다. 기존 독립 로그인은 여전히 통합 앱에 mount하지 않는다.
+- DB 오류의 SQL·바인딩된 질문·연결 정보를 질문 감사 실패 로그에 기록하지 않는다. PR39에서 추가된 통합 로그인 라우트는 테스트 환경의 격리 메모리 DB 회귀 이외에 legacy 로그인 원장을 사용하지 않으며 실제 서버에서는 503이다. 학번 로그인 결정과 공통 사용자·학적 원장 승인 게이트를 함께 유지한다.
 
 `.env.example`의 DB 주소는 호스트/자격 증명 자리표시자와 포트 3307을 제공한다. 실제 비밀값은 저장소 밖에서 구성한다. 원격 운영 DB에 이 독립 시연의 테스트 시드를 실행하지 않는다.
 

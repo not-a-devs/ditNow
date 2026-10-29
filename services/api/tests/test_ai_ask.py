@@ -73,6 +73,7 @@ def test_wrong_password_and_bad_token_are_401(client: TestClient) -> None:
     response = client.post("/api/v1/auth/login", json={**STUDENT, "password": "wrong"})
     assert response.status_code == 401
     assert response.json()["code"] == "UNAUTHORIZED"
+    assert response.headers["cache-control"] == "private, no-store"
     assert ask(client, "내 성적", "not-a-token").status_code == 401
 
 
