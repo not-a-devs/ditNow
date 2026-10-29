@@ -36,7 +36,7 @@ def verify_password(password: str, stored: str) -> bool:
 _DUMMY_HASH = hash_password("dummy")
 
 
-def _now() -> datetime:
+def now_utc() -> datetime:
     """DB에 저장하는 UTC 시각 (timezone 정보 없이)."""
     return datetime.now(UTC).replace(tzinfo=None)
 
@@ -58,12 +58,12 @@ async def authenticate(db: AsyncSession, student_id: str, password: str) -> Stud
 async def issue_token(db: AsyncSession, student_id: str) -> str:
     """새 토큰을 발급해 DB에 저장한다. 카카오 로그인도 학생을 찾은 뒤 이 함수를 쓴다."""
     token = secrets.token_urlsafe(32)
-    await db.execute(delete(AuthSessionRow).where(AuthSessionRow.expires_at < _now()))
+    await db.execute(delete(AuthSessionRow).where(AuthSessionRow.expires_at < now_utc()))
     db.add(
         AuthSessionRow(
             token_hash=_token_hash(token),
             student_id=student_id,
-            expires_at=_now() + timedelta(seconds=SESSION_TTL_SEC),
+            expires_at=now_utc() + timedelta(seconds=SESSION_TTL_SEC),
         )
     )
     await db.commit()
@@ -73,7 +73,7 @@ async def issue_token(db: AsyncSession, student_id: str) -> str:
 async def resolve_token(db: AsyncSession, token: str) -> str | None:
     """토큰의 학번을 돌려준다. 없거나 만료되면 None."""
     row = await db.get(AuthSessionRow, _token_hash(token))
-    if row is None or row.expires_at < _now():
+    if row is None or row.expires_at < now_utc():
         return None
     return row.student_id
 

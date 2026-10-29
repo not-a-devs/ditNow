@@ -9,19 +9,28 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import text
+from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.auth import authenticate, issue_token, resolve_token, revoke_token
+from app.auth import authenticate, issue_token, now_utc, resolve_token, revoke_token
 from app.config import Settings, get_settings
 from app.data_loader import DataError, load_data, load_mock_data
 from app.db import init_db, make_engine
 from app.intents import CAMPUS, classify
 from app.llm import get_llm_client
+from app.models import QuestionLogRow
 from app.prompt import LLM_FAILURE_ANSWER
 from app.rag import answer_question
 from app.retriever.keyword import KeywordRetriever, normalize
-from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse
+from app.schemas import (
+    AskRequest,
+    AskResponse,
+    Facility,
+    LoginRequest,
+    LoginResponse,
+    QuestionLogOut,
+)
 from app.student_repo import load_student
 
 logger = logging.getLogger(__name__)
@@ -86,6 +95,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(429, "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.")
         q.append(now)
 
+    def require_admin(token: str) -> None:
+        """ADMIN_TOKEN이 맞는지 확인한다. 비어 있으면 관리자 기능은 꺼져 있다."""
+        if not settings.admin_token or not secrets.compare_digest(token, settings.admin_token):
+            raise HTTPException(403, "권한이 없어요.")
+
+    async def log_question(db: AsyncSession, question: str, res: AskResponse) -> None:
+        """질문 결과를 남긴다. 로그 실패가 답변을 막지 않게 한다."""
+        try:
+            db.add(
+                QuestionLogRow(
+                    created_at=now_utc(),
+                    question=question[:200],
+                    intent=res.intent,
+                    classified_by=res.classified_by,
+                    found=res.found,
+                    need_login=res.need_login,
+                    latency_ms=res.latency_ms,
+                )
+            )
+            await db.commit()
+        except SQLAlchemyError:
+            logger.exception("질문 로그 저장 실패")
+            await db.rollback()
+
     @app.post("/auth/login")
     async def login(body: LoginRequest, request: Request, db: DB) -> LoginResponse:
         """학번·초기 비밀번호(주민등록번호 뒷자리)로 로그인하고 토큰을 발급한다."""
@@ -146,6 +179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             student=bundle[0] if bundle else None,
             student_data=bundle[1] if bundle else None,
         )
+        await log_question(db, body.question, res)
         if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로
             app.state.cache[key] = (time.monotonic() + CACHE_TTL_SEC, res)
@@ -164,13 +198,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(404, "시설을 찾을 수 없어요.")
         return fac
 
+    @app.get("/admin/questions")
+    async def question_logs(
+        db: DB, x_admin_token: str = Header(default=""), only_failed: bool = True, limit: int = 100
+    ) -> list[QuestionLogOut]:
+        """최근 질문 로그. only_failed면 답을 못 찾은 질문(로그인 요구 제외)만."""
+        require_admin(x_admin_token)
+        query = select(QuestionLogRow).order_by(QuestionLogRow.id.desc()).limit(min(limit, 500))
+        if only_failed:
+            query = query.where(~QuestionLogRow.found, ~QuestionLogRow.need_login)
+        return [QuestionLogOut.model_validate(r) for r in await db.scalars(query)]
+
     @app.post("/admin/reload")
     def reload_data(x_admin_token: str = Header(default="")) -> dict[str, object]:
         """data/ JSON을 다시 읽는다. ADMIN_TOKEN이 비어 있으면 비활성."""
-        if not settings.admin_token or not secrets.compare_digest(
-            x_admin_token, settings.admin_token
-        ):
-            raise HTTPException(403, "권한이 없어요.")
+        require_admin(x_admin_token)
         try:
             _load_state(app, settings)
         except DataError as e:

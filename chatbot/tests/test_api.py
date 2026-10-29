@@ -82,3 +82,16 @@ def test_docs_can_send_token(client: TestClient) -> None:
     spec = client.get("/openapi.json").json()
     assert spec["components"]["securitySchemes"]["HTTPBearer"]["scheme"] == "bearer"
     assert {"HTTPBearer": []} in spec["paths"]["/ask"]["post"]["security"]
+
+
+def test_question_log(client: TestClient) -> None:
+    """질문은 로그에 남고, 관리자만 실패 질문을 볼 수 있다. 학번은 남기지 않는다."""
+    client.post("/ask", json={"question": "오늘 날씨 어때?"})
+    client.post("/ask", json={"question": "컴소과 어디야?"})
+    assert client.get("/admin/questions").status_code == 403
+    failed = client.get("/admin/questions", headers={"X-Admin-Token": "secret"}).json()
+    assert [q["question"] for q in failed] == ["오늘 날씨 어때?"]
+    every = client.get(
+        "/admin/questions", params={"only_failed": False}, headers={"X-Admin-Token": "secret"}
+    ).json()
+    assert len(every) == 2 and "student_id" not in every[0]

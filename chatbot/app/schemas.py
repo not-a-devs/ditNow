@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -181,7 +182,22 @@ class AskResponse(BaseModel):
     found: bool
     intent: str = "campus"  # campus | next_class | today_classes | remaining_credits
     need_login: bool = False  # 개인 질문인데 로그인하지 않았을 때 true
+    classified_by: str = "keyword"  # 의도를 고른 방법: keyword | llm
     latency_ms: int = 0
+
+
+class QuestionLogOut(BaseModel):
+    """/admin/questions 응답 한 건."""
+
+    model_config = {"from_attributes": True}
+
+    created_at: datetime
+    question: str
+    intent: str
+    classified_by: str
+    found: bool
+    need_login: bool
+    latency_ms: int
 
 
 class LoginRequest(BaseModel):

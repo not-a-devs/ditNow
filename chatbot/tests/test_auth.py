@@ -52,8 +52,8 @@ async def test_token_lifecycle(db: AsyncSession) -> None:
 async def test_expired_token(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
     """만료된 토큰은 무효이고, 다음 발급 때 지워진다."""
     token = await issue_token(db, "20231001")
-    later = auth._now() + timedelta(seconds=auth.SESSION_TTL_SEC + 1)
-    monkeypatch.setattr(auth, "_now", lambda: later)
+    later = auth.now_utc() + timedelta(seconds=auth.SESSION_TTL_SEC + 1)
+    monkeypatch.setattr(auth, "now_utc", lambda: later)
     assert await resolve_token(db, token) is None
     await issue_token(db, "20231001")
     assert await db.get(AuthSessionRow, auth._token_hash(token)) is None

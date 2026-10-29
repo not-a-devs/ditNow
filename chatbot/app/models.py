@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -102,3 +102,18 @@ class AuthSessionRow(Base):
         ForeignKey("students.student_id", ondelete="CASCADE"), index=True
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime)  # UTC (timezone 없음)
+
+
+class QuestionLogRow(Base):
+    """질문 로그 (커버리지 개선용). 누가 물었는지(학번)는 남기지 않는다."""
+
+    __tablename__ = "question_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
+    question: Mapped[str] = mapped_column(String(200))
+    intent: Mapped[str] = mapped_column(String(30))
+    classified_by: Mapped[str] = mapped_column(String(10))  # keyword | llm
+    found: Mapped[bool] = mapped_column(Boolean)
+    need_login: Mapped[bool] = mapped_column(Boolean)
+    latency_ms: Mapped[int] = mapped_column(Integer)
