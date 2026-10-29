@@ -10,20 +10,20 @@
 | `POST` | `/ask` | 질문 → 답변 (핵심) |
 | `GET` | `/facilities` | 시설 목록 (프론트 지도 표시용) |
 | `GET` | `/facilities/{id}` | 시설 상세 |
-| `POST` | `/admin/reload` | JSON 데이터 다시 읽기 (`ADMIN_TOKEN` 헤더 필요) |
+| `POST` | `/admin/reload` | JSON 데이터 다시 읽기 (`X-Admin-Token` 헤더 = `.env`의 `ADMIN_TOKEN`, 비어 있으면 비활성) |
 
 ## 2. `/ask` 요청·응답
 
 ```jsonc
 // 요청
-{ "question": "정보관 어디 있어?", "user_location": { "lat": 35.16, "lng": 129.07 } }  // user_location은 선택
+{ "question": "컴소과 어디 있어?", "user_location": { "lat": 35.16, "lng": 129.07 } }  // user_location은 선택
 
 // 응답
 {
-  "answer": "정보관은 본관 맞은편에 있어요. 정문에서 걸어서 약 3분 거리입니다.",
-  "sources": ["fac-info-hall"],
+  "answer": "컴퓨터소프트웨어과 학과사무실은 미래관에 있어요.",
+  "sources": ["dept_cs"],
   "locations": [
-    { "id": "fac-info-hall", "name": "정보관", "lat": 35.1662, "lng": 129.0723 }
+    { "id": "dept_cs", "name": "컴퓨터소프트웨어과", "building": "미래관", "lat": 35.1662, "lng": 129.0723 }
   ],
   "found": true,
   "latency_ms": 840
@@ -38,7 +38,8 @@
 - 앱 시작 시 `lifespan`에서 데이터 로드 → Retriever 생성 → LLMClient 생성, `app.state`에 보관합니다.
 - 엔드포인트 함수는 얇게 유지하고, 로직은 `rag.py`의 `answer_question()`에 둡니다.
 - 모든 요청·응답은 Pydantic 모델로 정의합니다.
-- `question`은 1~200자 제한, 빈 문자열은 422.
+- `question`은 1~200자 제한, 빈 문자열·특수문자만 있는 질문은 422.
+- 앱은 `create_app(settings)`로 만들고, 테스트에서는 `LLM_PROVIDER=fake` 설정을 주입합니다.
 
 ## 4. React 연동
 
@@ -57,4 +58,6 @@
 ## 5. 운영 고려
 
 - 간단한 IP당 요청 제한(분당 20회)을 미들웨어로 둡니다 — 해커톤 시연 중 LLM 비용 폭주 방지.
-- 응답 시간 목표: 평균 2초 이내. 같은 질문은 메모리 캐시(TTL 10분)로 재사용합니다.
+- 응답 시간 목표: 평균 2초 이내. 같은 질문(정규화 기준)은 메모리 캐시(TTL 10분)로 재사용합니다.
+  - 캐시 응답은 요청 제한에 세지 않고, LLM 실패 응답은 캐시하지 않습니다.
+- 요청 제한·캐시는 프로세스 메모리에 있으므로 **워커 1개(단일 프로세스)** 를 전제로 합니다.
