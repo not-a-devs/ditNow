@@ -91,7 +91,9 @@ export default function ClassroomsPage() {
         method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }, signal: controller.signal,
       });
     } catch (error) {
-      if (error instanceof ApiError && [401, 403].includes(error.status)) setWorkspace(null);
+      if (!controller.signal.aborted && error instanceof ApiError && [401, 403].includes(error.status)) {
+        setError(errorMessage(error)); setWorkspace(null);
+      }
       throw error;
     } finally { writes.current.delete(controller); if (!controller.signal.aborted) setBusy(false); }
   };

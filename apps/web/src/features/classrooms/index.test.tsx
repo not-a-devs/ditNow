@@ -62,6 +62,15 @@ describe('classroom first-pass screen', () => {
     expect(isWorkspace({ ...workspace, questions: [{ author_id: 'private' }] })).toBe(false);
     expect(isWorkspace({ ...workspace, materials: [{ id: assignment.id, title: '자료', description: '', status: 'published', public_reference_url: 'javascript:alert(1)' }] })).toBe(false);
   });
+  it.each([401, 403])('clears private workspace and keeps the permission failure visible: %i', async status => {
+    await openWorkspace();
+    vi.mocked(requestData).mockRejectedValueOnce(new ApiError(status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN', status));
+    fireEvent.change(screen.getByLabelText('시연 텍스트 과제'), { target: { value: '내 시연 제출' } });
+    fireEvent.click(screen.getByRole('button', { name: '시연 과제 제출' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(status === 401 ? '로그인이 필요한' : '접근할 권한');
+    expect(screen.queryByLabelText('시연 텍스트 과제')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('교수에게 질문')).not.toBeInTheDocument();
+  });
   it('cancels pending reads on unmount', async () => {
     let signal: AbortSignal | undefined;
     vi.mocked(requestData).mockImplementationOnce((_path, init) => { signal = init?.signal as AbortSignal; return new Promise(() => {}); });
