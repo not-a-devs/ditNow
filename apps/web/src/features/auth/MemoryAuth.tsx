@@ -13,7 +13,7 @@ export function isCurrentUser(value: unknown): value is CurrentUser {
   const v = value as Record<string, unknown>;
   return Object.keys(v).every(key => ['user_id', 'display_name', 'record_source', 'department_id', 'department_code', 'academic_year', 'community_access'].includes(key))
     && uuid(v.user_id) && uuid(v.department_id) && text(v.display_name, 200) && text(v.department_code, 50)
-    && Number.isInteger(v.academic_year) && Number(v.academic_year) > 0 && Number(v.academic_year) <= 20
+    && Number.isSafeInteger(v.academic_year) && Number(v.academic_year) > 0
     && v.record_source === 'DEMO' && typeof v.community_access === 'boolean';
 }
 type Phase = 'signed_out' | 'checking' | 'authenticated' | 'expired' | 'error';

@@ -41,6 +41,7 @@ function secureTokenDestination(url: string) {
 export function resolveApiUrl(path: string, configuredBase = import.meta.env.VITE_API_BASE_URL ?? ''): string {
   const origin = window.location.origin;
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')
+    || /(?:^|\/)\.{1,2}(?:\/|$)/.test(path.split('?')[0])
     || /%(?:2e|2f|5c)/i.test(path.split('?')[0])) {
     throw new ApiError('CONFIGURATION', 0);
   }

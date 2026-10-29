@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerAuthentication, requestData, requestSessionLogout, type AuthenticationBridge } from './api';
+import { isCurrentUser } from '../features/auth/MemoryAuth';
 let release: (() => void) | undefined;
 afterEach(() => { release?.(); release = undefined; vi.unstubAllEnvs(); });
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(status === 200 ? { data } : { code: 'UNAUTHORIZED', message: 'private-secret' }), { status });
@@ -10,6 +11,15 @@ function owner(verified = true) {
   return { denied, change: () => { session = { generation: 2, token: 'token.B', verified: true }; } };
 }
 describe('single memory authentication transport', () => {
+  it.each(['/anonymous-posts/../health', '/anonymous-posts/./id', '/recruitments/../opportunities'])('rejects literal path normalization before injecting credentials: %s', async path => {
+    owner(); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    await expect(requestData(path)).rejects.toMatchObject({ code: 'CONFIGURATION' }); expect(fetch).not.toHaveBeenCalled();
+  });
+  it('does not invent an academic year cap and still rejects unsafe numbers', () => {
+    const current = { user_id: '10000000-0000-4000-8000-000000000001', display_name: 'DEMO', record_source: 'DEMO', department_id: '20000000-0000-4000-8000-000000000001', department_code: 'DEMO', academic_year: 21, community_access: true };
+    expect(isCurrentUser(current)).toBe(true);
+    for (const academic_year of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) expect(isCurrentUser({ ...current, academic_year })).toBe(false);
+  });
   it('injects only protected paths, preserves API prefix, strips caller credentials', async () => {
     owner(); const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({}))); vi.stubGlobal('fetch', fetch);
     await requestData('/anonymous-posts?limit=20', { headers: { authorization: 'Bearer attacker', 'Idempotency-Key': 'intent-1' } });

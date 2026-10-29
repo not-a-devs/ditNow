@@ -16,6 +16,7 @@
 2. 새 `GET /api/v1/auth/me`의 `user_id/display_name/record_source/department_id/department_code/academic_year/community_access`를 검사해야 보호 모듈을 연다. `/auth/me` 대기 중에는 다른 보호 요청을 보내지 않는다. 503·손상 응답은 로그인 성공이 아니다.
 3. 서버가 각 요청의 현재 권한·소유권을 결정한다. `community_access`는 화면 안내만 제어하며 인가 근거가 아니다. 토큰·비밀번호는 저장소·URL·로그에 남기지 않으며 새로고침하면 로그인이 해제된다.
 4. `requestData` 한곳에서 보호 경로에만 Authorization을 주입한다. 공개 조회는 호출자가 제공한 Authorization도 제거한다. 보호 전송은 no-store/omit credentials/no redirect/no referrer, HTTPS 또는 loopback HTTP만 허용한다.
+   독립 검토에서 발견된 raw 경로와 URL 정규화 차이를 막기 위해 literal `.`/`..` segment도 접속 전에 거부한다. 학년에는 학교 정책처럼 임의 상한20을 두지 않고 안전하게 표현 가능한 양의 정수만 검사한다.
 5. 로그아웃은 먼저 메모리와 개인 화면·초안을 폐기하고 진행 중 요청을 취소한다. 폐기는 캡처한 이전 토큰으로만 요청한다. 서버 폐기 실패는 로컬 로그아웃과 구분하며 이전 계정의 늦은 결과가 새 계정을 변경하지 못한다.
 6. 보호 응답 401/403은 현재 세션의 개인 하위 화면 전체를 제거한다. 요청 세대·AbortSignal·layout cleanup과 동기 busy guard로 StrictMode·동시 제출·unmount·계정 전환 뒤 응답·재조회를 차단한다. Abort는 이미 서버가 처리한 쓰기를 되돌린다는 보장이 아니다.
 
@@ -33,6 +34,7 @@
 | `npm ci` | PASS, 잠금 설치 |
 | `npx vitest run src/lib/auth-transport.test.ts src/features/auth src/features/community src/features/opportunities src/App.test.tsx` | PASS, 8파일84개(새 App 통합 테스트 추가 전 체크포인트) |
 | `npx vitest run src/App.auth.test.tsx` | PASS, 최종9개. 이전 계정의 늦은 logout 403이 새 계정을 해제하지 않는 회귀 포함 |
+| `npx vitest run src/lib/auth-transport.test.ts src/App.auth.test.tsx` | 독립 검토 보완 후 PASS, 2파일22개(공통 전송13 + App9). literal dot path3·학년 계약1 회귀 추가 |
 | `npm run test` | PASS, 32파일410개(후속 logout 회귀 추가 전 체크포인트) |
 | `npm run typecheck`, `npm run build` | PASS |
 | `npm audit --audit-level=moderate` | PASS, 취약점0 |
