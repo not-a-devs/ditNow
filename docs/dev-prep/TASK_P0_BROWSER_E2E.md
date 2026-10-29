@@ -1,5 +1,7 @@
 # TASK-BROWSER-E2E — P0 공통 로그인→3대 CRUD 브라우저 하네스
 
+> **최신 실행:** 사용자 승인 `DITNOW-P0-DEMO-20261030`으로 실제 생성·로컬 HTTP·390/1280 브라우저와 정리를 수행했다. [실행 SHA·결과](TASK_P0_APPROVED_LIVE_E2E.md)를 따른다. 아래 미실행·승인 대기는 원본 도구 작성 당시 이력이며 운영 배포 승인이 아니다.
+
 > 상태: `review` (하네스 구현). **실제 2계정 브라우저 실행은 NOT_RUN** — root가 로컬 apps/web·API·DEMO 계정을 준비한 뒤에만 실행한다.
 > 이 문서와 하네스의 stage PASS는 root 검토용 증거일 뿐이며 VERIFIED·실DB 완료 주장이 아니다.
 

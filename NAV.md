@@ -14,6 +14,7 @@
 - MariaDB 11.4의 팀원 VM·Tailscale·DML/migration 계정 분리와 실제 연결 검사/차단은 `docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md`다. 프로젝트 내부 DB 컨테이너를 중복 생성하지 않는다.
 - 최신 원격 TLS·25개 테이블·합성 키 충돌의 읽기 전용 재검증과 바이트 파라미터 호환 보완은 `docs/dev-prep/TASK_MARIADB_LIVE_REVALIDATION.md`다. 계정 생성·업무 E2E·배포 승인과 구분한다.
 - 실제 계정 생성 전 승인·충돌·audit UUID 절차는 `docs/dev-prep/TASK_DEMO_ACCOUNT_APPROVAL.md`, 계정 없는 HTTP/브라우저 사전 점검은 `docs/dev-prep/TASK_LOCAL_E2E_PREFLIGHT.md`, HTTPS·서버·비밀 주입과 배포 승인 준비는 `docs/dev-prep/TASK_DEPLOYMENT_PREPARATION.md`를 따른다.
+- 승인 DITNOW-P0-DEMO-20261030의 실제 16행 생성·두 감사 pin·로그인/핵심 3CRUD·HTTP/390·1280 E2E 및 잔여 DB·세션 정리 결과는 `docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md`다. 운영 배포·전체 92개 완료와 구분한다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점

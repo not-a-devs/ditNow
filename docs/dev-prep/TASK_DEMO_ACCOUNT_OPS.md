@@ -1,5 +1,7 @@
 # TASK-DEMO-ACCOUNT-OPS — 가상 DEMO 학생 2계정 운영자 생성 CLI
 
+> **최신 실행:** 사용자 승인 `DITNOW-P0-DEMO-20261030`으로 실제 생성·로컬 HTTP·390/1280 브라우저와 정리를 수행했다. [실행 SHA·결과](TASK_P0_APPROVED_LIVE_E2E.md)를 따른다. 아래 미실행·승인 대기는 원본 도구 작성 당시 이력이며 운영 배포 승인이 아니다.
+
 - 상태: review (코드·오프라인 테스트만). **실DB 실행·계정 생성은 NOT_RUN**이며 사람 승인 + root 절차 전 실행 금지.
 - 기준 브랜치: `7f7eabb` (승인 대기 PR13/19/26/37/54/58/48/49/28 포함, main 미병합).
 - 소유 파일: `services/api/app/operations/__init__.py`, `services/api/app/operations/demo_accounts.py`, `services/api/tests/test_demo_accounts.py`, 이 문서.

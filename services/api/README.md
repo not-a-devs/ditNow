@@ -1,5 +1,7 @@
 # DIT NOW FastAPI 기반
 
+**최신 실제 검증(2026-10-30):** 승인 `DITNOW-P0-DEMO-20261030`으로 공통 로그인·현재 canonical 신원·익명 글·실명 모집·개인 준비의 실제 HTTP 및 신규 웹 390/1280 E2E를 strict TLS 원격 MariaDB에서 통과했다. [실행 SHA·범위·정리 증거](../../docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md)를 따른다. 아래 TASK-B/F/DB-CONFIG의 미연결·승인 대기 서술은 당시 작업 기록이다. 현재는 검토한 감사 pin·P0 runtime/schema flag·DIT_API_DB_*를 모두 갖춘 경우에만 strict engine을 실제 보호 라우터에 연결하며 기본은 차단한다. 개인 학적 RAG·외부 LLM·운영 배포는 이번 검증에 포함하지 않았다.
+
 TASK-B · NFR-SEC-004/005, NFR-PRIV-003, NFR-REL-004, NFR-OPS-001/002의 기반 코드다. 공개 `/health`, `/api/v1/health`는 프로세스 생존만 확인한다. 인증·DB·학생 CRUD는 아직 구현되지 않았으며 DB 준비 성공으로 표시하지 않는다. 최종 프런트는 별도 신규 앱이며 `mvp/`는 사전 프로토타입으로 보존하고 최종 서비스·시연·제출에서 제외한다. 해당 코드를 새 앱에 복사하지 않는다.
 
 TASK-F는 [기존 챗봇](../../chatbot/README.md)의 검색기를 통합 API의 `GET /api/v1/ai/campus/search`에 연결한다. 시설 스냅샷 검색만 제공하며 별도 시연 로그인·관리자 API·학생 DB·LLM을 실행하지 않는다. 검색 결과의 공식 출처·최신성은 UNKNOWN이며 개인정보 질문과 전체 AI 브리핑의 완료를 뜻하지 않는다.

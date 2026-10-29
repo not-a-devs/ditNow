@@ -1,5 +1,7 @@
 # TASK-P0-SECURITY-E2E — 승인된 로컬 서버 2계정 HTTP 검증기
 
+> **최신 실행:** 사용자 승인 `DITNOW-P0-DEMO-20261030`으로 실제 생성·로컬 HTTP·390/1280 브라우저와 정리를 수행했다. [실행 SHA·결과](TASK_P0_APPROVED_LIVE_E2E.md)를 따른다. 아래 미실행·승인 대기는 원본 도구 작성 당시 이력이며 운영 배포 승인이 아니다.
+
 - 상태: **TESTED (오프라인 HTTP 모의 회귀)**. 실제 HTTP·MariaDB·계정 생성·업무 CRUD는 **NOT_RUN**.
 - 기준: `7f7eabbb44f09caeaac79798baab8a69485ab453`. 서버 통합 담당자가 추가하는 `/auth/me` 및 모집 논리 취소 DELETE 계약을 검사하며 서버를 구현하거나 활성화하지 않는다.
 - 소유: `services/api/scripts/verify_p0_security.py`, `services/api/tests/test_p0_security_check.py`, 이 문서. 공통 인증·설정·DB·라우터·프런트는 변경하지 않는다.
