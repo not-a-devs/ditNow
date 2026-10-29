@@ -1,7 +1,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import SecretStr, field_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,3 +50,10 @@ class Settings(BaseSettings):
             except ValueError:
                 raise ValueError("CORS origin port is invalid") from None
         return list(dict.fromkeys(origins))
+
+    @model_validator(mode="after")
+    def reject_fake_llm_outside_test(self) -> "Settings":
+        # 가짜 LLM은 테스트 대역이다. 개발·운영에서 실제 AI 답변처럼 내보내지 않는다
+        if self.llm_provider == "fake" and self.environment != "test":
+            raise ValueError("fake LLM provider is allowed only in the test environment")
+        return self

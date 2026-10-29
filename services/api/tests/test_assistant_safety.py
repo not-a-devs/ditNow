@@ -27,7 +27,8 @@ from app.seed_demo import seed
 def test_no_legacy_db_activation_without_common_identity_bridge(monkeypatch, environment, url):
     factory = Mock(side_effect=AssertionError("must not construct legacy engine"))
     monkeypatch.setattr(assistant_module, "make_engine", factory)
-    settings = Settings(environment=environment, database_url=SecretStr(url), llm_provider="fake")
+    # The fake LLM is test-only (F-04); token-bearing /ai/ask still fails closed before any LLM.
+    settings = Settings(environment=environment, database_url=SecretStr(url))
     with TestClient(create_app(settings)) as client:
         assert client.get("/health").status_code == 200
         for path, body, headers in [

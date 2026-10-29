@@ -18,9 +18,11 @@ TASK-F는 [기존 챗봇](../../chatbot/README.md)의 검색기를 통합 API의
 
 서버 시작 시 테이블·시드를 만들지 않는다. `app.seed_demo`도 정확한 격리 메모리 DB 이외의 대상은 연결 전에 거부한다. 원격 DB가 비어 있다고 추정하거나 legacy `students`·`auth_sessions`를 플랫폼에 생성하는 명령이 아니다. DEC-020의 학번 로그인 및 명시적 시드 방향은 유지하되, 공통 UUID·현재 계정/학적 검증 bridge와 승인된 migration 소유자의 대상·버전·최소 권한·엄격 TLS 확인은 후속 승인 게이트다. 앱 설정에 migration 계정 비밀값을 넣어 실행하지 않는다.
 
-`/auth/login`, `/auth/logout`, `/ai/ask`의 성공·검증 실패·인증 실패·요청 제한·내부 오류 응답은 `Cache-Control: private, no-store`다. AI 요청 제한은 토큰 DB 조회 전에 적용한다. 과거 standalone 학번 토큰은 공통 UUID 인증으로 승인된 것이 아니며, 실서버에서 임시 fallback으로 사용하지 않는다. 상세 재현과 미검증 범위는 [PR39 후속 보안 검토](../../docs/dev-prep/PR39_AUTH_DB_SAFETY_REVIEW.md)를 본다.
+`/auth/*`, `/ai/ask` 경로 트리의 성공·검증 실패·인증 실패·요청 제한·내부 오류·404·후행 슬래시 응답은 `Cache-Control: private, no-store`다. ASGI `root_path`(프록시 접두사·mount)를 뺀 route 기준 경로로 판정한다. AI 요청 제한은 토큰 DB 조회 전, 로그아웃 제한은 토큰 폐기 전에 같은 IP별 한도로 적용한다. `LLM_PROVIDER=fake`는 `ENVIRONMENT=test`에서만 허용하고 그 외 환경은 시작을 거부한다. 챗봇 LLM 설정은 위 `DIT_API_LLM_*` 값만 생성자 인자로 받으며, 접두사 없는 `DATABASE_URL`·`DB_AUTO_INIT`·`ADMIN_TOKEN` 같은 프로세스 환경 변수나 `.env`를 읽지 않는다. LLM 실패 로그에는 예외 종류만 남긴다. 과거 standalone 학번 토큰은 공통 UUID 인증으로 승인된 것이 아니며, 실서버에서 임시 fallback으로 사용하지 않는다. 상세 재현과 미검증 범위는 [PR39 후속 보안 검토](../../docs/dev-prep/PR39_AUTH_DB_SAFETY_REVIEW.md)와 [PR28 독립 보안 리뷰 수정 기록](../../docs/dev-prep/PR28_CLAUDE_SECURITY_REVIEW.md)을 본다.
 
-테스트는 가짜 LLM과 메모리 SQLite로 실행하며 외부 LLM·MariaDB를 호출하지 않는다(`tests/test_ai_ask.py`). 요청 제한은 프로세스 메모리 기준이라 워커 1개를 전제한다.
+**현재 상태:** 학번 로그인과 토큰 개인 질문은 `test` 환경의 격리 메모리 회귀 외 모든 환경에서 의도된 503(fail-closed)이며 동작하는 서비스가 아니다. 이는 DEC-020이 승인한 운영 경로(학번 로그인, migration 계정의 `app.seed_demo` 명시 실행)를 공통 bridge 전까지 임시로 좁힌 것이며, 사람의 명시적 확인이 대기 중이다. 결정 자체를 바꾸거나 승인된 것으로 간주하지 않는다.
+
+테스트는 가짜 LLM과 메모리 SQLite로 실행하며 외부 LLM·MariaDB를 호출하지 않는다(`tests/test_ai_ask.py`). 요청 제한은 프로세스 메모리 기준이라 워커 1개를 전제하며, `request.client.host`만 사용하고 `X-Forwarded-For`를 신뢰하지 않는다. 신뢰 프록시 IP 추출·만료 저장소·분산 제한은 배포 전 게이트다.
 
 ## 실행과 검증
 
