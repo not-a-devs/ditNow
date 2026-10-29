@@ -74,7 +74,7 @@ DIT NOW 통합 플랫폼(FastAPI 백엔드 + RAG 챗봇)이 함께 쓰는 MariaD
 | `ditnow_migrator` | `DB_USER_HOST` (Docker 네트워크) | `ditnow`, `ditnow_chatbot` 전체 (GRANT 불가) | 5 |
 | `ditnow_app` | 〃 | `ditnow` SELECT/INSERT/UPDATE/DELETE, `ditnow_chatbot` SELECT | 50 |
 | `ditnow_chatbot` | 〃 | `ditnow_chatbot` SELECT/INSERT/UPDATE/DELETE, `ditnow` SELECT | 20 |
-| `ditnow_backup` | 컨테이너 내부 localhost만 | 전역 SELECT, SHOW VIEW, TRIGGER, LOCK TABLES, EVENT | – |
+| `ditnow_backup` | 컨테이너 내부 localhost만 | `ditnow`, `ditnow_chatbot`에 SELECT, SHOW VIEW, TRIGGER, LOCK TABLES, EVENT, SHOW CREATE ROUTINE (`mysql` 시스템 스키마 접근 불가) | – |
 
 - 애플리케이션(`ditnow_app`)은 **DDL(CREATE/ALTER/DROP) 불가**. 스키마 변경은 `ditnow_migrator`로만.
 - 챗봇은 사용자/권한을 **읽기만** 하고, 자체 데이터는 `ditnow_chatbot`에만 씀 → 신원 원장은 `ditnow` 하나로 유지.
@@ -242,6 +242,11 @@ docker compose ps                   # STATUS가 "healthy"가 될 때까지 대�
 scripts/provision.sh                # "provisioned" 출력. 여러 번 실행해도 안전
 ```
 
+`provision.sh`는 실행할 때마다 각 서비스 계정의 권한을 **REVOKE 후 이 스크립트에 적힌 권한만 다시 GRANT**합니다.
+수동으로 추가한 권한은 사라지므로, 권한 변경은 반드시 스크립트를 수정해서 반영하세요.
+`DB_USER_HOST`가 바뀌면 같은 이름의 이전 호스트 계정(`dropping stale account ...`로 출력)을 삭제합니다.
+비밀번호가 비었거나 `CHANGE_ME`이거나 16자 미만이면 아무것도 바꾸지 않고 중단합니다.
+
 ### 5.5 설정 확인
 
 ```sh
@@ -313,7 +318,7 @@ scripts/db-root.sh -e "SELECT * FROM ditnow_infra_test.persist_check;"
 
 ```sh
 scripts/backup.sh                   # backups/ditnow_<시각>.sql.gz 생성
-scripts/restore-test.sh             # 최신 백업 → ditnow_restore_test* 복원, 테이블 수 출력 후 정리
+scripts/restore-test.sh             # 최신 백업 → ditnow_restore_test* 복원, 테이블별 COUNT(*)·CHECKSUM을 운영 DB와 비교(MATCH/DIFF) 후 정리
 ls -l backups/                      # -rw------- 인지 확인
 ```
 
@@ -493,11 +498,18 @@ scripts/export-role-env.sh <DB_HOST> 3307
 
 root 비밀번호 교체는 컨테이너 환경 변수와 실제 계정을 함께 바꿔야 합니다.
 
+새 비밀번호는 `read -rs`로 입력받아 셸 내장 `printf`로 stdin에 넘깁니다. 명령행 인자(`ps`)와 셸 히스토리에 남지 않습니다.
+
 ```sh
-scripts/db-root.sh -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '<새 비밀번호>';"   # 실행 후 셸 히스토리 정리
-# .env의 DB_ROOT_PASSWORD 갱신 후
+read -rs -p "new root password: " NEWPW; echo
+printf "ALTER USER 'root'@'localhost' IDENTIFIED BY '%s';\n" "$NEWPW" | scripts/db-root.sh
+unset NEWPW
+# .env의 DB_ROOT_PASSWORD를 같은 값으로 편집기에서 갱신한 뒤
 docker compose up -d                # 컨테이너 재생성(데이터 유지)으로 새 값 반영
+scripts/db-root.sh -e "SELECT 1"    # 새 값으로 접속 확인
 ```
+
+비밀번호에는 `'`와 `\`를 쓰지 않습니다(SQL 문자열에 그대로 들어가므로 스크립트가 거부합니다).
 
 ---
 
