@@ -139,6 +139,10 @@
 
 ## 8. root 진행표 갱신 제안 (직접 수정하지 않음)
 
+### 독립 리뷰 후 늦은 권한 오류 보완
+
+root는 이전 개인 패널이 사라진 뒤 도착한 401/403이 새 패널까지 차단하는 재현을 수정했다. 각 읽기 요청은 화면 생존 여부와 요청 세대를 함께 검사하고, StrictMode의 재설정 뒤에도 과거 세대를 폐기한다. 현재 요청의 403은 계속 상위 권한 처리로 전달한다. 새 회귀4개와 기존 careers 합계40개·타입·빌드 PASS, Codex F가 수정 diff와 회귀4개를 읽기 전용으로 독립 재검증해 잔여 차단 finding 없음. 최종 Push 후 CI는 해당 새 HEAD에서 별도로 확인한다. 인증 정책·서버·DB 코드는 변경하지 않았다.
+
 FR-JOB-001~004·FR-OPP-005·FR-OPP-006: main 기준 `NOT_IMPLEMENTED` 유지가 맞고, 병합 시 `PARTIAL`(frontend=미mount 모듈, fastapi=미mount router, mariadb=NOT_RUN, tests=단위/HTTP/RTL PASS), work_branch=`feat/careers-programs-firstpass-20261030`, work_scope는 위 §3·§4. 실제 기능 VERIFIED는 공통 인증·MariaDB adapter·2계정 통합·브라우저 검증 이후.
 
 다음 실행 가능 태스크: root의 공통 auth/UOW adapter 승인 후 `create_careers_router` mount 및 `ContestTeamLinkVisibility`를 community에 주입하는 통합 PR, MariaDB 테이블 제안(career_profiles·program_applications·employer_requests·idempotency claims)을 A 소유자에게 전달.

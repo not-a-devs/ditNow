@@ -40,7 +40,7 @@ function useFailure(area: PrivateArea, onAuthError: AuthHandler, alive: MutableR
   const [failure, setFailure] = useState<Failure>(null);
   const fail = useCallback(
     (error: unknown) => {
-      // A late 401/403 still reaches the parent: it can only remove more, never show data.
+      if (!alive.current) return;
       if (authCode(error)) onAuthError(area, error);
       else if (alive.current) setFailure({ ...describeError(error), conflict: error instanceof ApiError && error.status === 409 });
     },
@@ -66,17 +66,20 @@ export function ProfilePanel({ onAuthError }: { onAuthError: AuthHandler }) {
   const [notice, setNotice] = useState<string | null>(null);
   const alive = useAlive();
   const { failure, setFailure, fail } = useFailure('profile', onAuthError, alive);
+  const loadGeneration = useRef(0);
   const intent = useRef(new api.IntentKey('profile'));
 
   const load = useCallback(() => {
+    const generation = ++loadGeneration.current;
     setProfile({ state: 'loading' });
     api.getProfile().then(
       (data) => {
-        if (!alive.current) return;
+        if (!alive.current || generation !== loadGeneration.current) return;
         setProfile({ state: 'ready', data });
         setForm(toForm(data));
       },
       (error) => {
+        if (!alive.current || generation !== loadGeneration.current) return;
         if (authCode(error)) onAuthError('profile', error);
         else if (alive.current) setProfile({ state: 'error', ...describeError(error) });
       },
@@ -234,14 +237,17 @@ function ProgramApplications({ programs, onAuthError }: { programs: Program[] | 
   const [notice, setNotice] = useState<string | null>(null);
   const alive = useAlive();
   const { failure, setFailure, fail } = useFailure('applications', onAuthError, alive);
+  const loadGeneration = useRef(0);
   const intents = useRef(new Map<string, api.IntentKey>());
 
   const loadMine = useCallback(() => {
     if (!alive.current) return;
+    const generation = ++loadGeneration.current;
     setMine({ state: 'loading' });
     api.listApplications().then(
-      (data) => alive.current && setMine({ state: 'ready', data }),
+      (data) => alive.current && generation === loadGeneration.current && setMine({ state: 'ready', data }),
       (error) => {
+        if (!alive.current || generation !== loadGeneration.current) return;
         if (authCode(error)) onAuthError('applications', error);
         else if (alive.current) setMine({ state: 'error', ...describeError(error) });
       },
@@ -338,14 +344,17 @@ export function EmployerDraftPanel({ onAuthError }: { onAuthError: AuthHandler }
   const [notice, setNotice] = useState<string | null>(null);
   const alive = useAlive();
   const { failure, setFailure, fail } = useFailure('employer', onAuthError, alive);
+  const loadGeneration = useRef(0);
   const intent = useRef(new api.IntentKey('draft'));
 
   const load = useCallback(() => {
     if (!alive.current) return;
+    const generation = ++loadGeneration.current;
     setDrafts({ state: 'loading' });
     api.listEmployerDrafts().then(
-      (data) => alive.current && setDrafts({ state: 'ready', data }),
+      (data) => alive.current && generation === loadGeneration.current && setDrafts({ state: 'ready', data }),
       (error) => {
+        if (!alive.current || generation !== loadGeneration.current) return;
         if (authCode(error)) onAuthError('employer', error);
         else if (alive.current) setDrafts({ state: 'error', ...describeError(error) });
       },
