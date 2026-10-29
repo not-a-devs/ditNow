@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth import authenticate, issue_token, now_utc, resolve_token, revoke_token
 from app.config import Settings, get_settings
+from app.conversation import condense
 from app.data_loader import DataError, load_data, load_mock_data
 from app.db import init_db, make_engine
 from app.intents import CAMPUS, route
@@ -107,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 QuestionLogRow(
                     created_at=now_utc(),
                     question=question[:200],
+                    rewritten_question=res.rewritten_question,
                     intent=res.intent,
                     classified_by=res.classified_by,
                     found=res.found,
@@ -155,23 +157,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/ask")
     async def ask(body: AskRequest, request: Request, creds: Credentials, db: DB) -> AskResponse:
-        """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다."""
+        """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다.
+
+        history가 있으면 후속 질문('거기 몇 시까지 해?')을 완전한 질문으로 바꿔 처리한다.
+        """
         student_id = await current_student_id(db, creds)
-        key = " ".join(normalize(body.question).split())
-        if not key:
+        if not normalize(body.question).strip():
             raise HTTPException(422, "질문을 입력해 주세요.")
+        question = body.question
+        rewritten = None
+        if body.history:
+            check_rate_limit(request)  # 재작성도 LLM 호출이라 캐시보다 먼저 센다
+            question = await condense(body.history, body.question, app.state.llm)
+            rewritten = question if question != body.question else None
+        # 캐시 키는 실제로 처리할 질문 기준 (같은 '거기 몇 시까지?'도 대화마다 다르다)
         # 캐시에는 교내 정보 답변만 들어 있어 학생 간에 개인 정보가 섞이지 않는다
+        key = " ".join(normalize(question).split())
         cached = app.state.cache.get(key)
         if cached and cached[0] > time.monotonic():
-            return cached[1]
-        check_rate_limit(request)
-        intent = await route(body.question, app.state.retriever, app.state.llm)
+            return cached[1].model_copy(update={"rewritten_question": rewritten})
+        if not body.history:
+            check_rate_limit(request)
+        intent = await route(question, app.state.retriever, app.state.llm)
         # 교내 질문이면 학생 데이터를 읽지 않는다 (DB 조회 절약)
         bundle = None
         if student_id and intent.name != CAMPUS:
             bundle = await load_student(db, student_id, settings.current_semester)
         res = await answer_question(
-            body.question,
+            question,
             retriever=app.state.retriever,
             llm=app.state.llm,
             data=app.state.data,
@@ -181,6 +194,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             student_data=bundle[1] if bundle else None,
             intent=intent,
         )
+        res.rewritten_question = rewritten
         await log_question(db, body.question, res)
         if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로

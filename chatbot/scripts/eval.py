@@ -17,15 +17,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.config import Settings, get_settings  # noqa: E402
+from app.conversation import condense  # noqa: E402
 from app.data_loader import load_data, load_mock_data  # noqa: E402
 from app.db import init_db, make_engine  # noqa: E402
+from app.intents import CAMPUS  # noqa: E402
 from app.llm import LLMClient, get_llm_client  # noqa: E402
 from app.llm.fake_client import FakeLLMClient  # noqa: E402
 from app.personal import KST  # noqa: E402
 from app.prompt import NOT_FOUND_MARKER  # noqa: E402
 from app.rag import answer_question  # noqa: E402
 from app.retriever.keyword import KeywordRetriever  # noqa: E402
-from app.schemas import CampusData  # noqa: E402
+from app.schemas import CampusData, Turn  # noqa: E402
 from app.student_repo import load_student  # noqa: E402
 
 RECALL_TARGET = 0.9
@@ -76,9 +78,9 @@ async def main(with_llm: bool) -> int:
     intent_acc = intent_ok / n_personal if n_personal else 1.0
     summary = [
         f"- Recall@3: **{recall:.2f}** ({recall_hits}/{recall_total}, 목표 {RECALL_TARGET})",
-        f"- 개인 질문 의도 정확도: **{intent_acc:.2f}** ({intent_ok}/{n_personal}, "
+        f"- 개인·후속 질문 의도 정확도: **{intent_acc:.2f}** ({intent_ok}/{n_personal}, "
         f"목표 {RECALL_TARGET})",
-        f"- 개인 질문 통과: {personal_ok}/{n_personal}",
+        f"- 개인·후속 질문 통과: {personal_ok}/{n_personal}",
     ]
     if llm is not None:
         summary += [
@@ -98,7 +100,7 @@ async def main(with_llm: bool) -> int:
             "|---|---|---|---|---|",
             *rows,
             "",
-            f"## 개인 질문 (기준 시각 {EVAL_NOW:%Y-%m-%d %a %H:%M} KST)",
+            f"## 개인·후속 질문 (기준 시각 {EVAL_NOW:%Y-%m-%d %a %H:%M} KST)",
             "",
             "| | 학번 | 질문 | 의도 | 근거 | 확인 |",
             "|---|---|---|---|---|---|",
@@ -131,8 +133,12 @@ async def _eval_personal(
     cases = [c for c in cases if llm is not None or not c.get("needs_llm")]
     for c in cases:
         bundle = await load_student(db, c["student_id"], SEMESTER) if c["student_id"] else None
+        question = c["question"]
+        if c.get("history"):  # 후속 질문: /ask처럼 먼저 완전한 질문으로 바꾼다
+            turns = [Turn(**t) for t in c["history"]]
+            question = await condense(turns, question, llm or FakeLLMClient())
         res = await answer_question(
-            c["question"],
+            question,
             retriever=retriever,
             llm=llm or FakeLLMClient(),
             data=data,
@@ -145,10 +151,13 @@ async def _eval_personal(
             problems.append(f"의도 {res.intent}")
         else:
             intent_ok += 1
-        if bundle is None and not res.need_login:
+        if bundle is None and c["expect_intent"] != CAMPUS and not res.need_login:
             problems.append("로그인 요구 안 함")
         if c["expect_ids"] and not set(c["expect_ids"]) & set(res.sources):
             problems.append(f"근거 {res.sources}")
+        missing_rw = [t for t in c.get("expect_rewrite", []) if t not in question]
+        if missing_rw:
+            problems.append(f"재작성 '{question}'에 {missing_rw} 없음")
         # 'A|B'는 같은 뜻의 다른 표기 (예: 10:00|10시)
         missing = [t for t in c["expect_text"] if not any(a in res.answer for a in t.split("|"))]
         if llm is not None and missing:
@@ -162,7 +171,8 @@ async def _eval_personal(
         passed += not problems
         mark = "✅" if not problems else "❌"
         rows.append(
-            f"| {mark} | {c['student_id'] or '(비로그인)'} | {c['question']} | {res.intent} "
+            f"| {mark} | {c['student_id'] or '(비로그인)'} | {c['question']}"
+            f"{f' → {question}' if question != c['question'] else ''} | {res.intent} "
             f"| {', '.join(res.sources)} | {'; '.join(problems)} |"
         )
     await db.close()

@@ -128,6 +128,7 @@ class QuestionLogRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # UTC
     question: Mapped[str] = mapped_column(String(200))
+    rewritten_question: Mapped[str | None] = mapped_column(String(200), default=None)  # 후속 질문
     intent: Mapped[str] = mapped_column(String(30))
     classified_by: Mapped[str] = mapped_column(String(10))  # keyword | llm
     found: Mapped[bool] = mapped_column(Boolean)

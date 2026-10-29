@@ -182,11 +182,19 @@ class UserLocation(BaseModel):
     lng: float
 
 
+class Turn(BaseModel):
+    """이전 대화 한 턴 (프론트가 보낸다. 서버는 대화를 저장하지 않는다)."""
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=1000)
+
+
 class AskRequest(BaseModel):
     """/ask 요청."""
 
     question: str = Field(min_length=1, max_length=200)
     user_location: UserLocation | None = None
+    history: list[Turn] = Field(default_factory=list, max_length=6)  # 직전 대화, 오래된 것부터
 
 
 class LocationOut(BaseModel):
@@ -209,6 +217,7 @@ class AskResponse(BaseModel):
     intent: str = "campus"  # campus | next_class | day_classes | remaining_credits | ...
     need_login: bool = False  # 개인 질문인데 로그인하지 않았을 때 true
     classified_by: str = "keyword"  # 의도를 고른 방법: keyword | llm
+    rewritten_question: str | None = None  # history로 후속 질문을 바꿨을 때, 실제로 처리한 질문
     latency_ms: int = 0
 
 
@@ -219,6 +228,7 @@ class QuestionLogOut(BaseModel):
 
     created_at: datetime
     question: str
+    rewritten_question: str | None
     intent: str
     classified_by: str
     found: bool

@@ -1,6 +1,7 @@
 import re
 
 from app.llm.base import ChatMessage, LLMClient
+from app.prompt import CONDENSE_PROMPT
 
 _CONTEXT_ID = re.compile(r"^\[([^\]]+)\]", re.MULTILINE)
 
@@ -20,5 +21,7 @@ class FakeLLMClient(LLMClient):
     ) -> str:
         """받은 컨텍스트의 문서 id를 [근거: ...] 줄로 붙여 반환한다."""
         self.calls.append(messages)
+        if messages[0].content == CONDENSE_PROMPT:  # 후속 질문 재작성 요청이면 질문을 그대로
+            return messages[-1].content.rsplit("마지막 질문: ", 1)[-1]
         ids = _CONTEXT_ID.findall(messages[-1].content)
         return f"테스트 답변입니다.\n[근거: {', '.join(ids)}]"
