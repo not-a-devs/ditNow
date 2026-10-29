@@ -23,6 +23,14 @@ Windows에서 여러 모듈 테스트가 병렬로 도는 전체 웹 회귀에�
 - `load()`와 목록 돌아가기는 진행 중인 쓰기를 abort하고 `busy`를 해제한다. abort된 쓰기는 `SupersededWrite`로 버리고 결과 병합, 401/403 처리, 오류 표시를 하지 않는다. 실제 요청 timeout(`CANCELLED`)이나 서버 오류는 지금처럼 표시한다.
 - timeout 늘리기, 재시도, skip, 동시성 끄기는 하지 않았다.
 
+## 실제 실행 결과 (2026-10-30, Windows·Node22, `apps/web`)
+
+- 수정 전 격리 실행 `npm test -- src/features/classrooms`: 9 PASS. 실패는 병렬 전체 회귀에서만 관찰됐다.
+- 새 회귀 테스트를 **원래 `index.tsx`** 에 돌린 결과: 11개 중 **3 FAIL**. 실패한 것은 기존 409 테스트(빈 textarea·비활성 버튼으로 경고 미표시, 관찰된 증상과 같음), 커밋 직후 입력 보존 테스트, 대체된 쓰기 abort 테스트다. 3번 원인도 원래 코드에서 실패로 확인됐다.
+- 수정 후 강의실 테스트: **11 PASS**.
+- 전체 웹 회귀 `npm test` 1회: **27 파일 / 362 테스트 PASS**. 반복 실행이나 부하 루프는 돌리지 않았으므로 병렬 부하에서 간헐 실패가 사라졌는지는 이 1회 결과로만 판단한다.
+- `npm run typecheck`, `npm run build`: PASS. `api:types:check`, `npm audit`: 의존성·계약을 바꾸지 않아 NOT_RUN.
+
 ## 남은 게이트
 
 - 실제 브라우저·느린 기기에서의 입력 경쟁, 실서버 abort 동작: NOT_RUN.
