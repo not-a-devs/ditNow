@@ -1,0 +1,10 @@
+.page { max-width: 960px; margin: 0 auto; color: #26362d; }
+.page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); }
+.page p { line-height: 1.7; overflow-wrap: anywhere; }
+.notice { padding: 1rem; border: 1px solid #cfd9ce; border-radius: 12px; background: #f2f6f0; }
+.page button { min-height: 44px; padding: .65rem 1rem; border: 1px solid #43624a; border-radius: 8px; background: #365640; color: white; font: inherit; margin: .4rem; cursor: pointer; }
+.page button:disabled { opacity: .6; cursor: default; }
+.page button:focus-visible { outline: 3px solid #2865a1; outline-offset: 3px; }
+.media { margin-top: 1rem; border-radius: 12px; padding: 1rem; border: 1px solid #ccd6ca; background: #f1f4ef; }
+.media video { display: block; width: 100%; max-height: 65vh; background: #17231c; border-radius: 8px; }
+@media(max-width:600px) { .page button { display: block; width: 100%; margin: .5rem 0; } .media { padding: .5rem; } }
