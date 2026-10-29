@@ -170,3 +170,15 @@ PR71 최초 HEAD `20d464c1ba078958ec96fdeb6437768b742aa5e4`의 실제 web CI [40
 | 독립 리뷰 | A: 생성/HTTP source·보호 요약·11문서 및 careers15 직접검사. F: 브라우저 source·21단계/18세션 요약 및 별도 하네스 보완. 각각 직접 원격 재실행했다고 주장하지 않음 |
 
 운영 준비는 [배포 절차](TASK_DEPLOYMENT_PREPARATION.md)를 따른다. 다음 사람 게이트는 실제 배포 대상·도메인/HTTPS·비밀 주입 책임과 공개/배포 승인이다. 현재 localhost 시험 서버는 남기지 않았으며 사용자 직접 검수 또는 배포 실행은 별도 일정·환경에 따른다.
+
+## 10. 최종 main CI의 요청 ID 오탐 보완 — TASK-CI-OPAQUE-ID-CHECK
+
+문서 PR73의 HEAD `2df84706e0b7583ac7d23bb080c50e4b5ac1ebe1`는 실제 CI5 성공 후 `8a7f7df00bd8ab61c08cd2609231a3404f0fefcc`로 병합됐다. 그러나 그 main의 [Python 실행40973304106](https://github.com/not-a-devs/ditNow/actions/runs/40973304106)에서 **1441 PASS / 1 FAIL**이 발생했다. 최종 main 성공으로 보고하지 않고 원인을 조사했다.
+
+`test_careers_http.py`의 입력 유출 검사가 응답 전체에서 짧은 문자열 `010`을 금지했다. 실제 응답은 예상대로400·정화된 VALIDATION이었으나 서버가 만든 무작위 `request_id` UUID에 우연히 `010`이 들어가 실패했다. 요청 ID를 재생성할 때까지 CI를 반복하지 않았다.
+
+- 테스트에서 `010`을 포함하는 고정 UUID를 주입해 기존5개 입력 사례 모두에서 같은 오탐 FAIL을 재현했다.
+- 오류 envelope의 정확한 키 집합과 서버 UUID·X-Request-ID 일치를 먼저 검사하고, 검증된 correlation ID만 분리했다. 나머지 모든 필드·중첩 validation 상세에서는 숫자/이메일뿐 아니라 제출한 각 입력값도 노출되지 않는지 확인한다. 유출 검사를 삭제하거나 허용 response를 완화하지 않았다.
+- 독립 Codex B의 읽기 점검으로 같은 문제의 후보3곳을 확인했다. careers의 deadlock1213 검사와 collaboration conflict1062/1205/1213 검사는 형식·헤더가 검증된 UUID를 구분하고 나머지 응답 전체 검사를 유지했다. academics 출결 검사는 CODE와 같은 숫자를 담은 session UUID를 고정해 실제 ID를 대조하고, DTO 키 allowlist·check_in_code=None·ID 외 모든 값의 코드 비노출을 검사한다.
+- 수정 범위는 `test_careers_http.py`, `test_collaboration_store_contract.py`, `test_academics_http.py`와 이 실행 기록뿐이다. 제품 코드·오류 응답·로그·권한·DB·CI설정은 변경하지 않는다. 관련3파일 **80 PASS**, 전체 API **1442 PASS**(기존 Starlette 경고1), Ruff/format PASS. 독립 Codex A도3파일의 개인정보 비노출 검사 유지/강화를 검토하고80개를 직접 통과했다. 새 PR/main CI 결과는 해당 커밋의 실제 실행에서 별도 확인한다.
+- 모든 추가 검사는 TestClient·가상 store를 사용하는 오프라인 회귀다. 앞선 실제 HTTP·브라우저2회 성공과 구분하며 실제 DB·시더·로컬 서버를 다시 실행하거나 추가 쓰기를 하지 않았다. 기존 데이터와 승인16행 보존·테스트 세션0·서버 종료의 실제 증거는9절 그대로다.

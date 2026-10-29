@@ -6,6 +6,7 @@ raises/locks that way. Real-DB concurrency tests remain NOT_RUN.
 """
 
 import json
+from uuid import UUID
 
 import pytest
 from test_collaboration_support import (
@@ -50,7 +51,10 @@ def store():
 
 
 @pytest.fixture
-def client(store):
+def client(store, monkeypatch):
+    # Driver-looking digits in a legitimate correlation UUID must not be treated as an echo.
+    request_id = UUID("10621205-1213-4010-8000-000000000001")
+    monkeypatch.setattr("app.core.logging.uuid4", lambda: request_id)
     deps = CollaborationDependencies(
         actor=header_actor, store=lambda: store, clock=lambda: NOW, id_factory=sequential_ids()
     )
@@ -93,7 +97,10 @@ def assert_plain_conflict(response):
     assert response.status_code == 409
     body = response.json()
     assert body["code"] == "CONFLICT" and body["message"] == CONFLICT_MESSAGE
-    text = json.dumps(body, ensure_ascii=False)
+    assert set(body) == {"code", "message", "field_errors", "retryable", "request_id"}
+    assert UUID(body["request_id"]).version == 4
+    assert body["request_id"] == response.headers["X-Request-ID"]
+    text = json.dumps({k: v for k, v in body.items() if k != "request_id"}, ensure_ascii=False)
     for internal in ("StoreConflict", "1062", "1205", "1213", "Duplicate", "Deadlock", "winner"):
         assert internal not in text
 
