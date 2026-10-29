@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, requestData } from '../../lib/api';
 import ClassroomsPage from './index';
 import { isWorkspace } from './models';
@@ -17,6 +17,8 @@ async function openWorkspace() {
 }
 
 describe('classroom first-pass screen', () => {
+  // 앞 테스트가 소비하지 못한 Once 응답이 다음 테스트의 첫 요청으로 새지 않게 한다.
+  beforeEach(() => { vi.mocked(requestData).mockReset(); });
   it('fails closed without an approved provider and offers retry', async () => {
     vi.mocked(requestData).mockRejectedValueOnce(new ApiError('UNAVAILABLE', 503));
     render(<ClassroomsPage />);
@@ -57,6 +59,46 @@ describe('classroom first-pass screen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('내용이 변경되었습니다');
     expect(screen.getByLabelText('시연 텍스트 과제')).toHaveValue('내 시연 제출');
     expect(vi.mocked(requestData).mock.calls.at(-1)?.[1]?.body).toBe(JSON.stringify({ text: '내 시연 제출', expected_revision: 0 }));
+  });
+  it('keeps text typed right after the workspace commit, before passive effects flush', async () => {
+    let resolve!: (value: unknown) => void;
+    vi.mocked(requestData).mockResolvedValueOnce([offering]).mockImplementationOnce(() => new Promise(next => { resolve = next; }));
+    render(<ClassroomsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /가상 소프트웨어 수업/ }));
+    // 커밋 직후(마이크로태스크)에 입력해 부하 상황의 "화면 표시 후 늦은 effect" 순서를 결정적으로 만든다.
+    const observer = new MutationObserver(() => {
+      const box = document.getElementById(`assignment-${assignment.id}`);
+      if (box) { observer.disconnect(); fireEvent.change(box, { target: { value: '바로 입력' } }); }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    resolve(workspace);
+    await screen.findByRole('heading', { name: '가상 소프트웨어 수업' });
+    await new Promise(next => setTimeout(next, 20));
+    expect(screen.getByLabelText('시연 텍스트 과제')).toHaveValue('바로 입력');
+    expect(screen.getByRole('button', { name: '시연 과제 제출' })).toBeEnabled();
+  });
+  it('drops a superseded write instead of applying it or its error to the reloaded screen', async () => {
+    await openWorkspace();
+    vi.mocked(requestData).mockRejectedValueOnce(new ApiError('CONFLICT', 409));
+    fireEvent.change(screen.getByLabelText('교수에게 질문'), { target: { value: '질문' } });
+    fireEvent.click(screen.getByRole('button', { name: '질문 보내기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('내용이 변경되었습니다');
+    let signal: AbortSignal | undefined; let resolve!: (value: unknown) => void;
+    vi.mocked(requestData).mockImplementationOnce((_path, init) => { signal = init?.signal as AbortSignal; return new Promise(next => { resolve = next; }); });
+    fireEvent.change(screen.getByLabelText('시연 텍스트 과제'), { target: { value: '이전 화면 제출' } });
+    fireEvent.click(screen.getByRole('button', { name: '시연 과제 제출' }));
+    await waitFor(() => expect(signal).toBeDefined());
+    vi.mocked(requestData).mockResolvedValueOnce([offering]).mockResolvedValueOnce(workspace);
+    fireEvent.click(screen.getByRole('button', { name: '목록 다시 확인' }));
+    expect(signal?.aborted).toBe(true);
+    fireEvent.click(await screen.findByRole('button', { name: /가상 소프트웨어 수업/ }));
+    await screen.findByRole('heading', { name: '가상 소프트웨어 수업' });
+    resolve({ assignment_id: assignment.id, text: '이전 화면 제출', state: 'submitted', submitted_at: '2026-10-30T00:00:00Z', revision: 1, source_kind: 'DEMO' });
+    await new Promise(next => setTimeout(next, 20));
+    expect(screen.queryByText(/제출한 시연 기록/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('시연 텍스트 과제')).toHaveValue('');
+    expect(screen.getByLabelText('시연 텍스트 과제')).toBeEnabled();
   });
   it('rejects author IDs and unsafe material URLs before rendering', () => {
     expect(isWorkspace({ ...workspace, questions: [{ author_id: 'private' }] })).toBe(false);

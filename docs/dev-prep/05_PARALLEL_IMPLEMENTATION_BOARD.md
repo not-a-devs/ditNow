@@ -19,27 +19,54 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 문서 DOCUMENTED, 단위 TESTED, 운영 VERIFIED는 다른 사실이다. 조회 전용 공개 원문은 MariaDB N_A 사유를 쓰고 검증된 출처 스냅샷으로 가능하다. 내부 규정 미확인을 실제 학교 정책으로 만들지 않는다.
 
-## 현재 실행·리뷰·승인 대기 — PR #32 병합 기준
+## 현재 실행·리뷰·승인 대기 — 2026-10-30 2차 갱신
 
 main에는 별도 작업자의 PR #39도 `fe6e7e28d22768a256ee1723ea450d49af2a5efa`로 병합됐다. 아래 PR은 실제 작업 결과이며 열린 브랜치의 코드를 main 구현 상태에 합산하지 않는다. 단위 테스트는 메모리 fake 또는 SQLite를 사용한 범위와 실제 서버 검증을 구분한다.
 
 | 작업 | 담당·격리 worktree | 변경 가능 영역·현재 상태 |
 |---|---|---|
 | TASK-I 공개 대학 안내 | Codex F + root · ditNow-public-campus | PR #32 병합. 실제 API·신규 앱 연결, 390/1280 화면·검색/필터/상세/오류 검사, 같은 HEAD CI 5개 성공. 전체 6개 FR은 PARTIAL |
-| TASK-N 실제 SQLAlchemy 저장소 | Codex B · ditNow-mariadb-integration | [PR #37](https://github.com/not-a-devs/ditNow/pull/37), HEAD bf4adc1262e8a84307d43f5c1d529cfab37c0072. 공통 DB 모델·migration 제안·저장소·접속 코드 단일 소유. 전체 API537·CI5 성공, Codex F 독립 리뷰 수정 완료. 사람 보안 승인 전 OPEN, 원격 적용 0 |
-| TASK-K 커뮤니티 협업 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-collaboration | [PR #35](https://github.com/not-a-devs/ditNow/pull/35). collaboration FE/BE/tests만 소유. 독립 리뷰 BE76·Ruff PASS, 동시성 오류 계약/늦은 응답/ID 경계/자기 댓글 삭제 등 보완 중. 실제 DB/인증·전역 화면 연결 전 |
-| TASK-L 취업·프로그램 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-careers | [PR #36](https://github.com/not-a-devs/ditNow/pull/36). careers FE/BE/tests만 소유. 독립 리뷰 BE100 PASS, 한도 aggregate 잠금/손상 시각/개인 상태 폐기 등 보완 중. 실상담·심사·기업 권한 활성화 차단 |
+| TASK-N 실제 SQLAlchemy 저장소 | Codex B 초안 → A 호환 보완 · ditNow-mariadb-integration | PR #37 HEAD27ff51759f7d105b054fc4c993370dd7ed790687. API728·FE278·CI5·독립 호환36개 PASS, root 엄격 TLS/연결 정렬 실검증 PASS. 새 migration 실행기는 아래 TASK-N2 A 단일 소유. 보안 승인 전 OPEN |
+| TASK-K 커뮤니티 협업 | Claude CLI + Codex 검증 · ditNow-collaboration | PR #35 병합. 동시성·늦은 응답·자기 댓글 삭제 보완·BE93/FE57·CI 성공. 실DB/인증·전역 연결 전 |
+| TASK-L 취업·프로그램 | Claude CLI + Codex 보완 · ditNow-careers | PR #36 병합. aggregate·시각·개인 상태·늦은401/403 보완 후 독립 회귀·CI 성공. 실상담·심사·기업 권한 미활성 |
 | TASK-M 학사·출결 | Claude CLI 수정 + Codex F 독립 리뷰 · ditNow-academics | [PR #34](https://github.com/not-a-devs/ditNow/pull/34) 병합 `6c0cd22c32584379e65271a86a3548c8d9ef193c`. 학점/시간 충돌·요청/세션/정정 중복·StrictMode 수정 후 새 경쟁9·FE20·외부 harness를 F가 각1회 직접 재검증했다. 새 HEAD CI5 성공, 실DB/전역 업무 미연결 |
 | TASK-O 생활·학생지원 | Codex A 작성 + root 독립 리뷰 · ditNow-student-life | [PR #38](https://github.com/not-a-devs/ditNow/pull/38) 병합. root BE27·FE12 직접 PASS, 같은 HEAD CI5 성공. 미마운트 가상 신청/상태·배지 조회만, 고충 본문·민감 지원·직원 처리 권한 제외 |
-| TASK-P 공개 통합 검색 | Codex B 후속 · ditNow-public-discovery | discovery BE/FE/tests·전용 태스크 문서. 기존 공개 안내/시설 검색을 재사용한다. 공유 router/App/OpenAPI는 root 소유, 개인정보 검색 없음 |
-| TASK-Q 온라인 학습 | Codex A · ditNow-online-learning | online_learning BE·online-learning FE·전용 tests/태스크 문서. 기존 분반을 참조하는 가상 진도·온라인 학습/시험, 공식 성적·외부 LMS·감독 판정 차단 |
-| TASK-R 공지 상세·학과 질문 | Codex F · ditNow-notice-discussion | notice_discussion BE·notice-discussion FE·전용 tests/태스크 문서. 기존 공지 원장 재사용, 학과 질문/댓글·안전 메타 조회, 공식 답변/파일 저장 차단 |
+| TASK-P 공개 통합 검색 | Codex B + root · ditNow-public-discovery | PR #40 병합. 기존 공개 안내/시설 검색·신규 App·상세 연결, 개인정보 검색 없음 |
+| TASK-Q 온라인 학습 | Codex A + F 리뷰 · ditNow-online-learning | PR #46 병합. 미활성 가상 학습/시험 모듈, 공식 성적·외부 LMS·감독 판정 차단 |
+| TASK-R 공지 상세·학과 질문 | Codex F + B 리뷰 · ditNow-notice-discussion | PR #45 병합. 원본 공지 재사용·질문/댓글·메타 조회, 실제 파일/공식 답변·전역 연결 전 |
 | PR #39 호환·보안 보완 | Codex A 독립 리뷰 → 기존 PR #28 통합 · ditNow-chatbot-db-safety | 타인 변경 보존. 원격 legacy DSN/TLS·seed 경계, 공통 UUID/현재 권한 미연결, auth/개인 AI 캐시 및 rate-limit 순서 보완. Q는 checkpoint 보존 후 이어감 |
 | TASK-ORCH | root · ditNow-progress-update | NAV/README·보드·92행 진행표·연결 검사, 공통 router/App/OpenAPI 통합·PR/CI/리뷰 조정. DB 비밀 주입과 실제 접속은 root만 수행 |
 
-DB의 현재 환경 차단은 **BLOCKED_TLS** 하나다. 네트워크·양 계정 직접 인증/SELECT·GRANT·빈 스키마는 확인했다. 사용자가 CA/SAN을 요청했으며 인증서 검증을 해제하지 않는다. 원격 DDL·seed·CRUD 쓰기는 0이다. 별개의 사람 보안 승인·실제 로그인 정책 게이트는 그대로 유지한다. PR #13/19/26/28/37은 자동 병합하지 않는다.
+**TLS 차단 해제**: root의 CA 지문 일치·엄격 SQLAlchemy/aiomysql 인증·SELECT1·TLSv1.3·연결 utf8mb4_unicode_ci 검사가 PASS다. 앱과 migrator 인증/GRANT를 구분 확인했다. 기존 9개 테이블·외래키·행 수만 조회했고 개인 행 값·DDL·영구 쓰기는 0이다. 비파괴 마이그레이션 실행기와 공통 신원 매핑을 준비하며 PR #13/19/26/28/37 보안 승인 대기는 유지한다.
 
-모든 작업은 별도 worktree/브랜치이며 공통 인증·DB 모델·migration은 현재 TASK-N의 B만 변경한다. K/L/M/O/P는 공통 파일을 변경하지 않고 PR로 전달한다. AI 독립 리뷰는 사람의 공식 승인이 아니다.
+### 실제 실행 중인 2차 작업자 8개
+
+root는 통합·공통 App/라우터/OpenAPI/NAV·비밀 주입·실DB 검사만 맡는다. Codex 하위 동시 한도는 root 포함4이며, 별도의 인증된 Claude CLI 5개를 추가 실행했다. 타인의 CLI 프로세스는 이 집계에 넣지 않았다. 각 작업은 별도 worktree/브랜치이고 같은 파일을 동시에 수정하지 않는다.
+
+| 작업자 | worktree · 브랜치 | 단일 소유 파일 범위 | 상태 |
+|---|---|---|---|
+| Codex A · TASK-N2 | ditNow-mariadb-migration · feat/mariadb-explicit-migration-20261030 | app/db/migration_runner.py·전용 tests·migration 문서 | 실행 중. 기존16 DDL 불변, 기본dryrun·strictTLS·별도migrator·checksum/preflight/부분실패 장부. 실제 실행 root만 |
+| Codex B · TASK-IDENTITY-BRIDGE | ditNow-identity-bridge · feat/legacy-identity-bridge-20261030 | app/integrations/identity_bridge/**·전용 tests/doc | 실행 중. 기존 토큰 권위 재사용·명시 UUID 매핑, 기존 계정/역할 자동 생성 금지 |
+| Codex F · TASK-FE-AUTH | ditNow-platform-login · feat/platform-login-20261030 | apps/web/src/features/auth/**·전용 doc | 실행 중. 신규 로그인/로그아웃 화면, 기본 비활성·단일 메모리 세션 콜백·공통 auth 수정 없음 |
+| Claude CLI · TASK-T | ditNow-home-notifications · feat/home-notifications-firstpass-20261030 | features/action_center BE·action-center FE·전용 tests/doc | 실제 세션 실행. 원본 참조 홈·개인 알림/읽음, 외부 push/LLM 없음 |
+| Claude CLI · TASK-U | ditNow-channels · feat/channels-firstpass-20261030 | features/channels FE/BE·전용 tests/doc | 실제 세션 실행. 자유 채널·공식 채널 신청, 관리자 승인/공식 배지 부여 없음 |
+| Claude CLI · TASK-V | ditNow-opportunity-matching · feat/opportunity-matching-firstpass-20261030 | features/opportunity_matching BE·opportunity-matching FE·전용 tests/doc | 실제 세션 실행. 원본 기회·현재 소속 매칭/근거, 실제 AI 추천 완료 아님 |
+| Claude CLI · READ-ONLY-28 | ditNow-security-readonly · detached299ec17 | 소스 쓰기0·보고 결과만 저장소 밖 수집 | 실제 독립 리뷰 세션 실행. 인증·seed·원격DB·캐시 경계, 사람 승인 아님 |
+| Claude CLI · TASK-W | ditNow-classroom-races · fix/classroom-request-races-20261030 | 기존 classrooms FE·전용 doc만 | 실제 세션 실행. 전체 FE에서 반복된 요청/입력 경합의 원인 확인·회귀 보완, 테스트 재시도/생략으로 숨기지 않음 |
+
+Codex B/F는 신원 bridge와 FE 로그인 소스를 교차 읽기 전용 리뷰한다. 공통 DB 모델/마이그레이션 수정은 A만 맡고 root가 실제 DB 실행을 맡는다. Claude 구현자는 공통 파일·DB·비밀에 접근하지 않는다. 작업 완료 후 상태는 PR/동일 HEAD CI/실제 통합 증거로 갱신하며 작업 중 결과는 main 완료로 세지 않는다.
+
+### 최근 병합과 검증
+
+| PR | 실제 merge SHA | 범위·검증 |
+|---|---|---|
+| #35 | 28cc93591985b25f3b17e94bf3fb19b26cadd7e4 | 협업 모듈, 독립 리뷰·BE93/FE57·동일 HEAD CI |
+| #36 | 2dc81879173caa431303e94dea2c31ccad4b7dd1 | 취업/프로그램, 늦은401/403 보완 독립 회귀4·FE40·동일 HEAD CI |
+| #40 | 36749bbd943c4086d3461b0617eab228789ab7bf | 공개 검색 실제 App/API 연결·390/1280·동일 HEAD CI |
+| #45 | 6af83f2c21de42ec711544a9995878cb6bec40cc | 공지/학과 질문, 독립 BE16/FE8·동일 HEAD CI |
+| #46 | 18a7846594e4d13f1e1e415eff7dc31536fc938e | 온라인 학습/가상 시험, 독립 BE25/FE12·추가 Unicode FE2·동일 HEAD CI |
+
+현재92행: PARTIAL66 / NOT_IMPLEMENTED21 / BLOCKED5 / IMPLEMENTED0. 모듈 단위 테스트나 공개 화면 검증은 실제 인증·DB 영속성까지 완료한 기능을 뜻하지 않는다. #47 화면 공유는 BE17/FE17·독립 재리뷰·CI 통과했으나 실미디어/DB·활성화 승인 전 OPEN이다.
 
 ## 최초 병렬 배정 이력
 
@@ -98,7 +125,7 @@ DB의 현재 환경 차단은 **BLOCKED_TLS** 하나다. 네트워크·양 계�
 - H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
 - I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
 
-PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #34/38/39까지 반영한 최신 진행표는 **부분 구현 50·미구현 37·운영 정책 차단 5·완전 구현 0**이다. PR #39의 학번 로그인은 코드·메모리 테스트의 부분 구현이며 공통 UUID·현재 권한·엄격 TLS 통합 완료를 뜻하지 않는다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #34/38/39 당시의 과거 진행표는 **부분 구현 50·미구현 37·운영 정책 차단 5·완전 구현 0**이다. PR #39의 학번 로그인은 코드·메모리 테스트의 부분 구현이며 공통 UUID·현재 권한·엄격 TLS 통합 완료를 뜻하지 않는다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
 
 ## PR #39 독립 보안 검토와 보완 경계
 
@@ -114,7 +141,9 @@ Codex A가 별도 detached worktree에서 main `fe6e7e2`를 읽기 전용 검토
 위 결과는 실제 MariaDB·TLS·운영 사용자·외부 LLM 검증이 아니다. PR #28은 수정 후 독립 재리뷰·새 HEAD CI와 사람 보안 승인을 기다린다. 인증서 검증 해제·원격 DDL·운영 권한 생성은 하지 않는다.
 
 
-## 최신 실행 갱신 — 공개 안내·DB 실제 진단
+## 과거 실행 이력 — 공개 안내·초기 DB 진단
+
+이 절은 PR #32 전후 당시 기록이다. 현재 TLS 해제·기존9테이블·가상DML/롤백 및 A 단일 migration 소유 상태는 위 최신 표와 DB 검사 문서를 따른다.
 - C/D/E PR23·20·24는 독립 재검토·같은 HEAD CI·합성 API397/웹140 통과 후 미활성 모듈로 병합했다. H 도서 PR31와 J 가상 입학 PR33도 미마운트/운영 미연결 부분이다. 운영 신원·DB 활성화 승인이 아니다.
 - I 공개 안내 PR32는 기존 조회 스냅샷을 GET API·신규 `/app/information`에 연결하고 실제 브라우저 검색/필터/목록·상세/출처·오류/390·1280 검사를 수행했다. 모바일 상세 초점이 sticky 헤더 아래 숨는 결함을 수정했다.
 - Claude CLI 후속 세션을 실제 시작했다: K ditNow-collaboration/feat/collaboration-firstpass-20261030, L ditNow-careers/feat/careers-programs-firstpass-20261030, M ditNow-academics/feat/academics-attendance-firstpass-20261030. 각 features 모듈·전용 FE/BE/tests·TASK 문서만 소유하며 공유 인증/DB/migration/lock은 수정하지 않는다.
