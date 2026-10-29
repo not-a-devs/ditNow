@@ -26,6 +26,11 @@ RULES: list[tuple[str, str]] = [
     ("시험기간", CAMPUS),  # 시험기간 도서관 운영
     ("버스", CAMPUS),  # 셔틀버스 시간표
     ("셔틀", CAMPUS),
+    ("연구실", CAMPUS),  # 교수님 연구실 위치
+    ("교수님+전화", CAMPUS),  # 학과 교수님 전화번호·연락처
+    ("교수님+연락처", CAMPUS),
+    ("토익", CAMPUS),  # 토익·자격증 시험 접수
+    ("자격증", CAMPUS),
     # 성적·평점
     ("평점", "grades"),
     ("평균학점", "grades"),

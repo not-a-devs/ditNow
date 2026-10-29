@@ -29,7 +29,7 @@ main에는 별도 작업자의 PR #39도 `fe6e7e28d22768a256ee1723ea450d49af2a5e
 | TASK-N 실제 SQLAlchemy 저장소 | Codex B · ditNow-mariadb-integration | [PR #37](https://github.com/not-a-devs/ditNow/pull/37), HEAD bf4adc1262e8a84307d43f5c1d529cfab37c0072. 공통 DB 모델·migration 제안·저장소·접속 코드 단일 소유. 전체 API537·CI5 성공, Codex F 독립 리뷰 수정 완료. 사람 보안 승인 전 OPEN, 원격 적용 0 |
 | TASK-K 커뮤니티 협업 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-collaboration | [PR #35](https://github.com/not-a-devs/ditNow/pull/35). collaboration FE/BE/tests만 소유. 독립 리뷰 BE76·Ruff PASS, 동시성 오류 계약/늦은 응답/ID 경계/자기 댓글 삭제 등 보완 중. 실제 DB/인증·전역 화면 연결 전 |
 | TASK-L 취업·프로그램 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-careers | [PR #36](https://github.com/not-a-devs/ditNow/pull/36). careers FE/BE/tests만 소유. 독립 리뷰 BE100 PASS, 한도 aggregate 잠금/손상 시각/개인 상태 폐기 등 보완 중. 실상담·심사·기업 권한 활성화 차단 |
-| TASK-M 학사·출결 | Claude CLI 수정 + Codex F 독립 리뷰 · ditNow-academics | [PR #34](https://github.com/not-a-devs/ditNow/pull/34). academics FE/BE/tests만 소유. root와 F가 BE40·FE31 직접 PASS했으나 학점/시간 충돌·중복 요청/세션·StrictMode 결함을 별도 재현해 병합 보류·보완 중 |
+| TASK-M 학사·출결 | Claude CLI 수정 + Codex F 독립 리뷰 · ditNow-academics | [PR #34](https://github.com/not-a-devs/ditNow/pull/34) 병합 `6c0cd22c32584379e65271a86a3548c8d9ef193c`. 학점/시간 충돌·요청/세션/정정 중복·StrictMode 수정 후 새 경쟁9·FE20·외부 harness를 F가 각1회 직접 재검증했다. 새 HEAD CI5 성공, 실DB/전역 업무 미연결 |
 | TASK-O 생활·학생지원 | Codex A 작성 + root 독립 리뷰 · ditNow-student-life | [PR #38](https://github.com/not-a-devs/ditNow/pull/38) 병합. root BE27·FE12 직접 PASS, 같은 HEAD CI5 성공. 미마운트 가상 신청/상태·배지 조회만, 고충 본문·민감 지원·직원 처리 권한 제외 |
 | TASK-P 공개 통합 검색 | Codex B 후속 · ditNow-public-discovery | discovery BE/FE/tests·전용 태스크 문서. 기존 공개 안내/시설 검색을 재사용한다. 공유 router/App/OpenAPI는 root 소유, 개인정보 검색 없음 |
 | TASK-Q 온라인 학습 | Codex A · ditNow-online-learning | online_learning BE·online-learning FE·전용 tests/태스크 문서. 기존 분반을 참조하는 가상 진도·온라인 학습/시험, 공식 성적·외부 LMS·감독 판정 차단 |
@@ -98,7 +98,7 @@ DB의 현재 환경 차단은 **BLOCKED_TLS** 하나다. 네트워크·양 계�
 - H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
 - I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
 
-PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #38/39까지 반영한 최신 진행표는 **부분 구현 41·미구현 46·운영 정책 차단 5·완전 구현 0**이다. PR #39의 학번 로그인은 코드·메모리 테스트의 부분 구현이며 공통 UUID·현재 권한·엄격 TLS 통합 완료를 뜻하지 않는다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #34/38/39까지 반영한 최신 진행표는 **부분 구현 50·미구현 37·운영 정책 차단 5·완전 구현 0**이다. PR #39의 학번 로그인은 코드·메모리 테스트의 부분 구현이며 공통 UUID·현재 권한·엄격 TLS 통합 완료를 뜻하지 않는다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
 
 ## PR #39 독립 보안 검토와 보완 경계
 
