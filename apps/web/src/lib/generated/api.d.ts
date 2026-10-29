@@ -79,6 +79,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover
+         * @description Public snapshots only. No personal, authenticated, remote or generated sources.
+         */
+        get: operations["discover_api_v1_discovery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -291,6 +311,65 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** DiscoveryItem */
+        DiscoveryItem: {
+            /** Detail Path */
+            detail_path: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "guide" | "facility";
+            /** Source */
+            source: components["schemas"]["GuideSource"] | components["schemas"]["FacilitySource"];
+            /** Summary */
+            summary: string;
+            /** Title */
+            title: string;
+        };
+        /** DiscoveryPage */
+        DiscoveryPage: {
+            /** Complete */
+            complete: boolean;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Generated
+             * @default false
+             * @constant
+             */
+            generated: false;
+            /** Items */
+            items: components["schemas"]["DiscoveryItem"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "all" | "guide" | "facility";
+            /** Limit */
+            limit: number;
+            /**
+             * Notice
+             * @default 공개 대학 안내와 시설 스냅샷만 검색합니다. 개인 시간표·성적·신청·대화는 검색하지 않습니다. 출처별 확인 범위가 다르며 실시간 학교 정보나 AI 생성 답변이 아닙니다.
+             */
+            notice: string;
+            /** Offset */
+            offset: number;
+            /**
+             * Personal Data Access
+             * @default false
+             * @constant
+             */
+            personal_data_access: false;
+            /** Query */
+            query: string;
+            /** Total */
+            total: number;
+        };
         /**
          * ErrorCode
          * @enum {string}
@@ -313,12 +392,48 @@ export interface components {
              */
             retryable: boolean;
         };
+        /** FacilitySource */
+        FacilitySource: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "unverified_facility";
+            /**
+             * Notice
+             * @default 기존 시설 스냅샷입니다. 공식 출처와 최신성은 검증되지 않았습니다.
+             */
+            notice: string;
+            /**
+             * Source Path
+             * @default chatbot/data/facilities.json
+             * @constant
+             */
+            source_path: "chatbot/data/facilities.json";
+            /**
+             * Verification
+             * @default UNKNOWN
+             * @constant
+             */
+            verification: "UNKNOWN";
+        };
         /** GuideSection */
         GuideSection: {
             /** Heading */
             heading: string;
             /** Paragraphs */
             paragraphs: string[];
+        };
+        /** GuideSource */
+        GuideSource: {
+            evidence: components["schemas"]["SourceEvidence"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "official_summary";
+            /** Snapshot Version */
+            snapshot_version: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -482,6 +597,17 @@ export interface components {
         /** SuccessResponse[CampusSearchData] */
         SuccessResponse_CampusSearchData_: {
             data: components["schemas"]["CampusSearchData"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[DiscoveryPage] */
+        SuccessResponse_DiscoveryPage_: {
+            data: components["schemas"]["DiscoveryPage"];
             /** Resource Version */
             resource_version?: number | null;
             /**
@@ -747,6 +873,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discover_api_v1_discovery_get: {
+        parameters: {
+            query: {
+                q: string;
+                kind?: "all" | "guide" | "facility";
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_DiscoveryPage_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Internal Server Error */

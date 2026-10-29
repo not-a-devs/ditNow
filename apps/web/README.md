@@ -33,6 +33,10 @@ npm run dev -- --port 5181
 
 2026-10-30 로컬 Playwright 1.64.1/Chromium 캐시 브라우저로 실제 Vite 화면을 390px·1280px에서 확인했다. 가로 scrollWidth는 각각 viewport와 동일하고, 본문 건너뛰기 키보드 포커스·모바일 전체 메뉴·커뮤니티 이동·브라우저 뒤로가기·연결 실패/재시도 표시가 통과했다. pageerror는 두 크기 모두 0건이며 전체 화면 캡처를 시각 확인했다. 도구와 캡처는 저장소 밖 임시 경로에 두었다. 이 검사는 실제 FastAPI와 성공적으로 연결하거나 업무 CRUD를 검증한 결과가 아니다.
 
+## 공개 통합 검색
+
+`/app/search`는 공개 대학 안내와 시설 검색을 기존 FastAPI 서비스에서 조합한다. 공식 페이지 기반 편집 요약과 출처 미검증 시설 자료를 구분하고, 검색·종류 필터·집계·상세 링크·실패 재시도를 제공한다. 개인 시간표·성적·신청·대화는 검색하지 않는다. root의 실제 Chromium390/1280에서 두 상세 이동·실제 API·503/재시도·초점·가로 넘침/pageerror0을 확인했다. [TASK-P](../../docs/dev-prep/TASK_PUBLIC_DISCOVERY_IMPLEMENTATION.md)에 범위와 증거를 기록한다. 전체 FR-HOME-002는 PARTIAL이다.
+
 ## 병렬 모듈 계약
 
 `src/features/*/index.tsx`에서 기본 React component를 export하는 독립 모듈을 통합할 수 있다. `ai` 공개 시설 검색과 `public-campus` 공개 대학·학과 안내는 연결했다. 나머지 기능 모듈이 존재해도 공통 인증·DB·권한과 실제 화면 연결을 검증하기 전에는 전역 업무를 완료 처리하지 않는다.

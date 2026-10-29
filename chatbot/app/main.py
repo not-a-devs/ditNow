@@ -199,7 +199,8 @@ def create_app(
         )
         res.rewritten_question = rewritten
         await log_question(db, body.question, res)
-        if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
+        # LLM이 교내로 판정한 답은 캐시하지 않는다: 한 번의 오분류가 10분간 모두에게 반복된다
+        if res.intent == CAMPUS and res.classified_by != "llm" and res.answer != LLM_FAILURE_ANSWER:
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로
             app.state.cache[key] = (time.monotonic() + CACHE_TTL_SEC, res)
         return res

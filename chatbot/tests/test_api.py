@@ -60,6 +60,22 @@ def test_cache_and_rate_limit(client: TestClient) -> None:
     assert client.post("/ask", json={"question": "정보관"}).status_code == 429
 
 
+def test_llm_classified_answer_is_not_cached(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LLM이 교내로 고른 답은 캐시하지 않아 매번 다시 분류된다 (제한에도 매번 센다)."""
+    from app import main
+    from app.intents import CAMPUS, Intent
+
+    async def llm_route(*_: object) -> Intent:
+        return Intent(name=CAMPUS, by="llm")
+
+    monkeypatch.setattr(main, "route", llm_route)
+    for _ in range(3):
+        assert client.post("/ask", json={"question": "학식"}).status_code == 200
+    assert client.post("/ask", json={"question": "학식"}).status_code == 429
+
+
 def test_facilities(client: TestClient) -> None:
     assert len(client.get("/facilities").json()) == 11
     assert client.get("/facilities/dept_cs").json()["name"] == "컴퓨터소프트웨어과"

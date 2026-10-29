@@ -45,6 +45,7 @@ def test_openapi_matches_runtime(application):
         "/api/v1/auth/logout",
         "/api/v1/public-campus",
         "/api/v1/public-campus/{record_id}",
+        "/api/v1/discovery",
     }
     assert "ErrorResponse" in schema["components"]["schemas"]
     with TestClient(application) as client:

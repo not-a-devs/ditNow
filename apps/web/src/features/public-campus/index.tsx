@@ -51,7 +51,12 @@ export default function PublicCampusPage() {
     } catch { if (!current.signal.aborted) setError('안내 내용을 불러오지 못했습니다. 목록에서 다시 선택해 주세요.'); }
     finally { if (!current.signal.aborted) setPending(false); }
   }
-  useEffect(() => { void load(); return () => request.current?.abort(); }, []);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('guide');
+    if (id && id.length <= 80 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) void open(id);
+    else void load();
+    return () => request.current?.abort();
+  }, []);
   useEffect(() => { if (guide) detailHeading.current?.focus(); }, [guide]);
   function search(event: FormEvent) { event.preventDefault(); void load(); }
 
@@ -68,7 +73,7 @@ export default function PublicCampusPage() {
       {pending && <p role="status">공개 안내를 확인하고 있습니다.</p>}
       {error && <div role="alert"><p>{error}</p><button onClick={() => void load()}>목록 다시 확인</button></div>}
       {guide ? <article className={styles.detail}>
-        <button onClick={() => setGuide(null)}>← 목록으로 돌아가기</button>
+        <button onClick={() => { if (page) setGuide(null); else void load(); }}>← 목록으로 돌아가기</button>
         <p className={styles.eyebrow}>{categories[guide.category]}</p>
         <h2 ref={detailHeading} tabIndex={-1}>{guide.title}</h2><p>{guide.summary}</p>
         {guide.sections.map((section, index) => <section key={index}><h3>{section.heading}</h3>{section.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}</section>)}

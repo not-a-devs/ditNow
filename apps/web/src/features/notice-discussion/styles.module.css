@@ -1,0 +1,15 @@
+.page { display: grid; gap: 1.2rem; max-width: 65rem; margin: auto; }
+.page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); }
+.page p { line-height: 1.8; overflow-wrap: anywhere; }
+.page nav, .page form { display: flex; flex-wrap: wrap; gap: .8rem; align-items: end; }
+.page label { display: grid; gap: .4rem; flex: 1; min-width: 10rem; }
+.page input, .page textarea { font: inherit; width: 100%; padding: .7rem; border: 1px solid #6f8478; border-radius: .5rem; color: #183a2b; }
+.page button { font: inherit; min-height: 44px; padding: .6rem 1rem; border: 0; border-radius: .5rem; background: #195640; color: white; }
+.page button:disabled { opacity: .6; cursor: default; }
+.page button:focus-visible, .page input:focus-visible, .page textarea:focus-visible { outline: 3px solid #b47317; outline-offset: 3px; }
+.card { padding: 1.2rem; border: 1px solid #c4d2c7; border-radius: .9rem; background: white; display: grid; gap: .7rem; min-width: 0; }
+.notice { background: #edf2e8; padding: 1rem; border-radius: .7rem; color: #38513b; }
+.body { white-space: pre-wrap; }
+.editor { padding: .8rem 0; }
+.editor label { flex-basis: 100%; }
+@media (max-width: 40rem) { .page label { min-width: 100%; } .page button { max-width: 100%; } }

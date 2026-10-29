@@ -9,3 +9,7 @@ backups/
 *.part
 # Server-specific operations notes (IPs, hostnames, tailnet)
 LOCAL_OPS.md
+# TLS material and generated config (scripts/gen-tls.sh)
+tls/*
+!tls/.gitkeep
+conf/tls.cnf
