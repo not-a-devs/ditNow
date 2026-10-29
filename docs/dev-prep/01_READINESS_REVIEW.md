@@ -37,5 +37,7 @@
 ## 모노레포 구조 판단
 [기존 AI 환경 점검](../research/09_AI_DEVELOPMENT_ENVIRONMENT.md)의 apps/web, packages/contracts, supabase/migrations·functions, tests 제안은 여전히 유효한 후보이나 DFLT-001/OPEN-002의 기술 선택 전 실제 경로로 만들지 않는다. mvp/는 현행 시연 기준으로 보존하고, 계약→서버/DB→화면 연동·회귀→승인된 위치 이전 순서로 진행한다. 독립 services/api는 별도 스택 결정이 있을 때만 후보로 검토한다.
 
+> 후속 결정(2026-10-29): 위 문단은 당시 점검 기록이다. [DEC-015](../11_DECISION_LOG.md)로 프런트 React/Vite/Tailwind와 FastAPI가 확정되었다. 현재 제안 경로는 [NAV](../../NAV.md)와 [P0 계약](../v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md)을 따른다. PostgreSQL·인증·호스팅·비용은 여전히 OPEN-002/003이다.
+
 ## 미해결·다음 태스크
 OPEN-001~003, 실제 학교 원장/권한 정책, README의 AI 길찾기 중심 설명과 통합 캠퍼스 비전 충돌은 미해결이다. 첫 개발 태스크를 만들기 전 소유자 승인 기록과 P0 범위 결정이 필요하다. 보안 의존성 업데이트는 기능 구현과 분리한 별도 PR에서 다루고, npm audit 및 현재 타입/빌드 회귀를 게이트로 둔다. 실제 배포·브라우저·DB/두 계정 검증은 NOT_RUN이다.

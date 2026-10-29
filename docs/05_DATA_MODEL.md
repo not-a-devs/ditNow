@@ -1,18 +1,19 @@
 # 데이터 모델 및 DB 계약 v0.2
 
-> **설계 스키마 초안**. 구현 시 PostgreSQL/Supabase 마이그레이션으로 선언하고 모든 변경을 버전화한다. 사용자의 실제 학번/성적 데이터는 필요하지 않다.
+> **설계 스키마 초안**. [DEC-015](11_DECISION_LOG.md)의 FastAPI를 서버 경계로 사용한다. PostgreSQL은 권장 DB 후보이며 DB·인증 공급자는 미정이다. 채택한 DB의 마이그레이션으로 변경을 버전화한다. 실제 학번/성적 데이터는 필요하지 않다.
 
 ## 1. 공통 규칙
 - 모든 PK: UUID, 시각: UTC `timestamptz`, 사용자 노출: Asia/Seoul 현지화.
-- 기본 created_at, updated_at, deleted_at(필요 시). 모든 소유권은 DB/RLS 및 서버에서 검사.
+- 기본 created_at, updated_at, deleted_at(필요 시). 모든 소유권은 FastAPI에서 검사하고, 채택한 DB의 최소 권한·행 범위 제약으로 추가 보호한다.
 - 조직 관계: `departments`, `academic_terms`, `class_cohorts`, `course_offerings`, `enrollments`.
-- 사용자 인증: Supabase Auth UID를 내부 FK로 사용; role은 일반 프로필 수정 API로 변경 불가.
+- 사용자 인증: FastAPI가 검증한 `(issuer, subject)`를 제안된 내부 `identities.id` UUID에 매핑한다. 공급자 subject를 UUID라고 가정하지 않는다. 프로필·역할은 내부 ID를 FK로 사용하며 role은 일반 프로필 수정 API로 변경할 수 없다.
 - MVP 외 추후 스키마는 문서상의 모델일 뿐 자동 생성 의무 없음.
 
 ## 2. 엔터티/주요 컬럼/제약
 | 테이블 | 주요 컬럼(일부) | 제약·설명 |
 |---|---|---|
-| `profiles` | user_id, display_name, department_id, academic_year, interest_tags | 1:1 auth UID, 소속은 관리자 승인 |
+| `identities` (P0 제안) | id, issuer, subject, status | `(issuer, subject)` unique. 검증된 인증 주체만 관리자 시드/승인 절차로 매핑; 자동 역할 부여 금지 |
+| `profiles` | user_id, display_name, department_id, academic_year, interest_tags | `identities.id`와 1:1, 소속은 관리자 승인 |
 | `role_assignments` | user_id, role, scope_type, scope_id, granted_by | 동일 범위 역할 중복 unique |
 | `departments` | id, name, active | 학과 표준 목록 |
 | `academic_terms` | id, year, semester, starts_at, ends_at | 학기 기준 |
@@ -29,7 +30,7 @@
 | `channel_memberships` | channel_id, user_id, status | 자유 채널·승인 채널 관리; 기본 소속은 권한 계산 |
 | `channel_messages` | id, channel_id, sender_id?, kind, text?, reference_notice_id?, client_nonce | 일반 메시지/공식 카드, nonce unique |
 | `anonymous_posts_private` | id, author_id, title, body, status, created_at | **직접 공개 조회 금지**, 소유권 내부 전용 |
-| `anonymous_posts_public` | view: id, title, body, status, created_at | author_id 없는 public projection/view |
+| `anonymous_posts_public` | id, title, body, status, created_at | author_id 없는 공개 projection. P0 후보는 별도 읽기 테이블이며 private와 동일 트랜잭션 갱신 |
 | `anonymous_comments` | id, post_id, author_id, body, status | 공개 응답에서는 작성자 UID 제외 |
 | `reports` | id, reporter_id, target_type, target_id, reason, status | 신고 처리 |
 | `realname_activity_profiles` | user_id, display_name, skills, interests, bio | 익명 글과 UI 연결 금지 |
@@ -66,8 +67,8 @@
 - `channel_messages(channel_id,created_at desc)`, `notifications(recipient_id,created_at desc)`
 - `recruitments(status,deadline)`, `opportunities(kind,deadline)`, `saved_opportunities(user_id,opportunity_id)` unique
 - `enrollments(student_id,offering_id)` unique, `recruitment_applications(recruitment_id,applicant_id)` unique
-- RLS: `user_id = auth.uid()` 개인 데이터, 채널/강의실은 `can_access_channel(uid,id)` / `is_enrolled(uid,offering)` 서버 권한 함수로 판별.
-- 서버/Edge 함수 service-role 사용 시 행별 권한 확인을 직접 수행; 일반 사용자 호출로 service-role을 전달하지 않음.
+- FastAPI가 검증한 현재 사용자·역할·소속으로 모든 보호 API의 행별 접근을 판정한다. PostgreSQL 채택 시 별도 최소 권한 DB 역할과 RLS 정책으로 개인 데이터·채널·강의실 접근을 추가 제한한다. 공급자 전용 `auth.uid()` 함수는 전제하지 않는다.
+- 앱 DB 계정에는 테이블 소유자·슈퍼유저·`BYPASSRLS` 권한을 주지 않는다. 관리자 쓰기와 익명 신원 매핑은 좁은 서버 업무 경로에서 별도 감사한다. DB 자격 증명은 브라우저에 전달하지 않는다.
 - `notice_outbox`는 재시도 시 상태/시도횟수와 다음 시도시각 업데이트, 이미 생성된 `notice_deliveries`는 중복 삽입 불가.
 
 ## 5. 데이터 시드 (시연 전용)

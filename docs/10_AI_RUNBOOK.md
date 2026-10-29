@@ -32,7 +32,7 @@ source_ids: [FR-NOT-001, FR-NOT-002, NFR-SEC-002, NFR-REL-002, TC-005, TC-006]
 inputs: [notice_id, actor_token, audience_type, audience_id]
 outputs: [notice_revision, delivery_ids]
 dependencies: [TASK-AUTH-RBAC, TASK-DEPT-CHANNELS, TASK-NOTICE-MODEL]
-files_allowed: [src/features/notices/**, supabase/functions/publish-notice/**]
+files_allowed: [mvp/src/features/notices/**, services/api/**] # services/api는 FastAPI 제안 경로이며 아직 없음
 files_forbidden: [src/features/community/**]
 acceptance:
   - approved assistant can publish department-year notice
