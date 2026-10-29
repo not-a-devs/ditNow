@@ -147,7 +147,7 @@ DIT_API_ENVIRONMENT=production DIT_API_DOCS_ENABLED=false uv run --locked uvicor
 
 | 검사 | 실제 구현 | 해석 |
 | --- | --- | --- |
-| `/health`, `/api/v1/health` | DB/auth를 검사하지 않는 `{status:ok,service:ditnow-api}` | 프로세스 생존만. DB 장애에도200일 수 있음 |
+| `/health`, `/api/v1/health` | DB/auth를 검사하지 않는 성공 envelope의 `data: {status: 'ok', service: 'ditnow-api'}` | 프로세스 생존만. DB 장애에도200일 수 있음 |
 | `PlatformRuntime.ensure_ready()` | 첫 사용에 MariaDB11.4/연결 collation/DB명/필수 테이블·컬럼 검사 후 프로세스 내 cache | 지속 readiness endpoint가 아님. FK/CHECK/GRANT·버전 장부·업무 권한·상시DB건강까지 증명하지 않음 |
 | `python -m app.db.live_check` | 명시 opt-in일 때만 DB metadata 조회 | 운영자 별도 실행. 기본 NOT_RUN, public readiness로 공개하지 않음 |
 | `/auth/me` | 현재 token·승인 binding·소속/역할 재검사 | 승인된 계정의 기능 probe. unauth는401 또는 미설정503이며 health와 다름 |
@@ -178,7 +178,7 @@ DIT_API_ENVIRONMENT=production DIT_API_DOCS_ENABLED=false uv run --locked uvicor
 ### rollback 순서 후보
 
 1. 현재 release SHA·정적 artifact·잠금 파일·설정 버전 참조와 이전 검증 release를 기록한다. 비밀값은 artifact에 넣지 않는다. FE/API를 호환되는 한 쌍으로 관리하고 정적 HTML과 hashed assets가 서로 다른 release로 섞이지 않게 한다.
-2. 민감 노출·권한 실패·업무 데이터 손상 위험이면 새 트래픽/해당 기능을 먼저 중지한다. `P0_RUNTIME_ENABLED=false` 재기동은 업무 router를 비활성화하는 선택지이나 기존 DB 세션을 자동 철회하는 기능은 아니다. 기존 토큰 폐기·키 회전은 별도 검토한 운영 절차로 처리한다.
+2. 민감 노출·권한 실패·업무 데이터 손상 위험이면 새 트래픽/해당 기능을 먼저 중지한다. `DIT_API_P0_RUNTIME_ENABLED=false` 재기동은 업무 router를 비활성화하는 선택지이나 기존 DB 세션을 자동 철회하는 기능은 아니다. 기존 토큰 폐기·키 회전은 별도 검토한 운영 절차로 처리한다.
 3. 이전 artifact로 되돌리기 전에 새 DB 스키마와의 호환을 확인한다. 앱 rollback을 이유로 16개 테이블 DROP·행 삭제·백업 덮어쓰기·사전 `mvp/` 복귀를 하지 않는다. 데이터 복원은 백업·복구 책임자와 별도 승인이 필요하다.
 4. 되돌린 SHA에서 health·업무 준비·2계정 거부·기존 표본 재조회·logout을 재검사한다. RPO/RTO/허용 중단·보존 수치는 아직 미확정(OPEN-R14)이며 복구 시험도 NOT_RUN이다.
 
