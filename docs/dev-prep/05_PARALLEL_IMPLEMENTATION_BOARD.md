@@ -65,9 +65,15 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 ## 후속 세션과 전체 자동 검사
 
-- G · Codex api_foundation_review: ditNow-classrooms / feat/classrooms-firstpass-20261030. 소유 `apps/web/src/features/classrooms/**`, `services/api/app/features/classrooms/**`, 전용 테스트/태스크 문서. 분반·자료·과제·질문 시연 서비스/UI를 공통 의존성과 분리해 구현 중. 인증/DB/파일·시험·실시간 활성화는 미완료다.
+- G · Codex api_foundation_review: ditNow-classrooms / feat/classrooms-firstpass-20261030. PR #27을 bb5e2380feb0a6c05cc1bf054d54e1535c7aff9d로 병합했다. 분반·자료·과제·질문의 미마운트 서비스/UI/단위 검사만 포함한다. 인증/DB/파일·시험·실시간 활성화는 미완료다.
 - F-DB-SAFETY · ditNow-chatbot-db-safety / fix/chatbot-explicit-db-init-20261030. chatbot/ 런타임 auto DDL 제거·기존 seed/reset 안전 경계를 검토한다. 공통 원장과 충돌하는 standalone schema를 운영 DB에 생성하지 않는다. 사람 승인 PR로 보류한다.
-- A-DB-CONFIG · 새 main 기준 독립 브랜치. core/config·DB 접속 설정/비동기 드라이버·services/api 의존성 잠금 단일 소유. 실제 연결·DDL·계정 생성은 미실행이다.
+- A-DB-CONFIG · ditNow-db-configuration / feat/mariadb-connection-contract-20261030 · PR #26. core/config·DB 접속 설정/비동기 드라이버·services/api 의존성 잠금 단일 소유. 61 단위 검사 및 같은 HEAD CI 성공; 사람 승인 대기. 실제 연결·DDL·계정 생성은 미실행이다.
 - ORCH · ditNow-db-operations / docs/db-network-and-integration-progress-20261030. DEC-019·DB 네트워크/역할 보고·보드·진행표·검증 상태 소유.
 - root 격리 통합 검사 ditNow-firstpass-integration / test/parallel-firstpass-integration-20261030: C/D/E 합성 소스 **pytest 251 PASS, 신규 웹 타입/27 테스트/build PASS**. 아직 미병합 PR 합성의 단위/계약 검사이며 auth/DB/E2E 완료 증거가 아니다. 이 검사에서 C/D/E의 `/api/v1` 중복 prefix를 발견해 세 CLI 수정 세션을 재시작했다. 각 실제 HEAD의 CI를 다시 확인한다.
 - 별도 Codex의 C/D/E 독립 리뷰에서 생성 재시도 중복, 개인 익명 응답 캐시 헤더 누락, 삭제 후 멱등 재시도 부활, 약한 ETag, 출처 URL·확인일 및 동시 공지 게시/채팅 재시도 문제가 재현됐다. 기존 성공 테스트만으로 실제 통합 완료로 올리지 않고 수정·회귀 검사한다.
+- C/D/E의 후속 Claude CLI 수정은 실제 완료·Push됐다(C 5d41809 / D 5cd3858 / E bf82870). root가 재리뷰·각 HEAD CI·합성 테스트 후 처리한다. 이 작업의 단위 저장소는 테스트 fake이며 DB 권한/영속성을 검증하지 않았다.
+- PR #19의 추가 Claude 읽기 전용 코드 리뷰 시도는 900초 timeout으로 결과가 없었다(NOT_RUN). 이전 PR #11의 완료된 Claude 설계 리뷰와 구분한다. 자동 반복하지 않았고 PR #19는 사람 보안 승인 전 열린 상태로 유지한다.
+- H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
+- I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
+
+현재 진행표는 **main 기준 부분 구현 8·미구현 79·운영 정책 차단 5·완전 구현 0**이다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
