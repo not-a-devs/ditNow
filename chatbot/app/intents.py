@@ -131,7 +131,7 @@ async def classify_with_llm(question: str, llm: LLMClient) -> Intent | None:
         match = re.search(r"\{.*?\}", raw, re.DOTALL)
         data = json.loads(match.group(0)) if match else None
     except (LLMError, json.JSONDecodeError) as e:
-        logger.warning("LLM 의도 분류 실패: %s", e)
+        logger.warning("LLM 의도 분류 실패: %s", type(e).__name__)
         return None
     if not isinstance(data, dict):
         return None
