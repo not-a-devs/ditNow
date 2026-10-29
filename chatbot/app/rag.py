@@ -3,9 +3,9 @@ import re
 import time
 from datetime import datetime
 
-from app.intents import CAMPUS, classify
+from app.intents import CAMPUS, Intent, route
 from app.llm import ChatMessage, LLMClient, LLMError
-from app.personal import HANDLERS, KST
+from app.personal import HANDLERS, KST, PersonalQuery
 from app.prompt import (
     LLM_FAILURE_ANSWER,
     LOGIN_REQUIRED_ANSWER,
@@ -66,16 +66,20 @@ async def answer_question(
     student_data: StudentData | None = None,
     student: Student | None = None,
     now: datetime | None = None,
+    intent: Intent | None = None,
 ) -> AskResponse:
-    """질문 → 의도 분류 → (검색 | 개인 데이터 계산) → 프롬프트 → LLM → 근거 파싱."""
+    """질문 → 의도 분류 → (검색 | 개인 데이터 계산) → 프롬프트 → LLM → 근거 파싱.
+
+    intent를 주면 분류를 건너뛴다 (/ask가 학생 데이터를 읽을지 정하려고 먼저 분류할 때).
+    """
     start = time.perf_counter()
-    intent = classify(question)
+    intent = intent or await route(question, retriever, llm)
 
     def done(**kw: object) -> AskResponse:
         ms = int((time.perf_counter() - start) * 1000)
-        return AskResponse(**kw, intent=intent, latency_ms=ms)
+        return AskResponse(**kw, intent=intent.name, classified_by=intent.by, latency_ms=ms)
 
-    if intent == CAMPUS:
+    if intent.name == CAMPUS:
         hits = retriever.search(question, top_k)
         if not hits:
             # 근거가 없으면 LLM을 부르지 않는다 (비용 절감 + 환각 방지)
@@ -85,9 +89,8 @@ async def answer_question(
     elif student is None or student_data is None:
         return done(answer=LOGIN_REQUIRED_ANSWER, found=False, need_login=True)
     else:
-        blocks, personal_locations = HANDLERS[intent](
-            student, student_data, data, now or datetime.now(KST)
-        )
+        query = PersonalQuery(question, now or datetime.now(KST), intent.day)
+        blocks, personal_locations = HANDLERS[intent.name](student, student_data, data, query)
 
     messages = [
         ChatMessage(role="system", content=SYSTEM_PROMPT),
@@ -104,7 +107,7 @@ async def answer_question(
     if _is_refusal(answer, sources):
         # 거절하면서 [근거]를 붙이는 모델도 있어, 근거 유무와 상관없이 거절로 본다
         return done(answer=answer, found=False)
-    if intent == CAMPUS:
+    if intent.name == CAMPUS:
         locations = find_locations(data, sources)
     else:
         locations = [loc for loc in personal_locations if loc.id in sources]

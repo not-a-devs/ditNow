@@ -126,6 +126,8 @@ async def _eval_personal(
     cases = json.loads((ROOT / "tests" / "eval_personal.json").read_text(encoding="utf-8"))
     rows: list[str] = []
     intent_ok = passed = mismatches = 0
+    # needs_llm: 키워드 규칙에 없어 LLM 분류가 있어야 맞힐 수 있는 질문 (LLM 평가에서만 센다)
+    cases = [c for c in cases if llm is not None or not c.get("needs_llm")]
     for c in cases:
         bundle = await load_student(db, c["student_id"], SEMESTER) if c["student_id"] else None
         res = await answer_question(

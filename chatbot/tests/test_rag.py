@@ -2,7 +2,7 @@ import pytest
 
 from app.llm import ChatMessage, LLMClient, LLMError
 from app.llm.fake_client import FakeLLMClient
-from app.prompt import LLM_FAILURE_ANSWER, NOT_FOUND_ANSWER, build_user_message
+from app.prompt import CLASSIFY_PROMPT, LLM_FAILURE_ANSWER, NOT_FOUND_ANSWER, build_user_message
 from app.rag import answer_question, find_locations, parse_sources
 from app.retriever.keyword import KeywordRetriever
 from app.schemas import CampusData
@@ -37,10 +37,11 @@ async def test_found(retriever: KeywordRetriever, campus_data: CampusData) -> No
 
 
 async def test_no_hits_skips_llm(retriever: KeywordRetriever, campus_data: CampusData) -> None:
-    """검색 결과가 없으면 LLM을 부르지 않고 고정 문구."""
+    """검색 결과가 없으면 답변 생성 LLM은 부르지 않고 고정 문구 (의도 분류 호출 1번만)."""
     llm = FakeLLMClient()
     res = await _ask("오늘 날씨 어때?", llm, retriever, campus_data)
-    assert (res.answer, res.found, llm.calls) == (NOT_FOUND_ANSWER, False, [])
+    assert (res.answer, res.found) == (NOT_FOUND_ANSWER, False)
+    assert [m[0].content for m in llm.calls] == [CLASSIFY_PROMPT]
 
 
 async def test_llm_failure(retriever: KeywordRetriever, campus_data: CampusData) -> None:

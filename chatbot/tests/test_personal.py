@@ -5,8 +5,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import ROOT_DIR
-from app.intents import CAMPUS, INTENT_KEYWORDS, classify
-from app.personal import HANDLERS, KST, next_class, remaining_credits, today_classes
+from app.intents import (
+    CAMPUS,
+    PERSONAL_INTENTS,
+    classify_keywords,
+    extract_day,
+    route,
+)
+from app.llm import ChatMessage, LLMClient
+from app.personal import (
+    HANDLERS,
+    KST,
+    PersonalQuery,
+    day_classes,
+    next_class,
+    remaining_credits,
+)
+from app.retriever.keyword import KeywordRetriever
 from app.schemas import CampusData, Student, StudentData
 from tests.test_api import client  # noqa: F401  (픽스처 재사용)
 
@@ -20,12 +35,28 @@ def _at(day_offset: int, hhmm: str) -> datetime:
     return MON.replace(day=MON.day + day_offset, hour=h, minute=m)
 
 
+def _q(now: datetime = MON, question: str = "", day: str | None = None) -> PersonalQuery:
+    return PersonalQuery(question, now, day)
+
+
+class _ScriptedLLM(LLMClient):
+    """정해진 답을 돌려주고 호출을 기록하는 LLM."""
+
+    def __init__(self, reply: str) -> None:
+        self.reply = reply
+        self.calls: list[list[ChatMessage]] = []
+
+    async def chat(self, messages: list[ChatMessage], **_: object) -> str:
+        self.calls.append(messages)
+        return self.reply
+
+
 def test_monday_fixture_is_monday() -> None:
     assert MON.weekday() == 0
 
 
 def test_every_intent_has_handler() -> None:
-    assert set(HANDLERS) == set(INTENT_KEYWORDS)
+    assert set(HANDLERS) == PERSONAL_INTENTS
 
 
 @pytest.mark.parametrize(
@@ -33,28 +64,78 @@ def test_every_intent_has_handler() -> None:
     [
         ("내 다음 수업 어디서 들어?", "next_class"),
         ("다음강의 몇시야", "next_class"),
-        ("오늘 수업 뭐 있어", "today_classes"),
-        ("내 시간표 알려줘", "today_classes"),
+        ("오늘 수업 뭐 있어", "day_classes"),
+        ("내 시간표 알려줘", "day_classes"),
+        ("목요일 수업 몇시야", "day_classes"),  # 요일이 있으면 다음 수업보다 시간표
+        ("다음 수업 시간표", "next_class"),
+        ("자료구조 강의실 어디야", "next_class"),
         ("졸업학점 몇 학점 남았어?", "remaining_credits"),
         ("졸업까지 얼마나 남았지", "remaining_credits"),
         ("이따 수업 몇 시야?", "next_class"),  # '수업'은 교무부 별칭이라 campus로 새던 표현
         ("학점 얼마나 더 따야 졸업해?", "remaining_credits"),
         ("내 학점 몇학점이야?", "remaining_credits"),  # /docs 수동 테스트에서 campus로 새던 표현
-        ("오늘 수업 몇시에 끝나", "today_classes"),  # 정확한 표현이 조합 규칙보다 우선
-        ("수강신청 언제야", CAMPUS),
-        ("졸업식 언제야", CAMPUS),
-        ("졸업증명서 어디서 뽑아", CAMPUS),
-        ("정보관 어디야", CAMPUS),
+        ("오늘 수업 몇시에 끝나", "day_classes"),  # 정확한 표현이 조합 규칙보다 우선
+        ("졸업증명서 어디서 뽑아", CAMPUS),  # 규칙 맨 위에서 교내 정보로 고정
     ],
 )
 def test_classify(q: str, intent: str) -> None:
-    assert classify(q) == intent
+    assert classify_keywords(q) == intent
+
+
+@pytest.mark.parametrize("q", ["수강신청 언제야", "졸업식 언제야", "정보관 어디야"])
+def test_no_rule(q: str) -> None:
+    """규칙에 없는 질문은 None (route가 검색·LLM으로 판단)."""
+    assert classify_keywords(q) is None
+
+
+@pytest.mark.parametrize(
+    ("q", "day"),
+    [
+        ("목요일 수업 뭐야", "목"),
+        ("내일 수업 있어?", "내일"),
+        ("이번 주 시간표", "week"),
+        ("오늘 수업", "오늘"),
+        ("다음 수업 어디야", None),
+    ],
+)
+def test_extract_day(q: str, day: str | None) -> None:
+    assert extract_day(q) == day
+
+
+async def test_route_uses_llm_when_rules_miss(campus_data: CampusData) -> None:
+    """규칙에 없는 1인칭 질문은 LLM이 분류하고, LLM이 준 값은 허용 목록 안에서만 쓴다."""
+    retriever = KeywordRetriever(list(campus_data.facilities.values()))
+    llm = _ScriptedLLM('{"intent": "day_classes", "day": "목", "student_id": "99999999"}')
+    intent = await route("나 목욜에 뭐 들어?", retriever, llm)
+    assert (intent.name, intent.day, intent.by) == ("day_classes", "목", "llm")
+
+    weird = _ScriptedLLM('{"intent": "drop_table", "day": "someday"}')
+    intent = await route("나 뭐 해야 돼?", retriever, weird)
+    assert (intent.name, intent.day) == (CAMPUS, None)
+
+
+async def test_route_skips_llm(campus_data: CampusData) -> None:
+    """규칙에 맞거나, 1인칭 없이 교내 검색이 되는 질문은 LLM을 부르지 않는다."""
+    retriever = KeywordRetriever(list(campus_data.facilities.values()))
+    llm = _ScriptedLLM("{}")
+    assert (await route("다음 수업 어디야", retriever, llm)).name == "next_class"
+    assert (await route("학식 몇시까지 해", retriever, llm)).name == CAMPUS
+    assert llm.calls == []
+
+
+async def test_route_falls_back_when_llm_fails(campus_data: CampusData) -> None:
+    """LLM이 JSON을 못 주면 교내 검색으로 간다."""
+    retriever = KeywordRetriever(list(campus_data.facilities.values()))
+    intent = await route("오늘 날씨 어때?", retriever, _ScriptedLLM("모르겠어요"))
+    assert (intent.name, intent.by) == (CAMPUS, "keyword")
 
 
 def test_eval_questions_stay_campus() -> None:
     """기존 교내 정보 평가 질문이 개인 질문으로 잘못 분류되지 않는다."""
     cases = json.loads((ROOT_DIR / "tests" / "eval_questions.json").read_text(encoding="utf-8"))
-    assert [c["question"] for c in cases if classify(c["question"]) != CAMPUS] == []
+    assert [
+        c["question"] for c in cases if classify_keywords(c["question"]) not in (None, CAMPUS)
+    ] == []
 
 
 @pytest.mark.parametrize(
@@ -70,34 +151,65 @@ def test_eval_questions_stay_campus() -> None:
 def test_next_class(
     students: Bundles, campus_data: CampusData, now: datetime, course: str, when: str
 ) -> None:
-    [block], _ = next_class(*students["20231001"], campus_data, now)
+    [block], _ = next_class(*students["20231001"], campus_data, _q(now))
     assert block.startswith(f"[{course}] 다음 수업({when},")
+
+
+def test_next_class_of_named_course(students: Bundles, campus_data: CampusData) -> None:
+    """과목을 말하면 그 과목의 다음 수업 (월 09:00 → 데이터베이스는 목요일)."""
+    [block], _ = next_class(
+        *students["20231001"], campus_data, _q(question="데이터베이스 강의실 어디야")
+    )
+    assert block.startswith("[CS210]") and "정보관 702호" in block
 
 
 def test_next_class_none(students: Bundles, campus_data: CampusData) -> None:
     """수강 과목이 없으면 없다고 알려 준다."""
-    [block], _ = next_class(*students["20221003"], campus_data, MON)
+    [block], _ = next_class(*students["20221003"], campus_data, _q())
     assert block.startswith("[my_timetable]")
 
 
-def test_today_classes(students: Bundles, campus_data: CampusData) -> None:
-    kim = students["20231001"]
-    blocks, _ = today_classes(*kim, campus_data, _at(0, "08:00"))
-    assert [b.split("]")[0] for b in blocks] == ["[CS201"]
-    [none], _ = today_classes(*kim, campus_data, _at(5, "08:00"))
-    assert "수업이 없습니다" in none
+def _ids(blocks: list[str]) -> list[str]:
+    return [b[1 : b.index("]")] for b in blocks]
+
+
+@pytest.mark.parametrize(
+    ("day", "question", "expected", "label"),
+    [
+        (None, "오늘 수업", ["CS201"], "오늘(월요일)"),
+        ("내일", "", ["CS205"], "내일(화요일)"),
+        ("목", "", ["CS210"], "목요일"),
+        ("week", "", ["CS201", "CS205", "CS201", "CS210", "GE101"], "이번 주"),
+        (None, "자료구조 무슨 요일이야", ["CS201", "CS201"], "이번 주"),  # 과목만 → 그 과목 전체
+    ],
+)
+def test_day_classes(
+    students: Bundles,
+    campus_data: CampusData,
+    day: str | None,
+    question: str,
+    expected: list[str],
+    label: str,
+) -> None:
+    blocks, _ = day_classes(*students["20231001"], campus_data, _q(question=question, day=day))
+    assert _ids(blocks) == expected and f"{label} 수업" in blocks[0]
+
+
+def test_day_classes_none(students: Bundles, campus_data: CampusData) -> None:
+    [none], _ = day_classes(*students["20231001"], campus_data, _q(_at(5, "08:00")))
+    assert none.startswith("[my_timetable] 오늘(토요일)") and "수업이 없습니다" in none
 
 
 def test_remaining_credits(students: Bundles, campus_data: CampusData) -> None:
     """졸업 80(전공 54·교양 12) - 취득 42(전공 30·교양 8·일반 4), 수강 중 11학점."""
-    [block], _ = remaining_credits(*students["20231001"], campus_data, MON)
+    [block], _ = remaining_credits(*students["20231001"], campus_data, _q())
     assert "남은 학점: 총 38학점" in block
     assert "남은 전공: 24학점" in block and "남은 교양: 4학점" in block
     assert "모두 이수하면 남은 학점은 총 27학점" in block
 
 
 def test_remaining_credits_done(students: Bundles, campus_data: CampusData) -> None:
-    [block], _ = remaining_credits(*students["20221003"], campus_data, MON)
+    [block], _ = remaining_credits(*students["20221003"], campus_data, _q())
     assert "남은 학점: 총 0학점" in block and "남은 전공: 0학점 (충족)" in block
 
 

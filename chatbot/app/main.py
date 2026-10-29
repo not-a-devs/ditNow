@@ -17,7 +17,7 @@ from app.auth import authenticate, issue_token, now_utc, resolve_token, revoke_t
 from app.config import Settings, get_settings
 from app.data_loader import DataError, load_data, load_mock_data
 from app.db import init_db, make_engine
-from app.intents import CAMPUS, classify
+from app.intents import CAMPUS, route
 from app.llm import get_llm_client
 from app.models import QuestionLogRow
 from app.prompt import LLM_FAILURE_ANSWER
@@ -157,10 +157,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def ask(body: AskRequest, request: Request, creds: Credentials, db: DB) -> AskResponse:
         """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다."""
         student_id = await current_student_id(db, creds)
-        # 교내 질문이면 학생 데이터를 읽지 않는다 (DB 조회 절약)
-        bundle = None
-        if student_id and classify(body.question) != CAMPUS:
-            bundle = await load_student(db, student_id, settings.current_semester)
         key = " ".join(normalize(body.question).split())
         if not key:
             raise HTTPException(422, "질문을 입력해 주세요.")
@@ -169,6 +165,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if cached and cached[0] > time.monotonic():
             return cached[1]
         check_rate_limit(request)
+        intent = await route(body.question, app.state.retriever, app.state.llm)
+        # 교내 질문이면 학생 데이터를 읽지 않는다 (DB 조회 절약)
+        bundle = None
+        if student_id and intent.name != CAMPUS:
+            bundle = await load_student(db, student_id, settings.current_semester)
         res = await answer_question(
             body.question,
             retriever=app.state.retriever,
@@ -178,6 +179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_context_chars=settings.max_context_chars,
             student=bundle[0] if bundle else None,
             student_data=bundle[1] if bundle else None,
+            intent=intent,
         )
         await log_question(db, body.question, res)
         if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
