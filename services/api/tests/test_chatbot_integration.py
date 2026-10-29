@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.v1.ai import router
 from app.core.config import Settings
 from app.factory import create_app
 from app.integrations.chatbot.campus import get_campus_search
@@ -18,7 +17,6 @@ from app.integrations.chatbot.campus import get_campus_search
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     application = create_app(Settings(environment="test"))
-    application.include_router(router, prefix="/api/v1")
     with TestClient(application) as test_client:
         yield test_client
 

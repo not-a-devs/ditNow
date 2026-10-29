@@ -15,7 +15,7 @@
 - 원본 시설 스냅샷의 항목별 공식 출처·최신성은 확인되지 않았으므로 `verification=UNKNOWN`으로 표시한다. 실시간 학교 데이터나 공식적으로 검증된 원장이라고 표시하지 않는다.
 - 질문·위치·대화 기록을 저장하거나 검색 캐시에 넣지 않는다. 캐시는 읽기 전용 시설 검색 인덱스 하나만 보관한다.
 
-통합 라우터의 공용 등록과 `services/api`의 로컬 의존성 잠금은 공통 파일 소유자가 별도로 반영한다. 등록 전에는 통합 서비스에 배포된 것으로 표시하지 않는다.
+통합 라우터의 공용 등록과 `services/api`의 로컬 의존성 잠금을 반영했다. 통합 앱의 실제 경로로 검색을 테스트하지만 운영 배포·신규 프런트 연결은 별도 검증 대상이다.
 
 ## 설치와 검증
 
@@ -27,7 +27,7 @@ uv sync --locked --all-extras
 uv run --locked --all-extras ruff check .
 uv run --locked --all-extras pytest -q
 
-# services/api/의 공통 pyproject/uv.lock에 로컬 의존성이 반영된 이후
+# services/api/에서 통합 API 검사
 uv sync --locked
 uv run --locked pytest -q
 ```
