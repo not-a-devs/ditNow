@@ -31,12 +31,13 @@ function isCampusSearchData(value: unknown): value is CampusSearchData {
   if (data.mode !== 'retrieval_only' || typeof data.found !== 'boolean'
     || data.verification !== 'UNKNOWN' || data.generated !== false
     || data.personal_data_access !== false || typeof data.source_notice !== 'string'
-    || data.source_notice.length > 1000 || !Array.isArray(data.hits) || data.hits.length > 10) return false;
+    || !data.source_notice.trim() || data.source_notice.length > 1000
+    || !Array.isArray(data.hits) || data.hits.length > 10 || data.found !== (data.hits.length > 0)) return false;
   return data.hits.every((value: unknown) => {
     if (!value || typeof value !== 'object') return false;
     const hit = value as Record<string, unknown>;
     return ['source_id', 'name', 'category', 'text'].every((key) => typeof hit[key] === 'string' && hit[key].length <= 10000)
-      && ['building', 'floor', 'room', 'hours'].every((key) => hit[key] === null || typeof hit[key] === 'string')
+      && ['building', 'floor', 'room', 'hours'].every((key) => hit[key] === null || (typeof hit[key] === 'string' && hit[key].length <= 1000))
       && typeof hit.score === 'number' && Number.isFinite(hit.score) && hit.score >= 0 && hit.score <= 1
       && ['alias', 'fuzzy', 'keyword'].includes(String(hit.matched_by));
   });

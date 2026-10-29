@@ -51,4 +51,18 @@ describe('캠퍼스 검색 통합 화면', () => {
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.queryByText('private-record-secret')).toBeNull();
   });
+
+  it('화면을 떠나면 진행 중인 시설 요청을 취소한다', () => {
+    let signal: AbortSignal | null = null;
+    vi.mocked(requestData).mockImplementation((_path, init) => {
+      signal = init?.signal as AbortSignal;
+      return new Promise(() => {});
+    });
+    const view = render(<CampusAssistantPage />);
+    fireEvent.change(screen.getByLabelText('시설 이름 또는 질문'), { target: { value: '가상 시설' } });
+    fireEvent.click(screen.getByRole('button', { name: '검색' }));
+    view.unmount();
+    expect(signal).not.toBeNull();
+    expect((signal as AbortSignal | null)?.aborted).toBe(true);
+  });
 });
