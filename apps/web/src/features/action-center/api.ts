@@ -16,7 +16,8 @@ const object = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.
 const exact = (v: Obj, names: string[]) => Object.keys(v).length === names.length && names.every(n => Object.hasOwn(v, n));
 const uuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const date = (v: unknown) => typeof v === 'string' && /(?:Z|[+-]\d\d:\d\d)$/.test(v) && Number.isFinite(Date.parse(v));
-const title = (v: unknown) => typeof v === 'string' && v.length >= 1 && v.length <= 200;
+// Pydantic max_length counts Unicode code points, while JS length counts UTF-16 units.
+const title = (v: unknown) => typeof v === 'string' && v.length >= 1 && v.length <= 400 && Array.from(v).length <= 200;
 const integer = (v: unknown, min: number) => Number.isSafeInteger(v) && (v as number) >= min;
 const kind = (v: unknown): v is SourceType => typeof v === 'string' && Object.hasOwn(LINKS, v);
 const source = (v: unknown) => typeof v === 'string' && Object.hasOwn(SOURCE_LABELS, v);

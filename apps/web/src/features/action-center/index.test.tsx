@@ -68,6 +68,15 @@ describe('홈 요약·개인 알림함 1차 구현', () => {
     expect(screen.queryByRole('link', { name: '가상 자료구조' })).toBeNull();
   });
 
+  it.each([200, 201])('서버와 동일하게 보조 평면 문자의 %s 코드포인트 제목 경계를 검사한다', length => {
+    const wireTitle = String.fromCodePoint(0x1f642).repeat(length);
+    const payload = summary(); payload.classes[0].title = wireTitle;
+    expect(Array.from(wireTitle)).toHaveLength(length);
+    expect(wireTitle).toHaveLength(length * 2);
+    expect(isSummary(payload)).toBe(length === 200);
+    expect(isPage(page([note(A, wireTitle)]))).toBe(length === 200);
+  });
+
   it('읽음 처리는 서버 revision으로 요청하고 성공 응답 후에만 표시한다', async () => {
     render(<ActionCenterPage />);
     fireEvent.click(await screen.findByRole('button', { name: '가상 알림 읽음 처리' }));

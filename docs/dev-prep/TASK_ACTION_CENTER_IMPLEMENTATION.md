@@ -56,4 +56,14 @@ export router prefix는 `/action-center`이며 통합 시 `/api/v1` 아래 한 �
 
 실행 결과: 전용 BE `pytest tests/test_action_center.py` 16 PASS, 전체 Python 695 PASS, `ruff check .`·`ruff format --check .` PASS. 전용 FE 7 PASS, 전체 웹 307 PASS, `typecheck`·`build`·`api:types:check` PASS. `check-feature-progress`(92, errors 0)·`check-agent-config` PASS.
 
-테스트 fake는 RLock 직렬화 메모리 저장소이며 MariaDB 격리·잠금·UNIQUE를 입증하지 않는다. 실DB·실로그인·provider 어댑터·전역 라우터/메뉴 연결·실브라우저 E2E·`npm audit`·독립 리뷰는 NOT_RUN이다. 진행표/보드/NAV 갱신과 실제 활성화는 통합 소유자의 후속 태스크다.
+테스트 fake는 RLock 직렬화 메모리 저장소이며 MariaDB 격리·잠금·UNIQUE를 입증하지 않는다. 실DB·실로그인·provider 어댑터·전역 라우터/메뉴 연결·실브라우저 E2E·`npm audit`은 NOT_RUN이다. 진행표/보드/NAV 갱신과 실제 활성화는 통합 소유자의 후속 태스크다.
+
+### 독립 리뷰와 Unicode 제목 경계 보완
+
+Codex B가 `216fc1d`를 읽기 전용으로 검토하고 전용 BE16/FE7을 각 1회 직접 통과했다. 현재 원본 접근·수신자 소유권·읽음 CAS/재요청·민감 본문 제외·private no-store·401/403 후 개인 화면 폐기·늦은 요청 취소를 확인했다. 실제 DB/운영 권한 검증이나 사람의 공식 승인은 아니다.
+
+P2 재현: Pydantic은 이모지 150개 제목을 150 코드포인트로 허용하지만 FE의 기존 `String.length <= 200`은 UTF-16 300개로 거부하여 유효한 요약/알림함 전체를 오류 처리했다. 서버의 200 코드포인트 계약은 유지하고 FE는 UTF-16 400개 사전 상한과 `Array.from(title).length <= 200`을 함께 검사하도록 수정했다. 요약·알림함 양쪽에 200개 허용/201개 거부 회귀 2개를 추가했다. API/저장소/전역 화면 활성화는 변경하지 않았다.
+
+보완 후 전용 FE9·타입 검사·빌드·Git diff 검사 PASS. 기존 BE도 보조 평면 문자 200개 허용/201개 거부를 별도 오프라인 실행으로 확인했다. 앞의 전체 Python695/웹307 기록은 원본 커밋 기준이며, 수정 HEAD의 전체 CI는 별도로 확인한다.
+
+향후 실제 SourceReader 어댑터는 현재 actor 범위·시간창 필터와 시간/id 안정 정렬을 **LIMIT 이전에** 적용해야 한다. 섹션 최대10/공지5/미읽음 스캔100은 전체 학교 업무의 완전한 집계가 아니며, 현재 `unread_capped`는 제한된 미읽음 조회임을 나타낸다.
