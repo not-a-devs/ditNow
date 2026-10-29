@@ -3,7 +3,7 @@
 > **동의과학대학교 학생을 위한 AI 스마트 캠퍼스 서비스**<br>
 > "학교의 모든 정보를 내 손안에서, 더욱 간편하고 편리하게"
 
-> **현재 구현 상태:** `mvp/`는 React/Vite/Tailwind의 브라우저 저장소 기반 시연 앱입니다. 아래 AI 비서·지도·학교 시스템 통합은 제품 목표와 제안 기능이며 구현 증거가 아닙니다. [DEC-015](docs/11_DECISION_LOG.md)에서 프런트 스택과 FastAPI 백엔드를 확정했지만 FastAPI 서버·공유 DB·실제 학교 연동은 아직 없습니다. 제출 자격의 별도 차단 사항은 [심사 규정 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
+> **현재 구현 상태:** `mvp/`는 React/Vite/Tailwind의 브라우저 저장소 기반 시연 앱입니다. 아래 AI 비서·지도·학교 시스템 통합은 제품 목표와 제안 기능입니다. [DEC-015](docs/11_DECISION_LOG.md)의 FastAPI 공개 상태 확인·오류·설정·테스트 기반은 [services/api](services/api/README.md)에 구현했습니다. 업무 인증·공유 DB·실제 학교 연동은 미구현입니다. 저장소 적격성은 [사용자 해결 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)으로 상태를 갱신했습니다.
 
 <br>
 
@@ -51,7 +51,7 @@
 | 분류 | 기술 |
 |---|---|
 | Frontend | React + TypeScript + Vite + Tailwind CSS — 확정, `mvp/` 시연 구현 |
-| Backend | FastAPI — 확정, 아직 미구현 |
+| Backend | FastAPI — 공개 health·오류·설정·로그·테스트 기반 구현, 업무 API 미구현 |
 | DB | PostgreSQL 권장 후보; DB 제품·운영 방식 미확정 |
 | 인증·호스팅·비용 | 공급자·방식·지역·예산 미확정 (OPEN-002/003) |
 | AI·RAG·지도 | 제품 제안, 공급자·실제 연동·검증 미완료 |
@@ -77,7 +77,7 @@ npm ci
 ```bash
 npm run dev
 ```
-브라우저에서 `http://localhost:5173`에 접속합니다. 시연 계정과 범위는 [MVP 안내](mvp/README.md)를 참고하세요. 현재 저장소에는 FastAPI 실행 명령·`requirements.txt`·DB 마이그레이션이 없습니다. 서버 구현 후 실제 설치·환경 변수·실행 방법을 추가합니다.
+브라우저에서 `http://localhost:5173`에 접속합니다. 시연 계정과 범위는 [MVP 안내](mvp/README.md), Python 서버 설치·실행·테스트는 [API 안내](services/api/README.md)를 참고하세요. 프런트는 아직 FastAPI 업무 원장에 연결되지 않았습니다.
 
 <br>
 

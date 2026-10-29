@@ -1,6 +1,6 @@
 # DIT NOW 서비스 아키텍처 v1.0 초안
 
-[DEC-015](../11_DECISION_LOG.md)에 따라 React/TypeScript/Vite/Tailwind CSS 프런트엔드와 FastAPI 백엔드는 확정이다. PostgreSQL은 권장 DB 후보이며 DB·인증·스토리지·실시간·호스팅 공급자와 비용은 OPEN-002 미결정이다. [기존 아키텍처](../06_ARCHITECTURE.md)를 이 결정에 맞춰 읽는다. 현재 mvp는 브라우저 localStorage 기반 시연이며 FastAPI 서버나 공유 DB를 구현했다고 주장하지 않는다.
+[DEC-015](../11_DECISION_LOG.md)에 따라 React/TypeScript/Vite/Tailwind CSS 프런트엔드와 FastAPI 백엔드는 확정이다. PostgreSQL은 권장 DB 후보이며 DB·인증·스토리지·실시간·호스팅 공급자와 비용은 OPEN-002 미결정이다. [기존 아키텍처](../06_ARCHITECTURE.md)를 이 결정에 맞춰 읽는다. 현재 mvp는 브라우저 localStorage 기반 시연이다. `services/api/`의 공개 health·오류·설정·로그·테스트 기반과 아래 미구현 업무 API·공유 DB를 구별한다.
 
 ## 논리 계층
 React/Vite 클라이언트(공개/지원자/학생/교직원 화면) → FastAPI 인증·권한·Pydantic 검증 → 업무 서비스(공지·채팅·협업·기회·강의/LMS·학사·입학·도서·생활·지원) → 선택된 DB 원장/비공개 파일 저장. PostgreSQL 채택 시 FastAPI 전용 최소 권한 DB 역할과 RLS를 추가한다. outbox 소비자가 공지 카드·알림·검색 갱신을 처리한다. AI 서비스는 권한 필터된 최소 원본만 읽는다. 화면 공유 공급자는 별도 짧은 토큰으로만 연결한다. 실제 학교 운영 시스템은 이 시연 경계 밖이다.

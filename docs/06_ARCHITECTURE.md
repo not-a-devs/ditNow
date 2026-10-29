@@ -1,6 +1,6 @@
 # 기술 아키텍처 및 통합 계약
 
-> 프런트 React/TypeScript/Vite/Tailwind CSS와 백엔드 FastAPI는 [DEC-015](11_DECISION_LOG.md) **[확정]**이다. PostgreSQL과 DB·인증·파일·실시간·호스팅 공급자, 지역과 비용은 [OPEN-002](11_DECISION_LOG.md) **[미결정]**이다. 현재 FastAPI 서버나 DB가 구현되었다는 뜻은 아니다.
+> 프런트 React/TypeScript/Vite/Tailwind CSS와 백엔드 FastAPI는 [DEC-015](11_DECISION_LOG.md) **[확정]**이다. PostgreSQL과 DB·인증·파일·실시간·호스팅 공급자, 지역과 비용은 [OPEN-002](11_DECISION_LOG.md) **[미결정]**이다. 현재 `services/api/`에는 공개 health·공통 오류·설정·로그·테스트만 구현했고, 아래 업무 API와 DB는 아직 설계다.
 
 ## 1. 확정 스택과 공급자 후보
 | 계층 | 상태·기술 | 이유/제약 |

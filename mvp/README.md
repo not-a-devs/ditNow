@@ -5,6 +5,8 @@
 
 > ⚠️ 서버 DB CRUD, 권한 격리, 배포는 현재 검증되지 않았습니다. [DEC-015](../docs/11_DECISION_LOG.md)에 따라 FastAPI 서버를 별도 구현하고, DB·인증·호스팅은 OPEN-002/003 결정 후 선택해야 합니다.
 
+[FastAPI 공개 health 기반](../services/api/README.md)은 별도로 실행할 수 있습니다. 이 프런트의 시연 데이터와 로그인은 여전히 브라우저 모의 계층입니다.
+
 ## 실행
 
 ```bash
