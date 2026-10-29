@@ -55,7 +55,7 @@
 | Frontend | React + TypeScript + Vite + Tailwind CSS — `apps/web/` 신규 통합 셸 구현·테스트; 개별 업무 모듈 통합 중 |
 | Backend | FastAPI — 공개 health·시설 검색·대학 안내 연결. 업무 모듈은 부분 구현이며 인증·실DB 연결 전 |
 | DB | MariaDB 11.4.13 · 팀원 Proxmox VM/Tailscale 전용. 두 계정 읽기·직접 GRANT 확인; 엄격 async TLS는 CA/SAN 대기, 원격 migration·CRUD·백업 미검증 |
-| 인증·호스팅·비용 | 공급자·방식·지역·예산 미확정 (OPEN-002/003) |
+| 인증·호스팅·비용 | 저장소 DEC-020의 학번 로그인 선택. 공통 UUID·현재 권한 연결과 호스팅·비용·시연 권한 게이트는 미완료 (OPEN-002/003) |
 | AI·RAG·지도 | 기존 `chatbot/` RAG 재사용·통합 중; 외부 LLM·개인화·지도 통합 검증 미완료 |
 | 개발 도구 | Claude Code, Git / GitHub |
 

@@ -21,19 +21,20 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 ## 현재 실행·리뷰·승인 대기 — PR #32 병합 기준
 
-main은 `3535e0179f306ab027334010ae2ca4592cd3558d`이다. 아래 PR은 실제 작업 결과이며 열린 브랜치의 코드를 main 구현 상태에 합산하지 않는다. 단위 테스트는 메모리 fake 또는 SQLite를 사용한 범위와 실제 서버 검증을 구분한다.
+main에는 별도 작업자의 PR #39도 `fe6e7e28d22768a256ee1723ea450d49af2a5efa`로 병합됐다. 아래 PR은 실제 작업 결과이며 열린 브랜치의 코드를 main 구현 상태에 합산하지 않는다. 단위 테스트는 메모리 fake 또는 SQLite를 사용한 범위와 실제 서버 검증을 구분한다.
 
 | 작업 | 담당·격리 worktree | 변경 가능 영역·현재 상태 |
 |---|---|---|
 | TASK-I 공개 대학 안내 | Codex F + root · ditNow-public-campus | PR #32 병합. 실제 API·신규 앱 연결, 390/1280 화면·검색/필터/상세/오류 검사, 같은 HEAD CI 5개 성공. 전체 6개 FR은 PARTIAL |
 | TASK-N 실제 SQLAlchemy 저장소 | Codex B · ditNow-mariadb-integration | [PR #37](https://github.com/not-a-devs/ditNow/pull/37), HEAD bf4adc1262e8a84307d43f5c1d529cfab37c0072. 공통 DB 모델·migration 제안·저장소·접속 코드 단일 소유. 전체 API537·CI5 성공, Codex F 독립 리뷰 수정 완료. 사람 보안 승인 전 OPEN, 원격 적용 0 |
-| TASK-K 커뮤니티 협업 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-collaboration | [PR #35](https://github.com/not-a-devs/ditNow/pull/35). collaboration FE/BE/tests만 소유. 독립 리뷰 BE76·Ruff PASS, 동시성 오류 계약/古い応答/ID 경계/자기 댓글 삭제 등 보완 중. 실제 DB/인증·전역 화면 연결 전 |
+| TASK-K 커뮤니티 협업 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-collaboration | [PR #35](https://github.com/not-a-devs/ditNow/pull/35). collaboration FE/BE/tests만 소유. 독립 리뷰 BE76·Ruff PASS, 동시성 오류 계약/늦은 응답/ID 경계/자기 댓글 삭제 등 보완 중. 실제 DB/인증·전역 화면 연결 전 |
 | TASK-L 취업·프로그램 | Claude CLI 작성·별도 리뷰·수정 세션 · ditNow-careers | [PR #36](https://github.com/not-a-devs/ditNow/pull/36). careers FE/BE/tests만 소유. 독립 리뷰 BE100 PASS, 한도 aggregate 잠금/손상 시각/개인 상태 폐기 등 보완 중. 실상담·심사·기업 권한 활성화 차단 |
 | TASK-M 학사·출결 | Claude CLI 수정 + Codex F 독립 리뷰 · ditNow-academics | [PR #34](https://github.com/not-a-devs/ditNow/pull/34). academics FE/BE/tests만 소유. root와 F가 BE40·FE31 직접 PASS했으나 학점/시간 충돌·중복 요청/세션·StrictMode 결함을 별도 재현해 병합 보류·보완 중 |
 | TASK-O 생활·학생지원 | Codex A 작성 + root 독립 리뷰 · ditNow-student-life | [PR #38](https://github.com/not-a-devs/ditNow/pull/38) 병합. root BE27·FE12 직접 PASS, 같은 HEAD CI5 성공. 미마운트 가상 신청/상태·배지 조회만, 고충 본문·민감 지원·직원 처리 권한 제외 |
 | TASK-P 공개 통합 검색 | Codex B 후속 · ditNow-public-discovery | discovery BE/FE/tests·전용 태스크 문서. 기존 공개 안내/시설 검색을 재사용한다. 공유 router/App/OpenAPI는 root 소유, 개인정보 검색 없음 |
 | TASK-Q 온라인 학습 | Codex A · ditNow-online-learning | online_learning BE·online-learning FE·전용 tests/태스크 문서. 기존 분반을 참조하는 가상 진도·온라인 학습/시험, 공식 성적·외부 LMS·감독 판정 차단 |
 | TASK-R 공지 상세·학과 질문 | Codex F · ditNow-notice-discussion | notice_discussion BE·notice-discussion FE·전용 tests/태스크 문서. 기존 공지 원장 재사용, 학과 질문/댓글·안전 메타 조회, 공식 답변/파일 저장 차단 |
+| PR #39 호환·보안 보완 | Codex A 독립 리뷰 → 기존 PR #28 통합 · ditNow-chatbot-db-safety | 타인 변경 보존. 원격 legacy DSN/TLS·seed 경계, 공통 UUID/현재 권한 미연결, auth/개인 AI 캐시 및 rate-limit 순서 보완. Q는 checkpoint 보존 후 이어감 |
 | TASK-ORCH | root · ditNow-progress-update | NAV/README·보드·92행 진행표·연결 검사, 공통 router/App/OpenAPI 통합·PR/CI/리뷰 조정. DB 비밀 주입과 실제 접속은 root만 수행 |
 
 DB의 현재 환경 차단은 **BLOCKED_TLS** 하나다. 네트워크·양 계정 직접 인증/SELECT·GRANT·빈 스키마는 확인했다. 사용자가 CA/SAN을 요청했으며 인증서 검증을 해제하지 않는다. 원격 DDL·seed·CRUD 쓰기는 0이다. 별개의 사람 보안 승인·실제 로그인 정책 게이트는 그대로 유지한다. PR #13/19/26/28/37은 자동 병합하지 않는다.
@@ -97,7 +98,20 @@ DB의 현재 환경 차단은 **BLOCKED_TLS** 하나다. 네트워크·양 계�
 - H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
 - I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
 
-PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #38까지 반영한 최신 진행표는 **부분 구현 40·미구현 47·운영 정책 차단 5·완전 구현 0**이다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+PR #32 기준은 부분 구현 34·미구현 53·차단 5였다. PR #38/39까지 반영한 최신 진행표는 **부분 구현 41·미구현 46·운영 정책 차단 5·완전 구현 0**이다. PR #39의 학번 로그인은 코드·메모리 테스트의 부분 구현이며 공통 UUID·현재 권한·엄격 TLS 통합 완료를 뜻하지 않는다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+
+## PR #39 독립 보안 검토와 보완 경계
+
+Codex A가 별도 detached worktree에서 main `fe6e7e2`를 읽기 전용 검토하고 기존 AI/auth 테스트14개를 직접 통과했다. 실제 원격 연결 없이 엔진 구성과 메모리 DB를 조사한 결과는 다음과 같다. 다른 작업자의 PR을 되돌리거나 승인 기록을 삭제하지 않았다. DEC-020의 학번·초기 비밀번호 로그인과 AI 답변 통합 선택은 보존한다.
+
+| 발견 | 근거·재현 범위 | 처리 |
+|---|---|---|
+| 임의 DSN이 legacy engine으로 전달 | assistant.py → chatbot db.make_engine; 무연결 생성에서 ssl/timeout 없음·hide_parameters=false | 기존 PR #28의 승인 factory 경계로 차단·호환 수정 중 |
+| 공통 신원·현재 권한 미연결 | legacy students 학번 PK/auth_sessions 사용. 메모리에서 비밀번호 변경 후 기존 token 개인 응답200 재현 | 실서버 개인 원장은 승인된 공통 UUID/current grant bridge 전503; 시연 메모리 테스트와 구분 |
+| seed의 원격 DDL 가능 | app.seed_demo → init_db(create_all), 학생 수만으로 기존 데이터 판별 | canonical memory 외 차단; 원격 migration은 별도 검토 절차 |
+| token/개인 AI 캐시 및 rate-limit 순서 | 메모리 login/개인 AI 응답 cache-control 없음. invalid token 조회가 quota보다 먼저 실행 | private/no-store 및 DB 조회 전 제한 회귀 보완 |
+
+위 결과는 실제 MariaDB·TLS·운영 사용자·외부 LLM 검증이 아니다. PR #28은 수정 후 독립 재리뷰·새 HEAD CI와 사람 보안 승인을 기다린다. 인증서 검증 해제·원격 DDL·운영 권한 생성은 하지 않는다.
 
 
 ## 최신 실행 갱신 — 공개 안내·DB 실제 진단
