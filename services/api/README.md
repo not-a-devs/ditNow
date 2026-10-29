@@ -37,3 +37,9 @@ uv run --locked python -c "from app.main import app; assert app.openapi()['paths
 OPEN-002(DB·인증·호스팅·비용), OPEN-003(가상 권한 시드 책임자) 결정 후 인증 dependency·DB 어댑터·가상 시드를 별도 PR로 구현한다. FastAPI 선택과 코드 기반 검증은 실제 학교 연동·운영 준비 완료를 뜻하지 않는다.
 
 GitHub의 `Python API 검증`은 잠금 설치·Ruff·pytest·앱 import/OpenAPI·에이전트 설정을 검사한다. 기존 `MVP 검증`도 같은 PR에서 타입과 빌드를 실행한다. 배포·비밀값·인증/DB 접근을 요구하지 않는다.
+
+## 실제 API와 프런트 타입 동기화
+
+`uv run --locked python -m app.export_openapi`로 실제 라우트에서 `openapi.json`을 생성하고 `--check`로 커밋된 스냅샷과 비교한다. 그 후 `mvp/`에서 `npm run api:types`를 실행하면 `src/shared/api/schema.d.ts`가 생성된다. CI는 `npm run api:types:check`로 드리프트를 거부한다. 타입 생성은 [openapi-typescript의 공식 Node API](https://openapi-ts.dev/node)를 사용한다.
+
+현재 계약에는 health 두 경로와 공통 응답/오류만 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. 프런트의 기존 모의 API는 그대로이며 새 생성 타입을 실제 서버 연결에 사용하는 태스크는 별도다.

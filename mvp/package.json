@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "api:types": "node scripts/api-types.mjs",
+    "api:types:check": "node scripts/api-types.mjs --check"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -19,6 +21,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "openapi-typescript": "7.13.0",
     "postcss": "8.5.23",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
