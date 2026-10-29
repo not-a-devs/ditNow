@@ -95,6 +95,42 @@ test('same-account replacement saved row without this run marker is never delete
   assert.equal(fake.calls.filter(call => call.method === 'DELETE').length, 0);
 });
 
+test('a saved opportunity recreated for the second viewport is pending and cleaned after a later failure', async () => {
+  const fake = createFakeApi({ saved: [{ opportunity_id: OPPORTUNITY_ID, revision: 1, checks: [{ text: `${MARKER} 390` }] }] });
+  const registry = new ResourceRegistry();
+  registry.register('saved_opportunity', OPPORTUNITY_ID, { viewport: 390 });
+  const first = await cleanupResources({ api: api(fake), token: 'tok', registry, marker: MARKER });
+  assert.equal(first.deleted, 1);
+  assert.equal(registry.pending().length, 0);
+
+  // The next viewport saves the same catalogue item, then fails before its normal remove stage.
+  fake.state.saved.push({ opportunity_id: OPPORTUNITY_ID, revision: 2, checks: [{ text: `${MARKER} 1280` }] });
+  registry.register('saved_opportunity', OPPORTUNITY_ID, { viewport: 1280 });
+  assert.equal(registry.pending().length, 1);
+  const second = await cleanupResources({ api: api(fake), token: 'tok', registry, marker: MARKER });
+  assert.equal(second.attempted, 1);
+  assert.equal(second.deleted, 1);
+  assert.equal(second.failed, 0);
+  assert.equal(fake.state.saved.length, 0);
+  assert.deepEqual(registry.counts(), { saved_opportunity: { deleted: 1 } });
+  assert.equal(fake.calls.filter(call => call.method === 'DELETE').length, 2);
+});
+
+test('a re-registered saved opportunity still requires the current row marker before cleanup', async () => {
+  const fake = createFakeApi({ saved: [{ opportunity_id: OPPORTUNITY_ID, revision: 1, memo: 'later unmarked preparation', checks: [] }] });
+  const registry = new ResourceRegistry();
+  registry.register('saved_opportunity', OPPORTUNITY_ID);
+  registry.mark('saved_opportunity', OPPORTUNITY_ID, 'deleted');
+  registry.register('saved_opportunity', OPPORTUNITY_ID);
+
+  const summary = await cleanupResources({ api: api(fake), token: 'tok', registry, marker: MARKER });
+  assert.equal(summary.attempted, 1);
+  assert.equal(summary.skipped_not_owned_marker, 1);
+  assert.equal(summary.deleted, 0);
+  assert.equal(fake.state.saved.length, 1);
+  assert.equal(fake.calls.filter(call => call.method === 'DELETE').length, 0);
+});
+
 test('malformed cleanup list is a reported failure without destructive requests', async () => {
   const registry = new ResourceRegistry(); registry.register('saved_opportunity', OPPORTUNITY_ID);
   let deletes = 0;
