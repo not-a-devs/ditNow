@@ -31,8 +31,10 @@ docker compose down -v               # 데이터까지 삭제
 students                    학적 (학번 PK, 이름, 학과, 학년, password_hash, kakao_id UNIQUE)
 courses ─< course_sessions  강의, 요일·시간·강의실
 enrollments                 수강 이력 (학번, 강의, 학기, 이수구분, 성적) UNIQUE(학번, 강의, 학기)
+exams                       시험 일정 (강의, 중간/기말, 날짜, 시간, 강의실) UNIQUE(강의, 종류)
 graduation_rules ─< graduation_rule_categories   학과별 졸업 총 학점, 구분별 최소 학점
 auth_sessions               로그인 세션 (token_hash PK, 학번, 만료 시각)
+question_logs               질문 로그 (질문, 의도, 분류 방법, 성공 여부, 응답 시간) — 학번 없음
 ```
 
 - **취득 학점은 저장하지 않고** `enrollments`에서 계산합니다 (`student_repo.load_student`).
@@ -48,7 +50,9 @@ auth_sessions               로그인 세션 (token_hash PK, 학번, 만료 시�
 - 교내 질문에는 학생 데이터를 읽지 않습니다 (`/ask`에서 의도가 campus면 조회 생략).
 - PBKDF2 비밀번호 검증은 CPU 작업이라 `asyncio.to_thread`로 돌립니다.
 - 스키마를 바꾸면 해커톤 단계에서는 `seed_db.py --reset`으로 다시 만듭니다.
-  실서비스로 가면 Alembic 마이그레이션을 도입하세요(지금은 없음).
+  - 새 테이블은 서버 시작 때 자동으로 생기지만, **학생이 이미 있으면 시드를 건너뛰어 새 테이블이 비어 있습니다.** 반드시 `--reset`.
+  - `--reset`은 질문 로그·로그인 세션도 지웁니다.
+- 실서비스로 가면 Alembic 마이그레이션을 도입하세요(지금은 없음).
 
 ## 5. 테스트
 

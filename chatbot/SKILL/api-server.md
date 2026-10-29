@@ -12,6 +12,7 @@
 | `POST` | `/auth/logout` | 토큰 폐기 |
 | `GET` | `/facilities` | 시설 목록 (프론트 지도 표시용) |
 | `GET` | `/facilities/{id}` | 시설 상세 |
+| `GET` | `/admin/questions` | 질문 로그 (`X-Admin-Token`). 기본은 답을 못 찾은 질문만, `only_failed=false`면 전체 |
 | `POST` | `/admin/reload` | JSON 데이터 다시 읽기 (`X-Admin-Token` 헤더 = `.env`의 `ADMIN_TOKEN`, 비어 있으면 비활성) |
 
 ## 2. `/ask` 요청·응답
@@ -32,7 +33,8 @@
 }
 ```
 
-- `intent`: `campus` | `next_class` | `today_classes` | `remaining_credits`
+- `intent`: `campus` | `next_class` | `day_classes` | `my_courses` | `grades` | `exams` | `remaining_credits`
+- `classified_by`: 의도를 고른 방법 (`keyword` | `llm`)
 - `need_login=true`면 개인 질문인데 로그인하지 않은 것입니다. 프론트는 로그인 화면으로 안내합니다.
 - 잘못되거나 만료된 토큰을 보내면 `401`입니다. 토큰 없이 보내면 교내 질문은 정상 응답합니다.
 - `found=false`이면 데이터에 없다는 뜻입니다. 프론트는 "관리자에게 제보하기" 같은 UI를 띄울 수 있습니다.
