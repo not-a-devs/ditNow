@@ -1,0 +1,26 @@
+# 개발·해커톤용 MariaDB. 실행: docker compose up -d
+# 비밀번호는 .env의 MARIADB_PASSWORD / MARIADB_ROOT_PASSWORD (없으면 아래 기본값)
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: ditnow-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ditnow
+      MARIADB_USER: ditnow
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-ditnow}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-ditnow-root}
+    # 한글 저장을 위해 utf8mb4
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306"  # 외부 네트워크에는 열지 않는다
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mariadb-data:

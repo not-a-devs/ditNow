@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff.lint.per-file-ignores]
+# 프롬프트 문장은 줄바꿈하면 그대로 모델에 전달되므로 길이 제한에서 뺀다
+"app/prompt.py" = ["E501"]

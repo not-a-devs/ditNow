@@ -1,0 +1,200 @@
+[
+  {
+    "id": "dept_elec",
+    "category": "학과사무실",
+    "name": "전기과",
+    "aliases": [
+      "전기",
+      "전기공학"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "302호",
+    "phone": "051-860-3200",
+    "hours": null,
+    "note": null,
+    "text": "전기과 학과사무실은 탐구관 302호에 있습니다. 전화번호는 051-860-3200입니다."
+  },
+  {
+    "id": "dept_ev",
+    "category": "학과사무실",
+    "name": "전기자동차과",
+    "aliases": [
+      "전기차과",
+      "자동차과",
+      "전기차",
+      "전자차과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": "504호",
+    "phone": "051-860-3260",
+    "hours": null,
+    "note": null,
+    "text": "전기자동차과 학과사무실은 미래관 504호에 있습니다. 전화번호는 051-860-3260입니다."
+  },
+  {
+    "id": "dept_cs",
+    "category": "학과사무실",
+    "name": "컴퓨터소프트웨어과",
+    "aliases": [
+      "컴소과",
+      "컴소",
+      "컴퓨터과",
+      "소프트웨어과",
+      "컴공",
+      "컴퓨터공학",
+      "소웨과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": "4층",
+    "room": "405-2호",
+    "phone": "051-860-3210",
+    "hours": null,
+    "note": null,
+    "text": "컴퓨터소프트웨어과 학과사무실은 미래관 4층 405-2호에 있습니다. 전화번호는 051-860-3210입니다."
+  },
+  {
+    "id": "admin_welfare",
+    "category": "행정부서",
+    "name": "학생복지부",
+    "aliases": [
+      "학생지원",
+      "장학금",
+      "장학",
+      "학자금대출",
+      "학자금",
+      "국가근로",
+      "근로장학"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3045~8",
+    "hours": null,
+    "note": "장학금(3048), 학자금대출·국가근로(3046~7)",
+    "text": "학생복지부의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 장학금(3048), 학자금대출·국가근로(3046~7). 전화번호는 051-860-3045~8입니다."
+  },
+  {
+    "id": "fac_cafeteria",
+    "category": "식당",
+    "name": "학생식당",
+    "aliases": [
+      "학식",
+      "밥",
+      "식당",
+      "밥 먹는 곳",
+      "점심",
+      "구내식당",
+      "학생 식당"
+    ],
+    "building": "늘벗터",
+    "building_id": "neulbeot",
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3362·3365",
+    "hours": "학기 중 09:50~13:50 / 방학 11:30~13:30",
+    "note": "462석",
+    "text": "학생식당은 늘벗터에 있습니다. 운영시간은 학기 중 09:50~13:50 / 방학 11:30~13:30입니다. 참고: 462석. 전화번호는 051-860-3362·3365입니다."
+  },
+  {
+    "id": "fac_health",
+    "category": "편의시설",
+    "name": "보건실",
+    "aliases": [
+      "양호실",
+      "아플 때",
+      "약",
+      "의무실"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "1층",
+    "room": "105-2호",
+    "phone": null,
+    "hours": "09:00~17:00",
+    "note": null,
+    "text": "보건실은 본관 1층 105-2호에 있습니다. 운영시간은 09:00~17:00입니다."
+  },
+  {
+    "id": "fac_lib_reading",
+    "category": "편의시설",
+    "name": "도서관 열람실",
+    "aliases": [
+      "열람실",
+      "공부하는 곳",
+      "독서실",
+      "자습실"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "4층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "도서관 열람실은 정보관 4층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "bld_neulbeot",
+    "category": "건물",
+    "name": "늘벗터",
+    "aliases": [],
+    "building": "늘벗터",
+    "building_id": "neulbeot",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "늘벗터에는 학생식당, 교직원식당이 있습니다."
+  },
+  {
+    "id": "bld_tamgu",
+    "category": "건물",
+    "name": "탐구관",
+    "aliases": [],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "탐구관에는 반도체전자산업과, 전기과, 에너지·화학공학과, 의료피부미용과, 헤어뷰티과, 메이크업네일뷰티과, 스마트뷰티케어과가 있습니다."
+  },
+  {
+    "id": "bld_jeongbo",
+    "category": "건물",
+    "name": "정보관",
+    "aliases": [
+      "도서관 건물"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "정보관에는 소방안전관리과, 경찰경호보안과, 파크골프지도과, 부동산재테크정보과(야간), 스마트웰니스의료뷰티과, 편의점, 도서관 대출실, 도서관 아레테홀, 도서관 열람실이 있습니다."
+  },
+  {
+    "id": "bld_mirae",
+    "category": "건물",
+    "name": "미래관",
+    "aliases": [],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "미래관에는 전기자동차과, 컴퓨터소프트웨어과, 양조발효과, 사회복지융합계열 요양서비스전공, 사회복지융합계열 헬스케어전공이 있습니다."
+  }
+]

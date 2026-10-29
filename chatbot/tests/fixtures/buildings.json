@@ -1,0 +1,44 @@
+[
+  {
+    "building_id": "bonkwan",
+    "name": "본관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "neulbeot",
+    "name": "늘벗터",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "tamgu",
+    "name": "탐구관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "jeongbo",
+    "name": "정보관",
+    "aliases": [
+      "도서관 건물"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "mirae",
+    "name": "미래관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  }
+]
