@@ -127,6 +127,7 @@ def test_async_creator_passes_safe_options_and_sanitizes_driver_errors(monkeypat
         assert asyncio.run(options["async_creator"]()) is driver
     kwargs = driver_factory.call_args.kwargs
     assert kwargs["charset"] == "utf8mb4"
+    assert kwargs["init_command"] == "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
     assert kwargs["port"] == 3307
     assert kwargs["user"] == "ditnow_app"
     assert kwargs["connect_timeout"] == 5

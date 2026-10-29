@@ -305,5 +305,5 @@ def test_inactive_test_principal_is_rejected():
 def test_proposed_models_and_dependencies_are_not_live_api_routes():
     app = create_app(Settings(environment="test"))
     schema = app.openapi()
-    assert set(schema["paths"]) == {"/health", "/api/v1/health"}
+    assert set(schema["paths"]) == {"/health", "/api/v1/health", "/api/v1/ai/campus/search"}
     assert "Identity" not in schema["components"]["schemas"]

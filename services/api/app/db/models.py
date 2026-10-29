@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -174,7 +176,14 @@ class OpportunityRow(RecordColumns, Base):
     )
     kind: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(120))
-    deadline_at: Mapped[datetime]
+    organization: Mapped[str] = mapped_column(String(200), default="")
+    eligibility: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="draft")
+    target_scope: Mapped[dict] = mapped_column(JSON, default=lambda: {"level": "school"})
+    files: Mapped[list] = mapped_column(JSON, default=list)
+    apply_starts_at: Mapped[datetime | None]
+    deadline_at: Mapped[datetime | None]
+    original_url: Mapped[str | None] = mapped_column(String(2048))
     submission_mode: Mapped[str] = mapped_column(String(40))
     destination: Mapped[str | None] = mapped_column(String(1000))
     source_kind: Mapped[str] = mapped_column(String(20), default="DEMO")
@@ -188,6 +197,9 @@ class RecruitmentRow(RecordColumns, Base):
         CheckConstraint("capacity >= 2", name="ck_recruitment_capacity"),
         CheckConstraint("status IN ('open','closed','cancelled')", name="ck_recruitment_status"),
         CheckConstraint("revision > 0", name="ck_recruitment_revision"),
+        CheckConstraint(
+            "accepted_count >= 0 AND accepted_count + 1 <= capacity", name="ck_recruitment_seats"
+        ),
     )
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("identities.id", ondelete="RESTRICT"))
     opportunity_id: Mapped[UUID | None] = mapped_column(
@@ -195,6 +207,9 @@ class RecruitmentRow(RecordColumns, Base):
     )
     title: Mapped[str] = mapped_column(String(120))
     body: Mapped[str] = mapped_column(Text)
+    field: Mapped[str] = mapped_column(String(30), default="")
+    roles: Mapped[list] = mapped_column(JSON, default=list)
+    accepted_count: Mapped[int] = mapped_column(Integer, default=0)
     capacity: Mapped[int]
     deadline_at: Mapped[datetime]
     status: Mapped[str] = mapped_column(String(16), default="open")
@@ -228,6 +243,7 @@ class OpportunityCheckItemRow(RecordColumns, Base):
     __table_args__ = (
         CheckConstraint("sort_order >= 0", name="ck_check_order"),
         CheckConstraint("revision > 0", name="ck_check_revision"),
+        UniqueConstraint("saved_opportunity_id", "sort_order", name="uq_check_parent_order"),
     )
     saved_opportunity_id: Mapped[UUID] = mapped_column(
         ForeignKey("saved_opportunities.id", ondelete="RESTRICT")
@@ -251,8 +267,83 @@ class AuditLogRow(RecordColumns, Base):
     entity_id: Mapped[UUID | None]
 
 
+class AnonymousPostPublicRow(RecordColumns, Base):
+    """Separate public read model. Author and profile fields are intentionally absent."""
+
+    __tablename__ = "anonymous_posts_public"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','hidden','deleted')", name="ck_public_post_status"),
+        CheckConstraint("revision > 0", name="ck_public_post_revision"),
+    )
+    id: Mapped[UUID] = mapped_column(
+        ForeignKey("anonymous_posts_private.id", ondelete="RESTRICT"), primary_key=True
+    )
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))
+    comment_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class CommunityClaimRow(Base):
+    __tablename__ = "community_idempotency_claims"
+    namespace_digest: Mapped[bytes] = mapped_column(
+        LargeBinary(32).with_variant(BINARY(32), "mysql", "mariadb"), primary_key=True
+    )
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("identities.id", ondelete="RESTRICT"))
+    method: Mapped[str] = mapped_column(String(8))
+    canonical_path: Mapped[str] = mapped_column(String(128))
+    key: Mapped[str] = mapped_column(String(128))
+    body_digest: Mapped[str] = mapped_column(String(64))
+    resource_id: Mapped[UUID]
+
+
+class CheckClaimRow(Base):
+    __tablename__ = "opportunity_check_idempotency"
+    namespace_digest: Mapped[bytes] = mapped_column(
+        LargeBinary(32).with_variant(BINARY(32), "mysql", "mariadb"), primary_key=True
+    )
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("identities.id", ondelete="RESTRICT"))
+    opportunity_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunities.id", ondelete="RESTRICT")
+    )
+    operation: Mapped[str] = mapped_column(String(128))
+    key: Mapped[str] = mapped_column(String(128))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    check_id: Mapped[UUID]
+    original_saved_id: Mapped[UUID]
+    tombstone: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class SavedStatusEventRow(Base):
+    __tablename__ = "saved_opportunity_status_events"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    saved_id: Mapped[UUID]
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("identities.id", ondelete="RESTRICT"))
+    from_status: Mapped[str] = mapped_column(String(32))
+    to_status: Mapped[str] = mapped_column(String(32))
+    occurred_at: Mapped[datetime]
+    correction: Mapped[bool] = mapped_column(Boolean)
+
+
+class RecruitmentApplicationRow(RecordColumns, Base):
+    """P1 ledger proposal; no application/approval HTTP endpoint is activated."""
+
+    __tablename__ = "recruitment_applications"
+    __table_args__ = (
+        UniqueConstraint("recruitment_id", "applicant_id", name="uq_recruitment_applicant"),
+        CheckConstraint(
+            "status IN ('pending','accepted','rejected','withdrawn')", name="ck_application_status"
+        ),
+    )
+    recruitment_id: Mapped[UUID] = mapped_column(ForeignKey("recruitments.id", ondelete="RESTRICT"))
+    applicant_id: Mapped[UUID] = mapped_column(ForeignKey("identities.id", ondelete="RESTRICT"))
+    message: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+
+
 # The initial DDL is a proposal for a transactional, Unicode-capable engine. No schema is applied.
 for _table in Base.metadata.tables.values():
     for _dialect in ("mysql", "mariadb"):
         _table.dialect_options[_dialect]["engine"] = "InnoDB"
         _table.dialect_options[_dialect]["charset"] = "utf8mb4"
+        _table.dialect_options[_dialect]["collate"] = "utf8mb4_unicode_ci"

@@ -78,6 +78,7 @@ def create_database_engine(settings: Settings) -> AsyncEngine:
             password=settings.db_password.get_secret_value(),
             db=settings.db_name,
             charset="utf8mb4",
+            init_command="SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
             connect_timeout=settings.db_connect_timeout,
             ssl=context,
             local_infile=False,

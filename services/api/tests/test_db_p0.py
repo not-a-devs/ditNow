@@ -88,7 +88,7 @@ def fake_saved(session, user):
     return row
 
 
-def test_eleven_logical_tables_have_relations_and_review_only_mariadb_ddl():
+def test_p0_feature_tables_have_relations_and_review_only_mariadb_ddl():
     assert set(Base.metadata.tables) == {
         "identities",
         "profiles",
@@ -101,10 +101,15 @@ def test_eleven_logical_tables_have_relations_and_review_only_mariadb_ddl():
         "saved_opportunities",
         "opportunity_check_items",
         "audit_logs",
+        "anonymous_posts_public",
+        "community_idempotency_claims",
+        "opportunity_check_idempotency",
+        "saved_opportunity_status_events",
+        "recruitment_applications",
     }
     ddl = initial_schema_sql()
-    assert ddl.count("CREATE TABLE") == 11
-    assert ddl.count("ENGINE=InnoDB") == 11
+    assert ddl.count("CREATE TABLE") == 16
+    assert ddl.count("ENGINE=InnoDB") == 16
     assert "binding_digest BINARY(32)" in ddl
     assert "DATETIME(6)" in ddl and "FOREIGN KEY" in ddl and "CHECK" in ddl
     assert all(word not in ddl.upper() for word in ("DROP ", "TRUNCATE ", "GRANT ", "INSERT "))
