@@ -1,7 +1,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     log_level: Literal["INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: list[str] = []
     docs_enabled: bool = False
+
+    # 학번 로그인·개인 질문용 학적 DB. 비어 있으면 로그인과 개인 질문이 503
+    # 예: mysql+aiomysql://ditnow_app:<pw>@<tailscale-ip>:3307/ditnow?charset=utf8mb4
+    database_url: SecretStr | None = None
+    current_semester: str = "2026-2"
+    # AI 답변 생성. 비어 있으면 /ai/ask가 503 (공개 검색 /ai/campus/search는 LLM 없이 동작)
+    llm_provider: Literal["openai", "openai_compatible", "anthropic", "fake"] | None = None
+    llm_model: str = ""
+    llm_api_key: SecretStr = SecretStr("")
+    llm_base_url: str = ""
+    llm_timeout_sec: float = 20
+    ask_rate_limit_per_min: int = 20
 
     @field_validator("cors_origins")
     @classmethod

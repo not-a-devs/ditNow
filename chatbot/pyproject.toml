@@ -22,7 +22,7 @@ packages = ["chatbot", "chatbot.app", "chatbot.app.retriever", "chatbot.app.llm"
 package-dir = {chatbot = "."}
 
 [tool.setuptools.package-data]
-"chatbot.data" = ["buildings.json", "facilities.json"]
+"chatbot.data" = ["buildings.json", "facilities.json", "mock/*.json"]
 
 [tool.ruff]
 target-version = "py311"
