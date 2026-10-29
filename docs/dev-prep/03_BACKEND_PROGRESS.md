@@ -1,5 +1,7 @@
 # FastAPI 개발 상태와 승인 게이트
 
+> 현재 기준(2026-10-30): MariaDB11.4 팀원 VM·Tailscale 전용/계정 분리는 DEC-019로 확정. [실제 DB 연결 검사](07_DB_CONNECTIVITY_AND_ROLES.md)는 TCP timeout·로컬 Tailscale offline이며 인증/GRANT/migration NOT_RUN이다. 아래 초기 TASK-B/C/D1 기록의 DB 후보·별도 챗봇 표현은 당시 이력이다. PR22 이후 공개 시설 검색은 통합 FastAPI에 연결됐으며 개인 원장·별도 로그인/DB·LLM은 로드하지 않는다. 신규 앱은 apps/web, 사전 mvp는 최종 제출/시연/복사 대상에서 제외한다.
+
 2026-10-30 KST · TASK-B. 관련 기준: NFR-SEC-004/005, NFR-PRIV-003, NFR-REL-004, NFR-OPS-001/002. 이 기반은 API-ID/COM/OPP의 공통 실행 환경이며 FR-AUTH-001 또는 학생 CRUD가 완료됐다는 뜻이 아니다.
 
 | 범위 | 상태 | 증거 |
