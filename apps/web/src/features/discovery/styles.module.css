@@ -1,0 +1,21 @@
+.page { max-width: 1050px; margin: 0 auto; color: #26362d; }
+.page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: .4rem 0; }
+.page p { line-height: 1.7; overflow-wrap: anywhere; }
+.eyebrow { font-size: .8rem; color: #4c6253; font-weight: 700; letter-spacing: .06em; }
+.notice { padding: 1rem; border: 1px solid #d3ddd1; border-radius: 12px; background: #f3f7f0; font-size: .9rem; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; align-items: end; gap: 1rem; margin: 1.5rem 0; }
+.form label { display: grid; gap: .5rem; font-weight: 600; }
+.form input, .form select { border: 1px solid #87978b; border-radius: 8px; min-height: 44px; padding: .65rem; width: 100%; min-width: 0; background: white; color: #26362d; font: inherit; }
+.page button, .detail { border: 1px solid #43624a; border-radius: 8px; padding: .65rem 1rem; min-height: 44px; cursor: pointer; color: #fff; background: #365640; font: inherit; font-weight: 600; }
+.page button:disabled { opacity: .6; cursor: default; }
+.page a { color: #244f35; text-underline-offset: 3px; }
+.page :is(input, select, button, a):focus-visible { outline: 3px solid #2e69a3; outline-offset: 3px; }
+.page h2:focus { outline: none; }
+.results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.results article { padding: 1.4rem; border: 1px solid #d1dbd0; border-radius: 14px; background: white; }
+.results h3 { font-size: 1.2rem; margin: .5rem 0; }
+.source { background: #f5f6f2; border-radius: 8px; padding: .8rem; font-size: .8rem; margin: 1rem 0; }
+.source p { margin: .25rem 0; }
+.page .detail { display: inline-flex; align-items: center; background: transparent; color: #244f35; text-decoration: none; }
+.pagination { display: flex; justify-content: center; gap: 1rem; margin: 1.5rem 0; }
+@media (max-width: 700px) { .form, .results { grid-template-columns: minmax(0, 1fr); } .results article { padding: 1rem; } }
