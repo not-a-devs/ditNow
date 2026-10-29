@@ -1,0 +1,60 @@
+name: Python API 검증
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-api:
+    name: Python 3.13 · 정적 검사·테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      DIT_API_ENVIRONMENT: test
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: 고정 버전 uv 설치
+        run: python -m pip install uv==0.13.6
+      - name: 잠금 파일 기반 설치
+        run: uv sync --locked
+      - name: 정적 검사
+        run: uv run --locked ruff check .
+      - name: 포맷 검사
+        run: uv run --locked ruff format --check .
+      - name: 단위 테스트
+        run: uv run --locked pytest
+      - name: 앱 import와 OpenAPI 생성
+        run: >-
+          uv run --locked python -c
+          "import json; from app.main import app; schema = app.openapi();
+          assert '/api/v1/health' in schema['paths']; json.dumps(schema)"
+  repository:
+    name: 에이전트 설정 검사
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 탐색 지도와 스킬 검사
+        run: node scripts/check-agent-config.mjs
