@@ -25,15 +25,20 @@
 | 공통 UI·타입 | `mvp/src/shared/ui/`, `mvp/src/shared/types.ts` | 공통 컴포넌트·계약 |
 | 모의 API | `mvp/src/shared/data/api/` | 현재 브라우저 기반 규칙; 서버 아님 |
 | 모의 저장소·시드 | `mvp/src/shared/data/store.ts`, `mvp/src/shared/data/seed.ts` | localStorage 및 테스트 데이터 |
+| 별도 RAG 시연 서버 | `chatbot/app/main.py`, `chatbot/CLAUDE.md`, `chatbot/requirements.txt` | PR #14의 RAG/개인 질문/시연 세션·DB 코드. 통합 P0 인증·DB 계약과 연결은 미검증 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.
+
+FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작한다. 설정·공통 오류·안전 로그는 `services/api/app/core/`, 테스트는 `services/api/tests/`, 실행·잠금 파일 안내는 `services/api/README.md`를 본다. `/health`는 프로세스 생존만 확인하며 인증·DB 준비 상태는 검사하지 않는다. 작업 상태와 후속 게이트는 `docs/dev-prep/03_BACKEND_PROGRESS.md`에 기록한다.
+
+`chatbot/`과 `services/api/`는 각각 별도 `app` 패키지이므로 각 디렉터리에서 독립 환경으로 실행·검증한다. RAG의 MariaDB 어댑터·자체 세션 코드는 플랫폼 DB·인증 공급자 선정의 승인 근거가 아니다. 이 기반 작업에서 RAG의 외부 LLM·DB·배포는 실행하지 않았다.
 
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
 - 현재 `.github/workflows/mvp-ci.yml`: PR/main의 Node.js 22 MVP 설치·타입·빌드 검증.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
-- 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `services/api/` (FastAPI), `packages/contracts/` (OpenAPI 기반 공유 계약), `infra/db/migrations/` (DB 채택 후). 현재 `mvp/`를 자동 이동하거나 이 경로들이 구현됐다고 주장하지 않는다.
+- 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반. 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `packages/contracts/` (OpenAPI 기반 공유 계약), `infra/db/migrations/` (DB 채택 후). 현재 `mvp/`는 보존한다.
 
 **주의:** DEC-015는 프런트와 FastAPI만 확정한다. PostgreSQL은 권장 후보이며 인증·DB·호스팅·비용은 OPEN-002/003에 남는다.
 
@@ -50,6 +55,7 @@
 - `cd mvp && npm run typecheck`
 - `cd mvp && npm run build`
 - `node scripts/check-agent-config.mjs`
+- `cd services/api` 후 `uv sync --locked`, `uv run --locked ruff check .`, `uv run --locked ruff format --check .`, `uv run --locked pytest` (Python 3.13·uv 0.13.6)
 - GitHub Actions: `.github/workflows/mvp-ci.yml`에서 Node.js 22로 위 MVP 3명령 실행
 - 현재 `mvp/package.json`에는 테스트·lint 명령이 없다. 존재하지 않는 명령을 실행했다고 주장하지 않는다. 추가 시 문서화한다.
 
