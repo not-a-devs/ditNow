@@ -1,0 +1,33 @@
+name: MVP 검증
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  mvp:
+    name: Node 22 · 설치·타입·빌드
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mvp
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mvp/package-lock.json
+      - name: 의존성 설치
+        run: npm ci
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 빌드
+        run: npm run build

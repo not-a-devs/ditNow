@@ -29,6 +29,7 @@
 
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
+- 현재 `.github/workflows/mvp-ci.yml`: PR/main의 Node.js 22 MVP 설치·타입·빌드 검증.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `packages/contracts/` (공유 계약), `supabase/migrations/`·`supabase/functions/` (문서의 설계 기본값에 따른 DB·서버 함수). 독립 API가 필요하면 `services/api/`는 별도 기술 결정 후 추가한다.
@@ -48,6 +49,7 @@
 - `cd mvp && npm run typecheck`
 - `cd mvp && npm run build`
 - `node scripts/check-agent-config.mjs`
+- GitHub Actions: `.github/workflows/mvp-ci.yml`에서 Node.js 22로 위 MVP 3명령 실행
 - 현재 `mvp/package.json`에는 테스트·lint 명령이 없다. 존재하지 않는 명령을 실행했다고 주장하지 않는다. 추가 시 문서화한다.
 
 ## 6. NAV 갱신 규칙
