@@ -9,7 +9,7 @@
 - 문서 진입: `docs/00_START_HERE.md`; 제품: `docs/01_PRD.md`; 기능: `docs/02_FRD.md`; 비기능: `docs/03_NFR.md`; 권한: `docs/04_POLICY_RBAC.md`; 데이터: `docs/05_DATA_MODEL.md`; 아키텍처: `docs/06_ARCHITECTURE.md`; UX: `docs/07_IA_UX.md`; 테스트: `docs/08_TEST_QA.md`; 단계: `docs/09_RELEASE_SCOPE.md`; AI 워크플로: `docs/10_AI_RUNBOOK.md`; 결정: `docs/11_DECISION_LOG.md`; 심사: `docs/12_HACKATHON_GATE.md`; 학교 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`; 전체 기준: `docs/15_PLATFORM_BASELINE.md`.
 - 공식 조사 근거는 `docs/research/`의 조사 산출물 11개(기능 CSV 포함)를 본다. AI 환경 점검은 별도 `docs/research/09_AI_DEVELOPMENT_ENVIRONMENT.md`를 본다.
 - 통합 설계 초안은 `docs/v1-draft/`의 PRD→FRD→NFR→RBAC→DB/API→아키텍처→IA/UX→QA 순으로 읽고, 92개 ID의 기능별 연결은 `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`에서 확인한다. 미확정 정책은 `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`를 따른다. 이 초안은 기존 확정 결정을 대체하지 않는다.
-- P0 인증·소속·CRUD 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`, MariaDB 정정과 독립 보안 리뷰는 [승인 대기 PR #13](https://github.com/not-a-devs/ditNow/pull/13)을 본다. DB 제품 확정과 인증·운영 접속·비용 승인은 별개다.
+- P0 인증·소속·CRUD 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`, MariaDB 정정과 독립 보안 리뷰는 [병합된 PR #13](https://github.com/not-a-devs/ditNow/pull/13)을 본다. 사용자 승인과 실제 병합 결과는 `docs/dev-prep/TASK_PR_BATCH_MERGE_20261030.md`에 기록한다. 코드 병합과 운영 활성화·비용·배포 승인은 별개다.
 - 전체 92개 1차 구현의 FE·BE·DB·테스트 상태는 `docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv`, Codex·Claude worktree·브랜치·파일 소유자는 `docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md`다.
 - MariaDB 11.4의 팀원 VM·Tailscale·DML/migration 계정 분리와 실제 연결 검사/차단은 `docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md`다. 프로젝트 내부 DB 컨테이너를 중복 생성하지 않는다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
@@ -17,8 +17,11 @@
 ## 2. 현재 코드 진입점
 | 영역 | 현재 경로 | 확인할 내용 |
 | --- | --- | --- |
-| 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 통합 홈 포함 11개 메뉴 탐색·공개 연결 확인. 업무 기능은 모듈 통합 전 안내 상태 |
-| 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 현재 공개 서버 계약만 반영 |
+| 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 신규 로그인·공개 탐색·커뮤니티·개인 기회 화면. 실제 MariaDB 브라우저 통합 검증은 별도 |
+| 공통 로그인·핵심 CRUD | `services/api/app/integrations/platform_runtime/`, `services/api/app/api/v1/p0.py`, `apps/web/src/features/auth/MemoryAuth.tsx` | 승인된 신원 매핑·현재 소속/역할 재검증, 단일 메모리 세션. 기본 비활성·설정 미충족 시503 |
+| 명시적 가상 계정 생성 | `services/api/app/operations/demo_accounts.py`, `docs/dev-prep/TASK_DEMO_ACCOUNT_OPS.md` | 기본 오프라인 계획만. 실제 계정 생성은 별도 승인·비밀 주입·원격 검증 필요 |
+| 실제 HTTP 보안 검사 도구 | `services/api/scripts/verify_p0_security.py`, `docs/dev-prep/TASK_P0_SECURITY_E2E.md` | localhost 두 가상 계정의 CRUD·소유권·익명성 검사. 기본 미실행이며 모의 테스트와 실제 실행 구별 |
+| 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 공개·로그인·현재 신원 계약, 조건부 업무 라우트는 실행 설정별 확인 |
 | 신규 앱의 캠퍼스 안내 | `apps/web/src/features/ai/index.tsx`, `services/api/app/api/v1/ai.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색. 기존 검색기 재사용, 개인 원장·LLM 생성·운영 배포는 미검증 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
 | 학생 홈·시간표 | `mvp/src/features/home/` | 현재 학생 UI |
@@ -40,7 +43,7 @@
 
 FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작한다. 설정·공통 오류·안전 로그는 `services/api/app/core/`, 테스트는 `services/api/tests/`, 실행·잠금 파일 안내는 `services/api/README.md`를 본다. `/health`는 프로세스 생존만 확인하며 인증·DB 준비 상태는 검사하지 않는다. 작업 상태와 후속 게이트는 `docs/dev-prep/03_BACKEND_PROGRESS.md`에 기록한다.
 
-실제 공개 API 스냅샷은 `services/api/openapi.json`, 내보내기/드리프트 검사는 `services/api/app/export_openapi.py`다. 프런트 타입은 `mvp/scripts/api-types.mjs`로 `mvp/src/shared/api/schema.d.ts`에 생성한다. 제안 상태의 인증·도메인 API는 스냅샷에 추가하지 않는다.
+기본 설정 API 스냅샷은 `services/api/openapi.json`, 내보내기/드리프트 검사는 `services/api/app/export_openapi.py`다. 공개·로그인·현재 신원 라우트를 포함하며 조건부 P0 업무 라우트는 활성 설정의 OpenAPI와 전용 HTTP 테스트에서 확인한다. 역사적 프로토타입 타입은 `mvp/scripts/api-types.mjs`로 `mvp/src/shared/api/schema.d.ts`에 생성하며 신규 앱의 구현 근거로 재사용하지 않는다.
 
 신규 웹의 독립 생성기는 `apps/web/scripts/api-types.mjs`, 생성 결과는 `apps/web/src/lib/generated/api.d.ts`다. 실행과 구현 한계는 `apps/web/README.md`, 셸·전송 계층 테스트는 `apps/web/src/App.test.tsx`, `apps/web/src/lib/api.test.ts`를 본다.
 
@@ -65,7 +68,7 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 - 대학 사이트 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`, `docs/15_PLATFORM_BASELINE.md`, `docs/research/`.
 - 기능 기획/정합성: `docs/11_DECISION_LOG.md`, `docs/v1-draft/02_FRD.md`, `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`, `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`.
 - 신규 프런트 UI: `apps/web/README.md`, `apps/web/src/`, `docs/v1-draft/07_IA_UX.md`. mvp 구현 참조·복사 금지.
-- 인증/권한/익명/공식 채널: `docs/v1-draft/04_RBAC.md`, `docs/v1-draft/03_NFR.md`, 승인 대기 PR #13과 A 작업 브랜치. 프로토타입 API는 보안 권위가 아니다.
+- 인증/권한/익명/공식 채널: `docs/v1-draft/04_RBAC.md`, `docs/v1-draft/03_NFR.md`, `docs/dev-prep/TASK_P0_LIVE_API_IMPLEMENTATION.md`. 프로토타입 API는 보안 권위가 아니다.
 - DB/API 신규 구현: `docs/v1-draft/05_DB_API.md`, `docs/v1-draft/06_ARCHITECTURE.md`, `docs/v1-draft/04_RBAC.md`; 기존 mock과 서버를 혼동하지 않는다.
 - 릴리스/QA: `docs/v1-draft/08_TEST_QA.md`, `docs/09_RELEASE_SCOPE.md`, `docs/12_HACKATHON_GATE.md`.
 
