@@ -12,7 +12,14 @@ logger = logging.getLogger("ditnow.api")
 
 # Token/personal-answer route trees. Matched on the route-relative path so an ASGI root_path
 # (proxy prefix, mount) keeps them private, including 404s and trailing-slash redirects.
-PRIVATE_ROUTE_PREFIXES = ("/api/v1/auth", "/api/v1/ai/ask")
+PRIVATE_ROUTE_PREFIXES = (
+    "/api/v1/auth",
+    "/api/v1/ai/ask",
+    "/api/v1/anonymous-posts",
+    "/api/v1/recruitments",
+    "/api/v1/me",
+    "/api/v1/opportunities",
+)
 
 
 def is_private_route(scope: Scope) -> bool:

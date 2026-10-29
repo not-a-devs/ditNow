@@ -1,9 +1,9 @@
 """챗봇 RAG(의도 분류·검색·개인 질문·LLM 답변)와 학번 로그인을 통합 API에 연결한다.
 
 챗봇 코드를 복제하지 않고 패키지 함수를 그대로 호출한다. 서버 시작 시 테이블·시드를 만들지 않는다.
-legacy 학번 원장은 공통 UUID·현재 학적 bridge 승인 전이라 `environment=test`의 정확한 격리
-메모리 DB에서만 쓴다. 그 외 환경의 로그인·토큰 개인 질문은 503이며, `app.seed_demo`도 격리
-메모리 이외 대상을 연결 전에 거부한다(원격 테이블 생성·시드 명령이 아니다).
+직접 legacy 엔진은 `environment=test`의 정확한 격리 메모리 DB에서만 쓴다. 별도 명시한
+PlatformRuntime은 엄격 공통 DB 엔진과 pin한 승인 매핑을 사용한다. 현재 학적은 canonical
+원장만 따르며 개인 학사 RAG는 별도 승인 reader 연결 전 503이다. 원격 시드/DDL은 없다.
 """
 
 import time
@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
 from app.core.errors import ApiError
+from app.integrations.platform_runtime.runtime import PlatformRuntime
 from app.schemas.ai import AskData, AskInput
 from app.schemas.auth import LoginData
 from app.schemas.common import ErrorCode
@@ -44,6 +45,7 @@ class Assistant:
     engine: AsyncEngine | None
     semester: str
     rate_limit_per_min: int
+    platform_runtime: PlatformRuntime | None = None
     # shortcut: IP별 요청 기록이 프로세스 메모리에만 있음(워커 1개 전제), 다중 워커면 Redis로
     _hits: dict[str, deque[float]] = field(default_factory=lambda: defaultdict(deque))
 
@@ -70,6 +72,8 @@ class Assistant:
         hits.append(now)
 
     async def login(self, db: AsyncSession, student_id: str, password: str) -> LoginData:
+        if self.platform_runtime is not None:
+            return await self.platform_runtime.login(db, student_id, password)
         student = await authenticate(db, student_id, password)
         if student is None:
             raise ApiError(ErrorCode.UNAUTHORIZED)
@@ -82,6 +86,8 @@ class Assistant:
             return None
         if db is None:
             raise ApiError(ErrorCode.UNAVAILABLE)
+        if self.platform_runtime is not None:
+            return (await self.platform_runtime.verify(db, token)).student_id
         student_id = await resolve_token(db, token)
         if student_id is None:
             raise ApiError(ErrorCode.UNAUTHORIZED)
@@ -105,6 +111,10 @@ class Assistant:
         bundle = None
         # 학번은 항상 서버가 검증한 토큰에서만 온다. 교내 질문이면 학적을 읽지 않는다
         if student_id and db is not None and intent.name != CAMPUS:
+            if self.platform_runtime is not None:
+                # Canonical academic/grade reader is a separate approved adapter. Never
+                # substitute stale legacy department/year for the current shared ledger.
+                raise ApiError(ErrorCode.UNAVAILABLE)
             bundle = await load_student(db, student_id, self.semester)
         res = await answer_question(
             question,
@@ -161,7 +171,9 @@ def chatbot_llm_settings(settings: Settings) -> IntegratedLLMSettings:
     )
 
 
-def build_assistant(settings: Settings) -> Assistant:
+def build_assistant(
+    settings: Settings, platform_runtime: PlatformRuntime | None = None
+) -> Assistant:
     """설정에서 Assistant를 만든다. DB·LLM 연결은 실제 요청 때 맺는다."""
     with as_file(files("chatbot").joinpath("data")) as data_dir:
         campus = load_data(data_dir)
@@ -169,14 +181,23 @@ def build_assistant(settings: Settings) -> Assistant:
     url = settings.database_url.get_secret_value() if settings.database_url else ""
     # This legacy student/session ledger has no approved common UUID/current-grant bridge.
     # Even an approved DB engine alone must not activate it. Only isolated test memory is allowed.
-    memory_demo = settings.environment == "test" and url == "sqlite+aiosqlite:///:memory:"
+    memory_demo = (
+        not settings.p0_runtime_enabled
+        and settings.environment == "test"
+        and url == "sqlite+aiosqlite:///:memory:"
+    )
     return Assistant(
         campus=campus,
         retriever=KeywordRetriever(list(campus.facilities.values())),
         llm=llm,
-        engine=make_engine(url) if memory_demo else None,
+        engine=platform_runtime.engine
+        if platform_runtime is not None
+        else make_engine(url)
+        if memory_demo
+        else None,
         semester=settings.current_semester,
         rate_limit_per_min=settings.ask_rate_limit_per_min,
+        platform_runtime=platform_runtime,
     )
 
 

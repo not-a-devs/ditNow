@@ -79,6 +79,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_v1_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/discovery": {
         parameters: {
             query?: never;
@@ -543,6 +560,36 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * SessionProfile
+         * @description Own-account projection; never reuse this model in anonymous post responses.
+         */
+        SessionProfile: {
+            /** Academic Year */
+            academic_year: number;
+            /** Community Access */
+            community_access: boolean;
+            /** Department Code */
+            department_code: string;
+            /**
+             * Department Id
+             * Format: uuid
+             */
+            department_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Record Source
+             * @default DEMO
+             * @constant
+             */
+            record_source: "DEMO";
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** SourceEvidence */
         SourceEvidence: {
             /**
@@ -652,6 +699,17 @@ export interface components {
         /** SuccessResponse[PublicGuide] */
         SuccessResponse_PublicGuide_: {
             data: components["schemas"]["PublicGuide"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[SessionProfile] */
+        SuccessResponse_SessionProfile_: {
+            data: components["schemas"]["SessionProfile"];
             /** Resource Version */
             resource_version?: number | null;
             /**
@@ -864,6 +922,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse_dict_str__str__"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    me_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_SessionProfile_"];
                 };
             };
             /** @description Bad Request */

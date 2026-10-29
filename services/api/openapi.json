@@ -876,6 +876,59 @@
         "title": "PublicGuidePage",
         "type": "object"
       },
+      "SessionProfile": {
+        "additionalProperties": false,
+        "description": "Own-account projection; never reuse this model in anonymous post responses.",
+        "properties": {
+          "academic_year": {
+            "minimum": 1.0,
+            "title": "Academic Year",
+            "type": "integer"
+          },
+          "community_access": {
+            "title": "Community Access",
+            "type": "boolean"
+          },
+          "department_code": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Department Code",
+            "type": "string"
+          },
+          "department_id": {
+            "format": "uuid",
+            "title": "Department Id",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "record_source": {
+            "const": "DEMO",
+            "default": "DEMO",
+            "title": "Record Source",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "department_id",
+          "department_code",
+          "academic_year",
+          "community_access"
+        ],
+        "title": "SessionProfile",
+        "type": "object"
+      },
       "SourceEvidence": {
         "additionalProperties": false,
         "properties": {
@@ -1143,6 +1196,36 @@
           "data"
         ],
         "title": "SuccessResponse[PublicGuide]",
+        "type": "object"
+      },
+      "SuccessResponse_SessionProfile_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SessionProfile"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[SessionProfile]",
         "type": "object"
       },
       "SuccessResponse_dict_str__str__": {
@@ -1482,6 +1565,52 @@
           }
         ],
         "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_SessionProfile_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Me",
         "tags": [
           "auth"
         ]
