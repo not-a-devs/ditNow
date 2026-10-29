@@ -11,6 +11,7 @@
 - 통합 설계 초안은 `docs/v1-draft/`의 PRD→FRD→NFR→RBAC→DB/API→아키텍처→IA/UX→QA 순으로 읽고, 92개 ID의 기능별 연결은 `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`에서 확인한다. 미확정 정책은 `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`를 따른다. 이 초안은 기존 확정 결정을 대체하지 않는다.
 - P0 인증·소속·CRUD 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`, MariaDB 정정과 독립 보안 리뷰는 [승인 대기 PR #13](https://github.com/not-a-devs/ditNow/pull/13)을 본다. DB 제품 확정과 인증·운영 접속·비용 승인은 별개다.
 - 전체 92개 1차 구현의 FE·BE·DB·테스트 상태는 `docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv`, Codex·Claude worktree·브랜치·파일 소유자는 `docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md`다.
+- MariaDB 11.4의 팀원 VM·Tailscale·DML/migration 계정 분리와 실제 연결 검사/차단은 `docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md`다. 프로젝트 내부 DB 컨테이너를 중복 생성하지 않는다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점
@@ -29,6 +30,8 @@
 | 공통 UI·타입 | `mvp/src/shared/ui/`, `mvp/src/shared/types.ts` | 공통 컴포넌트·계약 |
 | 모의 API | `mvp/src/shared/data/api/` | 현재 브라우저 기반 규칙; 서버 아님 |
 | 모의 저장소·시드 | `mvp/src/shared/data/store.ts`, `mvp/src/shared/data/seed.ts` | localStorage 및 테스트 데이터 |
+| 학번 로그인·AI 답변 | `services/api/app/api/v1/auth.py`, `services/api/app/integrations/chatbot/assistant.py`, `services/api/app/seed_demo.py` | `/api/v1/auth/login`·`/api/v1/ai/ask`. 챗봇 의도 분류·개인 질문·LLM을 패키지로 재사용, 가상 학적(DEMO), 시작 시 DDL 없음(DEC-020) |
+| 공개 대학·학과 안내 | `services/api/app/features/public_campus/`, `apps/web/src/features/public-campus/` | 공식 근거 7건의 편집 요약 목록·검색·필터·상세, 운영 업무 전체와 구분 |
 | 통합 RAG 구성요소 | `chatbot/README.md`, `chatbot/pyproject.toml`, `chatbot/app/retriever/keyword.py` | 설치 가능한 패키지와 공개 검색 통합. 기존 별도 로그인·관리자·개인 DB는 통합 경로에 mount하지 않음 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.
@@ -51,7 +54,8 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반.
 - 현재 `scripts/check-feature-progress.mjs`: 92개 FR 집합·중복·계층 상태·TC/DB/RBAC 연결 검사.
-- 현재 `apps/web/`: 기존 코드를 복사하지 않은 통합 탐색 셸과 공개 시설 검색. 공통 MariaDB 모델/인증 dependency와 나머지 업무 API/UI는 별도 브랜치 작업 중이다. 브랜치와 소유 범위는 병렬 보드를 본다.
+- 현재 `apps/web/`: 신규 통합 셸·공개 시설 검색·대학 안내. `services/api/app/features/`와 `apps/web/src/features/`의 커뮤니티/기회/학과/강의실/도서/입학 모듈은 부분 구현이며 보호 API/실DB/전역 화면 미연결 상태를 각 태스크 문서에서 확인한다.
+- 현재 `infra/mariadb/README.md`: 팀원 VM 서버 운영 기록. 개발 PC에 DB 컨테이너를 중복 생성하는 지시가 아니다.
 
 **주의:** MariaDB는 확정이다. 클라우드 접속·인증·호스팅/비용·관리자 권한은 OPEN-002/003 게이트를 유지한다.
 

@@ -89,3 +89,6 @@ docs/   # 이 명세 패키지
 DEC-017에 따라 chatbot/ 구현을 services/api/의 제한된 adapter로 재사용한다. 기존 standalone 로그인·세션·개인 학적 DB를 공통 API에 그대로 mount하지 않는다. 검증된 공통 신원→현재 소속/역할→허용 원본 조회→최소 문맥 전달 순서를 적용한다. LLM이 DB 접근 권한을 결정하지 않는다. 통합 인증이 없으면 개인 정보 기능은 닫고 공개 시설 조회부터 테스트한다.
 
 DEC-018의 전체 92개 1차 구현은 [진행표](dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)로 관리한다. FE/BE/DB가 준비된 기능도 실제 통합·회귀 검사와 사용자 직접 검수 전 전체 VERIFIED로 올리지 않는다.
+
+## 11. 확정 DB 운영 경계 (DEC-019)
+DB는 별도 신규 클라우드 개설 대신 팀원 Proxmox VM MariaDB11.4/Tailscale3307을 사용한다. 앱 ditnow_app은 ditnow DML만, ditnow_migrator는 승인된 migration 전용, chatbot 계정은 ditnow_chatbot 자료에 한정한다. 실제 GRANT는 미검증이다. [운영 검사](dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)의 TCP/자격/TLS/스키마 선행 조건 전 실제 연결·변경을 실행하지 않는다. 기존 chatbot auto create_all/seed는 운영 경로에서 제거하는 별도 보안 PR로 관리한다.

@@ -1,6 +1,6 @@
 # DIT NOW 병렬 구현 보드
 
-2026-10-30 KST · TASK-ORCH-92 · 기준 main `a86ec597`.
+2026-10-30 KST · TASK-ORCH-92 · 초기 기준 main `a86ec597`; 아래 후속 PR 상태는 2026-10-30 갱신.
 fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NFR-SEC/PRIV/REL/UX/OPS 및 각 TC-V1은 [기능 추적표](../v1-draft/09_FEATURE_TRACEABILITY.csv)에서 연결한다.
 
 ## 목표와 완료 판단
@@ -25,12 +25,12 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 | 태스크/세션 | worktree · 브랜치 | 소유 파일 | 현재 상태/차단 |
 |---|---|---|---|
-| A · Codex pr11_independent_review | ditNow-p0-domain-contracts · feat/p0-provider-neutral-contracts-20261030 | services/api/app/db/**, schemas/p0.py·operations.py, api/dependencies.py, 공통 DB repositories, pyproject/uv.lock, auth/DB tests | 구현 중. 45개 체크포인트 테스트. Docker daemon 미실행·클라우드 접속 없음. 인증/DB 보안 PR은 사람 승인 전 병합 금지 |
-| B · Codex api_foundation_review | ditNow-web-shell · feat/new-platform-web-shell-20261030 | apps/web 공통 셸·라우터·디자인·lib·테스트·패키지, 아래 feature 디렉터리 제외 | 신규 작성 중. mvp 코드를 읽거나 복사하지 않음 |
-| C · Claude CLI | ditNow-community · feat/community-recruitment-firstpass-20261030 | app/features/community/**, test_community*.py, apps/web/src/features/community/**, TASK_COMMUNITY_IMPLEMENTATION.md | 실제 CLI 시작. 익명/실명 서비스·입력·UI, 공통 인증/DB 통합 대기 |
-| D · Claude CLI | ditNow-opportunities · feat/opportunity-firstpass-20261030 | app/features/opportunities/**, test_opportunities*.py, apps/web/src/features/opportunities/**, TASK_OPPORTUNITIES_IMPLEMENTATION.md | 실제 CLI 시작. 공고·개인 준비, 공통 인증/DB 통합 대기 |
-| E · Claude CLI | ditNow-campus · feat/campus-communication-firstpass-20261030 | app/features/campus/**, test_campus*.py, apps/web/src/features/campus/**, TASK_CAMPUS_IMPLEMENTATION.md | 실제 CLI 시작. 대상 범위·공지 단일 원본/카드 계약·채팅, 실제 실시간/학적 승인 대기 |
-| F · Codex rag_integration | ditNow-rag-integration · feat/integrated-rag-adapter-20261030 | chatbot 패키징/상대 import, integrations/chatbot/**, schemas/ai.py, api/v1/ai.py, test_chatbot_integration*.py | 공개 검색 어댑터/기존 회귀 검증 중. 개인 학적·LLM 외부 호출 차단 |
+| A · Codex pr11_independent_review | ditNow-p0-domain-contracts · feat/p0-provider-neutral-contracts-20261030 | services/api/app/db/**, schemas/p0.py·operations.py, api/dependencies.py, 공통 DB repositories, pyproject/uv.lock, auth/DB tests | PR #19 모델/인증 기반 61 테스트·CI PASS, 사람 승인 대기. 후속 DIT_API_ 설정/aiomysql·권한 분리 작업; 실제 DB 네트워크 차단 |
+| B · Codex api_foundation_review | ditNow-web-shell · feat/new-platform-web-shell-20261030 | apps/web 공통 셸·라우터·디자인·lib·테스트·패키지, 아래 feature 디렉터리 제외 | PR #21 병합·27 단위 및 390/1280 실제 브라우저 검사 PASS. 후속 G 강의실 작업으로 이동 |
+| C · Claude CLI | ditNow-community · feat/community-recruitment-firstpass-20261030 | app/features/community/**, test_community*.py, apps/web/src/features/community/**, TASK_COMMUNITY_IMPLEMENTATION.md | PR #23 부분 구현. 114 테스트 PASS, 독립 리뷰의 재시도/캐시·API 경로 결함 보완 중. 인증/DB 대기 |
+| D · Claude CLI | ditNow-opportunities · feat/opportunity-firstpass-20261030 | app/features/opportunities/**, test_opportunities*.py, apps/web/src/features/opportunities/**, TASK_OPPORTUNITIES_IMPLEMENTATION.md | PR #20 부분 구현. 90 테스트 PASS, 독립 리뷰의 멱등 tombstone/ETag/URL 보완 중. 인증/DB 대기 |
+| E · Claude CLI | ditNow-campus · feat/campus-communication-firstpass-20261030 | app/features/campus/**, test_campus*.py, apps/web/src/features/campus/**, TASK_CAMPUS_IMPLEMENTATION.md | PR #24 부분 구현. 95 테스트 PASS, 출처·공지 revision·채팅 nonce 보완 중. 실제 실시간/학적 대기 |
+| F · Codex rag_integration | ditNow-rag-integration · feat/integrated-rag-adapter-20261030 | chatbot 패키징/상대 import, integrations/chatbot/**, schemas/ai.py, api/v1/ai.py, test_chatbot_integration*.py | PR #22 병합(API37·기존 챗봇130·신규 웹27). 후속 UI PR #25 및 DB 자동 DDL 안전화 분리 작업 |
 | ORCH · root | ditNow-orchestration · docs/integrated-mariadb-roadmap-20261030 | 결정/NAV/README/아키텍처/로드맵/진행표/검사 스크립트, 후속 공통 router·CI 통합 | 전체 92개·공통 계약·PR/CI 조정 |
 
 `app/` 약칭은 services/api/app/이다. 모든 PR 제목/본문/커밋은 한국어. 각 작업은 테스트 후 PR로 전달하고 root가 독립 검토·HEAD CI를 확인한다. 동일 파일 수정 금지. 마이그레이션/인증/공통 의존성은 A 단일 소유이며 F 로컬 패키지 의존성은 A 작업 후 root가 통합한다.
@@ -57,7 +57,32 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 - PR #11 사용자 병합 확인: 5d08cb4d4cd92ea06dbe5404b69e894eb0a0822a.
 - [PR #13](https://github.com/not-a-devs/ditNow/pull/13): Claude CLI 독립 설계 리뷰 및 MariaDB/통합 원장 정정. HEAD ea3ff0b8c2b9b413080690bb9f2b27a6a4d01632의 CI 성공. 사람 보안 승인 대기, 자동 병합 금지.
 - PR #15 FastAPI 기반, #16 Python CI, #17 공개 OpenAPI·타입 검사는 main 병합 완료. 업무 로그인/CRUD/MariaDB 완료를 뜻하지 않는다.
-- Docker 실행 파일은 있으나 desktop-linux daemon pipe가 없어 MariaDB 통합 검사는 NOT_RUN. 클라우드 연결·비밀키·예산·인증 방식·시연 관리자 책임은 미확정이다.
+- DEC-019의 기존 팀원 VM MariaDB11.4/Tailscale/계정 역할 확정. 프로젝트 내부 DB 컨테이너 생성 금지. 실제 TCP는 timeout, 로컬 Tailscale offline/NoState. [DB 운영 검사](07_DB_CONNECTIVITY_AND_ROLES.md)의 네트워크 복구·자격/TLS·GRANT·migration·공통 인증 게이트를 유지한다.
 - Claude 세션 결과는 세션 종료 후 변경 범위/커밋/PR/검사 로그로 갱신한다. 실행 시작 사실을 성공/완료로 표시하지 않는다. AI 리뷰는 사람 공식 승인이 아니다.
 
 수용 기준: 진행표 ID=명세 92개 집합, 중복 없음, 모든 행 계층/우선순위/차단/후속 태스크·TC 추적, mvp 완료율 제외, 공통 파일 충돌 없음. 자동 검사: `node scripts/check-feature-progress.mjs`, `node scripts/check-agent-config.mjs`, `git diff --check`.
+
+
+## 후속 세션과 전체 자동 검사
+
+- G · Codex api_foundation_review: ditNow-classrooms / feat/classrooms-firstpass-20261030. PR #27을 bb5e2380feb0a6c05cc1bf054d54e1535c7aff9d로 병합했다. 분반·자료·과제·질문의 미마운트 서비스/UI/단위 검사만 포함한다. 인증/DB/파일·시험·실시간 활성화는 미완료다.
+- F-DB-SAFETY · ditNow-chatbot-db-safety / fix/chatbot-explicit-db-init-20261030. chatbot/ 런타임 auto DDL 제거·기존 seed/reset 안전 경계를 검토한다. 공통 원장과 충돌하는 standalone schema를 운영 DB에 생성하지 않는다. 사람 승인 PR로 보류한다.
+- A-DB-CONFIG · ditNow-db-configuration / feat/mariadb-connection-contract-20261030 · PR #26. core/config·DB 접속 설정/비동기 드라이버·services/api 의존성 잠금 단일 소유. 61 단위 검사 및 같은 HEAD CI 성공; 사람 승인 대기. 실제 연결·DDL·계정 생성은 미실행이다.
+- ORCH · ditNow-db-operations / docs/db-network-and-integration-progress-20261030. DEC-019·DB 네트워크/역할 보고·보드·진행표·검증 상태 소유.
+- root 격리 통합 검사 ditNow-firstpass-integration / test/parallel-firstpass-integration-20261030: C/D/E 합성 소스 **pytest 251 PASS, 신규 웹 타입/27 테스트/build PASS**. 아직 미병합 PR 합성의 단위/계약 검사이며 auth/DB/E2E 완료 증거가 아니다. 이 검사에서 C/D/E의 `/api/v1` 중복 prefix를 발견해 세 CLI 수정 세션을 재시작했다. 각 실제 HEAD의 CI를 다시 확인한다.
+- 별도 Codex의 C/D/E 독립 리뷰에서 생성 재시도 중복, 개인 익명 응답 캐시 헤더 누락, 삭제 후 멱등 재시도 부활, 약한 ETag, 출처 URL·확인일 및 동시 공지 게시/채팅 재시도 문제가 재현됐다. 기존 성공 테스트만으로 실제 통합 완료로 올리지 않고 수정·회귀 검사한다.
+- C/D/E의 후속 Claude CLI 수정은 실제 완료·Push됐다(C 5d41809 / D 5cd3858 / E bf82870). root가 재리뷰·각 HEAD CI·합성 테스트 후 처리한다. 이 작업의 단위 저장소는 테스트 fake이며 DB 권한/영속성을 검증하지 않았다.
+- PR #19의 추가 Claude 읽기 전용 코드 리뷰 시도는 900초 timeout으로 결과가 없었다(NOT_RUN). 이전 PR #11의 완료된 Claude 설계 리뷰와 구분한다. 자동 반복하지 않았고 PR #19는 사람 보안 승인 전 열린 상태로 유지한다.
+- H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
+- I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
+
+이 통합 PR 반영 기준 진행표는 **부분 구현 34·미구현 53·운영 정책 차단 5·완전 구현 0**이다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+
+
+## 최신 실행 갱신 — 공개 안내·DB 실제 진단
+- C/D/E PR23·20·24는 독립 재검토·같은 HEAD CI·합성 API397/웹140 통과 후 미활성 모듈로 병합했다. H 도서 PR31와 J 가상 입학 PR33도 미마운트/운영 미연결 부분이다. 운영 신원·DB 활성화 승인이 아니다.
+- I 공개 안내 PR32는 기존 조회 스냅샷을 GET API·신규 `/app/information`에 연결하고 실제 브라우저 검색/필터/목록·상세/출처·오류/390·1280 검사를 수행했다. 모바일 상세 초점이 sticky 헤더 아래 숨는 결함을 수정했다.
+- Claude CLI 후속 세션을 실제 시작했다: K ditNow-collaboration/feat/collaboration-firstpass-20261030, L ditNow-careers/feat/careers-programs-firstpass-20261030, M ditNow-academics/feat/academics-attendance-firstpass-20261030. 각 features 모듈·전용 FE/BE/tests·TASK 문서만 소유하며 공유 인증/DB/migration/lock은 수정하지 않는다.
+- N · Codex B, ditNow-mariadb-integration/feat/mariadb-p0-persistence-20261030. 검토된 PR19/26을 격리 브랜치에서 조합해 실제 SQLAlchemy P0 저장소·비파괴 초기 migration 코드/테스트를 작성한다. 공통 모델·DB 의존성·migration은 B가 단일 소유한다. 다른 미병합 변경을 임의 채택하지 않는다.
+- DB의 네트워크·양 계정 인증·SELECT·직접 GRANT·빈 schema는 Codex에서도 성공했다. 실제 async API 연결은 **BLOCKED_TLS**이며 사용자에게 CA·SAN을 요청했고 검증 해제 금지를 확인했다. [현재 DB 검사](07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. 원격 DDL/seed/CRUD 쓰기는 아직 0이다.
+- PR13/19/26/28은 사람 보안 승인 대기로 유지한다. PR30은 별도 인프라 작업자가 병합한 팀원 VM 운영 정의이며 로컬 DB 컨테이너를 실행하지 않는다.

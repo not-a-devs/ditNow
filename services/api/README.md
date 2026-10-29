@@ -4,6 +4,28 @@ TASK-B · NFR-SEC-004/005, NFR-PRIV-003, NFR-REL-004, NFR-OPS-001/002의 기반 
 
 TASK-F는 [기존 챗봇](../../chatbot/README.md)의 검색기를 통합 API의 `GET /api/v1/ai/campus/search`에 연결한다. 시설 스냅샷 검색만 제공하며 별도 시연 로그인·관리자 API·학생 DB·LLM을 실행하지 않는다. 검색 결과의 공식 출처·최신성은 UNKNOWN이며 개인정보 질문과 전체 AI 브리핑의 완료를 뜻하지 않는다.
 
+## 학번 로그인과 AI 답변 (DEC-020)
+
+챗봇의 의도 분류·후속 질문·개인 질문 계산·LLM 답변을 패키지 함수 그대로 호출한다(복제 없음). 학생·학적은 가상(DEMO) 데이터다.
+
+| 경로 | 설명 |
+| --- | --- |
+| `POST /api/v1/auth/login` | `{student_id, password}` → Bearer 토큰 (12시간). 시연 계정 `20231001` / `3000001` |
+| `POST /api/v1/auth/logout` | 토큰 폐기 |
+| `POST /api/v1/ai/ask` | `{question, history?}` + 선택 `Authorization: Bearer`. 교내 질문은 비로그인 허용, 개인 질문은 로그인 필요(`need_login`) |
+
+설정(`DIT_API_` 환경 변수): `DATABASE_URL`(학적 DB, 없으면 로그인·개인 질문 503), `LLM_PROVIDER`·`LLM_MODEL`·`LLM_API_KEY`·`LLM_BASE_URL`(없으면 `/ai/ask` 503, 공개 검색은 동작), `CURRENT_SEMESTER`, `ASK_RATE_LIMIT_PER_MIN`(IP당 분당, 기본 20).
+
+서버 시작 시 테이블을 만들지 않는다. 처음 한 번 migration 계정으로 테이블 생성·가상 데이터 시드를 실행하고, 서버는 DML 계정(`ditnow_app`)으로 띄운다.
+
+```sh
+export DIT_API_ENVIRONMENT=development
+export DIT_API_DATABASE_URL='mysql+aiomysql://ditnow_migrator:<pw>@<tailscale-ip>:3307/ditnow?charset=utf8mb4'
+uv run --locked python -m app.seed_demo   # 학생이 이미 있으면 건너뜀
+```
+
+테스트는 가짜 LLM과 메모리 SQLite로 실행하며 외부 LLM·MariaDB를 호출하지 않는다(`tests/test_ai_ask.py`). 요청 제한은 프로세스 메모리 기준이라 워커 1개를 전제한다.
+
 ## 실행과 검증
 
 Python 3.13과 uv 0.13.6을 사용한다. `uv.lock`을 함께 커밋한다. 의존성 변경 때만 `uv lock`하고, 평소에는 잠금 파일을 검증한다. [uv 공식 안내](https://docs.astral.sh/uv/concepts/projects/sync/)의 `--locked` 동작을 따른다.
@@ -42,6 +64,11 @@ GitHub의 `Python API 검증`은 잠금 설치·Ruff·pytest·앱 import/OpenAPI
 
 ## 실제 API와 프런트 타입 동기화
 
-`uv run --locked python -m app.export_openapi`로 실제 라우트에서 `openapi.json`을 생성하고 `--check`로 커밋된 스냅샷과 비교한다. 기존 CI의 `mvp/` 타입 생성·검사는 사전 프로토타입의 역사적 회귀만 유지한다. 생성 타입 갱신은 기존 소스를 새 제출물에 재사용하는 행위가 아니다. 신규 앱은 별도 타입 생성기와 실제 API 연결 검증을 갖춘 후 사용한다. 타입 생성은 [openapi-typescript의 공식 Node API](https://openapi-ts.dev/node)를 사용한다.
+`uv run --locked python -m app.export_openapi`로 실제 라우트에서 `openapi.json`을 생성하고 `--check`로 커밋된 스냅샷과 비교한다. 기존 CI의 `mvp/` 타입 생성·검사는 사전 프로토타입의 역사적 회귀만 유지한다. 생성 타입 갱신은 기존 소스를 새 제출물에 재사용하는 행위가 아니다. 신규 앱은 별도 타입 생성기와 공개 조회의 실제 API 연결 검증을 갖추었다. 타입 생성은 [openapi-typescript의 공식 Node API](https://openapi-ts.dev/node)를 사용한다.
 
-현재 계약에는 health 두 경로, 공개 시설 검색과 공통 응답/오류가 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. 신규 프런트 연결과 MariaDB·공통 세션 통합은 별도로 검증한다.
+현재 계약에는 health 두 경로, 공개 시설 검색, 공개 대학·학과 안내 조회 두 경로와 공통 응답/오류가 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. MariaDB·공통 세션 통합은 별도로 검증한다.
+
+## 공개 대학·학과 안내
+GET `/api/v1/public-campus`와 `/{record_id}`는 근거 7건을 자체 요약한 버전 스냅샷의 목록·정규화 검색·주제/출처 필터·상세를 제공한다. 새 앱 `/app/information`에 연결했다. 공식 게시물 동일성·실시간 최신성·학과 운영 업무 전체를 주장하지 않는다. 상세 범위와 출처는 [TASK-I](../../docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)를 본다. 쓰기·개인 신원·실DB 접근은 없다.
+
+MariaDB 실제 두 계정 읽기/권한 검증과 비동기 TLS 연결 차단은 [운영 검사](../../docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. CA·SAN 준비 전 인증서 검증을 해제하지 않는다. `infra/mariadb` 서버 운영 정의를 이 개발 PC에서 실행하지 않는다.

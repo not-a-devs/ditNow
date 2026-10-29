@@ -7,6 +7,7 @@ const symbols: Record<string, string> = {
   opportunities: 'M12 3v18M3 12h18M6 6l12 12M6 18 18 6',
   classrooms: 'M3 4h18v14H3Zm5 18 4-4 4 4M8 9h8m-8 4h5',
   support: 'M12 21S3 15 3 9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6-9 12-9 12Z',
+  information: 'M3 21V9l9-6 9 6v12M3 21h18M8 10v7m4-7v7m4-7v7',
   ai: 'm12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z',
 };
 export function Icon({ name, size = 21 }: { name: string; size?: number }) {
