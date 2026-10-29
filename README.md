@@ -54,7 +54,7 @@
 |---|---|
 | Frontend | React + TypeScript + Vite + Tailwind CSS — `apps/web/` 신규 통합 셸 구현·테스트; 개별 업무 모듈 통합 중 |
 | Backend | FastAPI — 공개 health·오류·설정·로그·테스트 기반 구현, 업무 API 미구현 |
-| DB | MariaDB 확정; 클라우드 접속·운영 계정·백업·비용 미확정 |
+| DB | MariaDB 11.4 · 팀원 Proxmox VM/Tailscale 전용 확정; 실제 연결·GRANT·백업 미검증 |
 | 인증·호스팅·비용 | 공급자·방식·지역·예산 미확정 (OPEN-002/003) |
 | AI·RAG·지도 | 기존 `chatbot/` RAG 재사용·통합 중; 외부 LLM·개인화·지도 통합 검증 미완료 |
 | 개발 도구 | Claude Code, Git / GitHub |

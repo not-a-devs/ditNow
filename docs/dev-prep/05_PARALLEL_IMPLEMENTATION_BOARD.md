@@ -1,6 +1,6 @@
 # DIT NOW 병렬 구현 보드
 
-2026-10-30 KST · TASK-ORCH-92 · 기준 main `a86ec597`.
+2026-10-30 KST · TASK-ORCH-92 · 초기 기준 main `a86ec597`; 아래 후속 PR 상태는 2026-10-30 갱신.
 fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NFR-SEC/PRIV/REL/UX/OPS 및 각 TC-V1은 [기능 추적표](../v1-draft/09_FEATURE_TRACEABILITY.csv)에서 연결한다.
 
 ## 목표와 완료 판단
@@ -25,12 +25,12 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 | 태스크/세션 | worktree · 브랜치 | 소유 파일 | 현재 상태/차단 |
 |---|---|---|---|
-| A · Codex pr11_independent_review | ditNow-p0-domain-contracts · feat/p0-provider-neutral-contracts-20261030 | services/api/app/db/**, schemas/p0.py·operations.py, api/dependencies.py, 공통 DB repositories, pyproject/uv.lock, auth/DB tests | 구현 중. 45개 체크포인트 테스트. Docker daemon 미실행·클라우드 접속 없음. 인증/DB 보안 PR은 사람 승인 전 병합 금지 |
-| B · Codex api_foundation_review | ditNow-web-shell · feat/new-platform-web-shell-20261030 | apps/web 공통 셸·라우터·디자인·lib·테스트·패키지, 아래 feature 디렉터리 제외 | 신규 작성 중. mvp 코드를 읽거나 복사하지 않음 |
-| C · Claude CLI | ditNow-community · feat/community-recruitment-firstpass-20261030 | app/features/community/**, test_community*.py, apps/web/src/features/community/**, TASK_COMMUNITY_IMPLEMENTATION.md | 실제 CLI 시작. 익명/실명 서비스·입력·UI, 공통 인증/DB 통합 대기 |
-| D · Claude CLI | ditNow-opportunities · feat/opportunity-firstpass-20261030 | app/features/opportunities/**, test_opportunities*.py, apps/web/src/features/opportunities/**, TASK_OPPORTUNITIES_IMPLEMENTATION.md | 실제 CLI 시작. 공고·개인 준비, 공통 인증/DB 통합 대기 |
-| E · Claude CLI | ditNow-campus · feat/campus-communication-firstpass-20261030 | app/features/campus/**, test_campus*.py, apps/web/src/features/campus/**, TASK_CAMPUS_IMPLEMENTATION.md | 실제 CLI 시작. 대상 범위·공지 단일 원본/카드 계약·채팅, 실제 실시간/학적 승인 대기 |
-| F · Codex rag_integration | ditNow-rag-integration · feat/integrated-rag-adapter-20261030 | chatbot 패키징/상대 import, integrations/chatbot/**, schemas/ai.py, api/v1/ai.py, test_chatbot_integration*.py | 공개 검색 어댑터/기존 회귀 검증 중. 개인 학적·LLM 외부 호출 차단 |
+| A · Codex pr11_independent_review | ditNow-p0-domain-contracts · feat/p0-provider-neutral-contracts-20261030 | services/api/app/db/**, schemas/p0.py·operations.py, api/dependencies.py, 공통 DB repositories, pyproject/uv.lock, auth/DB tests | PR #19 모델/인증 기반 61 테스트·CI PASS, 사람 승인 대기. 후속 DIT_API_ 설정/aiomysql·권한 분리 작업; 실제 DB 네트워크 차단 |
+| B · Codex api_foundation_review | ditNow-web-shell · feat/new-platform-web-shell-20261030 | apps/web 공통 셸·라우터·디자인·lib·테스트·패키지, 아래 feature 디렉터리 제외 | PR #21 병합·27 단위 및 390/1280 실제 브라우저 검사 PASS. 후속 G 강의실 작업으로 이동 |
+| C · Claude CLI | ditNow-community · feat/community-recruitment-firstpass-20261030 | app/features/community/**, test_community*.py, apps/web/src/features/community/**, TASK_COMMUNITY_IMPLEMENTATION.md | PR #23 부분 구현. 114 테스트 PASS, 독립 리뷰의 재시도/캐시·API 경로 결함 보완 중. 인증/DB 대기 |
+| D · Claude CLI | ditNow-opportunities · feat/opportunity-firstpass-20261030 | app/features/opportunities/**, test_opportunities*.py, apps/web/src/features/opportunities/**, TASK_OPPORTUNITIES_IMPLEMENTATION.md | PR #20 부분 구현. 90 테스트 PASS, 독립 리뷰의 멱등 tombstone/ETag/URL 보완 중. 인증/DB 대기 |
+| E · Claude CLI | ditNow-campus · feat/campus-communication-firstpass-20261030 | app/features/campus/**, test_campus*.py, apps/web/src/features/campus/**, TASK_CAMPUS_IMPLEMENTATION.md | PR #24 부분 구현. 95 테스트 PASS, 출처·공지 revision·채팅 nonce 보완 중. 실제 실시간/학적 대기 |
+| F · Codex rag_integration | ditNow-rag-integration · feat/integrated-rag-adapter-20261030 | chatbot 패키징/상대 import, integrations/chatbot/**, schemas/ai.py, api/v1/ai.py, test_chatbot_integration*.py | PR #22 병합(API37·기존 챗봇130·신규 웹27). 후속 UI PR #25 및 DB 자동 DDL 안전화 분리 작업 |
 | ORCH · root | ditNow-orchestration · docs/integrated-mariadb-roadmap-20261030 | 결정/NAV/README/아키텍처/로드맵/진행표/검사 스크립트, 후속 공통 router·CI 통합 | 전체 92개·공통 계약·PR/CI 조정 |
 
 `app/` 약칭은 services/api/app/이다. 모든 PR 제목/본문/커밋은 한국어. 각 작업은 테스트 후 PR로 전달하고 root가 독립 검토·HEAD CI를 확인한다. 동일 파일 수정 금지. 마이그레이션/인증/공통 의존성은 A 단일 소유이며 F 로컬 패키지 의존성은 A 작업 후 root가 통합한다.
@@ -57,7 +57,17 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 - PR #11 사용자 병합 확인: 5d08cb4d4cd92ea06dbe5404b69e894eb0a0822a.
 - [PR #13](https://github.com/not-a-devs/ditNow/pull/13): Claude CLI 독립 설계 리뷰 및 MariaDB/통합 원장 정정. HEAD ea3ff0b8c2b9b413080690bb9f2b27a6a4d01632의 CI 성공. 사람 보안 승인 대기, 자동 병합 금지.
 - PR #15 FastAPI 기반, #16 Python CI, #17 공개 OpenAPI·타입 검사는 main 병합 완료. 업무 로그인/CRUD/MariaDB 완료를 뜻하지 않는다.
-- Docker 실행 파일은 있으나 desktop-linux daemon pipe가 없어 MariaDB 통합 검사는 NOT_RUN. 클라우드 연결·비밀키·예산·인증 방식·시연 관리자 책임은 미확정이다.
+- DEC-019의 기존 팀원 VM MariaDB11.4/Tailscale/계정 역할 확정. 프로젝트 내부 DB 컨테이너 생성 금지. 실제 TCP는 timeout, 로컬 Tailscale offline/NoState. [DB 운영 검사](07_DB_CONNECTIVITY_AND_ROLES.md)의 네트워크 복구·자격/TLS·GRANT·migration·공통 인증 게이트를 유지한다.
 - Claude 세션 결과는 세션 종료 후 변경 범위/커밋/PR/검사 로그로 갱신한다. 실행 시작 사실을 성공/완료로 표시하지 않는다. AI 리뷰는 사람 공식 승인이 아니다.
 
 수용 기준: 진행표 ID=명세 92개 집합, 중복 없음, 모든 행 계층/우선순위/차단/후속 태스크·TC 추적, mvp 완료율 제외, 공통 파일 충돌 없음. 자동 검사: `node scripts/check-feature-progress.mjs`, `node scripts/check-agent-config.mjs`, `git diff --check`.
+
+
+## 후속 세션과 전체 자동 검사
+
+- G · Codex api_foundation_review: ditNow-classrooms / feat/classrooms-firstpass-20261030. 소유 `apps/web/src/features/classrooms/**`, `services/api/app/features/classrooms/**`, 전용 테스트/태스크 문서. 분반·자료·과제·질문 시연 서비스/UI를 공통 의존성과 분리해 구현 중. 인증/DB/파일·시험·실시간 활성화는 미완료다.
+- F-DB-SAFETY · ditNow-chatbot-db-safety / fix/chatbot-explicit-db-init-20261030. chatbot/ 런타임 auto DDL 제거·기존 seed/reset 안전 경계를 검토한다. 공통 원장과 충돌하는 standalone schema를 운영 DB에 생성하지 않는다. 사람 승인 PR로 보류한다.
+- A-DB-CONFIG · 새 main 기준 독립 브랜치. core/config·DB 접속 설정/비동기 드라이버·services/api 의존성 잠금 단일 소유. 실제 연결·DDL·계정 생성은 미실행이다.
+- ORCH · ditNow-db-operations / docs/db-network-and-integration-progress-20261030. DEC-019·DB 네트워크/역할 보고·보드·진행표·검증 상태 소유.
+- root 격리 통합 검사 ditNow-firstpass-integration / test/parallel-firstpass-integration-20261030: C/D/E 합성 소스 **pytest 251 PASS, 신규 웹 타입/27 테스트/build PASS**. 아직 미병합 PR 합성의 단위/계약 검사이며 auth/DB/E2E 완료 증거가 아니다. 이 검사에서 C/D/E의 `/api/v1` 중복 prefix를 발견해 세 CLI 수정 세션을 재시작했다. 각 실제 HEAD의 CI를 다시 확인한다.
+- 별도 Codex의 C/D/E 독립 리뷰에서 생성 재시도 중복, 개인 익명 응답 캐시 헤더 누락, 삭제 후 멱등 재시도 부활, 약한 ETag, 출처 URL·확인일 및 동시 공지 게시/채팅 재시도 문제가 재현됐다. 기존 성공 테스트만으로 실제 통합 완료로 올리지 않고 수정·회귀 검사한다.
