@@ -1,0 +1,14 @@
+.panel { max-width: 36rem; margin: 1.5rem auto; padding: 1.5rem; display: grid; gap: 1rem; color: #172536; background: #fff; border: 1px solid #cbd5e1; border-radius: .9rem; }
+.panel h1 { font-size: 1.6rem; font-weight: 700; }
+.eyebrow { color: #42556d; font-size: .875rem; }
+.provenance { padding: .85rem; background: #fffbeb; color: #713f12; border-radius: .4rem; }
+.panel form, .signedIn { display: grid; gap: .65rem; }
+.panel label { font-weight: 600; }
+.panel input { min-height: 2.8rem; border: 1px solid #64748b; padding: .6rem; border-radius: .35rem; width: 100%; min-width: 0; }
+.panel button { padding: .7rem 1rem; min-height: 2.8rem; border-radius: .4rem; background: #1d4ed8; color: white; font-weight: 600; }
+.panel button:disabled { background: #e2e8f0; color: #475569; cursor: not-allowed; }
+.panel input:disabled { background: #f1f5f9; }
+.panel :is(input, button):focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+.error { border-left: .25rem solid #b91c1c; padding: .8rem; color: #991b1b; background: #fef2f2; }
+.hint { color: #475569; font-size: .875rem; overflow-wrap: anywhere; }
+@media (max-width: 40rem) { .panel { margin: .75rem; padding: 1rem; } }
