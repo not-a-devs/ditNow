@@ -1,22 +1,22 @@
-# DIT NOW P0 서버·DB·RLS 계약 초안
+# DIT NOW P0 서버·MariaDB 권한 계약 초안
 
-> TASK-04 · 2026-10-29 · 상태: **DEC-015 스택 확정 / DB·인증·운영 조건 승인 대기**. 이 문서는 FastAPI API와 PostgreSQL 후보의 DB·RLS 구현 입력을 구체화한다. 실제 서버, DB, 정책, 마이그레이션 또는 학교 연동을 구현한 기록이 아니다.
+> TASK-04 · 원안 2026-10-29 / 사용자 결정 반영 2026-10-30 · 상태: **FastAPI·MariaDB 확정 / 인증·클라우드 접속·권한·비용 조건 승인 대기**. 이 문서는 FastAPI API와 MariaDB의 최소 권한·스코프 질의 구현 입력을 구체화한다. 실제 인증/업무 API, DB 연결, 정책, 마이그레이션 또는 학교 연동을 구현한 기록이 아니다. 파일명의 RLS는 기존 참조 보존용이며 PostgreSQL RLS를 현재 요구로 삼지 않는다.
 
 ## 1. 범위와 우선순위
 
 기존 92개 [기능 추적표](09_FEATURE_TRACEABILITY.csv) 가운데 P0인 FR-AUTH-001/002, FR-COM-001/004, FR-OPP-004를 먼저 연결한다. FR-COM-005(지원·승인)는 P1이지만 P0 모집 원장의 FK와 정원 제약을 미리 정한다. 공고 원본 FR-OPP-001~003은 P1이며 P0 개인 준비를 시연하려면 관리자 승인 **가상 공고 시드**가 선행된다. 학과·학년 관계는 FR-DEPT-001~008과 공지 대상 권한의 공통 입력이다. 이 문서는 기존 [DB·API](05_DB_API.md), [RBAC](04_RBAC.md), [아키텍처](06_ARCHITECTURE.md), [미확정 정책](11_OPEN_POLICIES_ASSUMPTIONS.md)의 세부 계약이며 DEC-001~014를 변경하지 않는다.
 
-현재 `mvp/src/shared/data/`는 브라우저 localStorage/sessionStorage 모의 구현이다. 이 문서의 서버 권한·DB 불변식·다중 계정 격리는 **미구현**이다. 기존 UI 타입은 전환 참고 자료일 뿐 신뢰 가능한 인증 원장이 아니다.
+사용자 확정(2026-10-30): `mvp/`는 사전 프로토타입으로 격리하며 최종 시연·제출·소스 복사에 사용하지 않는다. 프런트는 `apps/web/`에서 새로 작성하고 `services/api/`를 공통 서버 경계로 사용한다. chatbot은 DIT NOW 내부 기능으로 공통 사용자·로그인 세션·학적 원장을 사용하며 독립 사용자 시스템을 만들지 않는다. 기존 standalone 로그인은 최종 통합에서 대체한다. 이 계약의 서버 권한·DB 불변식·다중 계정 격리는 **미구현**이다.
 
 ## 2. 착수 게이트와 기술·비용 확인
 
 | 항목 | 확인 결과와 처리 |
 |---|---|
 | 확정된 기술 | [DEC-015](../11_DECISION_LOG.md): React/Vite/Tailwind 프런트엔드와 FastAPI 백엔드. DFLT-001의 Supabase/Edge Functions/Vercel 구상은 더 이상 기본 스택이 아니다. `/api/v1`은 FastAPI의 논리 라우트 계약이다. |
-| DB 권장 후보 | PostgreSQL은 권장 후보일 뿐 제품·운영 방식은 OPEN-002 미결정. [PostgreSQL 공식 RLS 설명](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)은 GRANT와 행 정책의 별도 적용, 테이블 소유자·`BYPASSRLS`의 우회를 명시한다. 확인일: 2026-10-29. |
+| DB 확정 | 2026-10-30 사용자 결정으로 **MariaDB**를 사용한다. 클라우드 인스턴스 예정이며 접속정보·버전·계정 권한은 없다. DB 제품 선택 차단은 해제되었으나 연결/마이그레이션은 미실행이다. |
 | 프로젝트 권한·비용 | 팀 소유 계정, 프로젝트 생성 권한, 리전, 청구 방식, 무료 한도 초과 정책, 비밀키 보관 담당자, 배포 권한은 **미확인**. 새 서비스 개설·유료 플랜·실제 데이터 입력은 하지 않는다. |
 | 인증 결정 | 가상 시연 계정의 관리 책임자 OPEN-003이 미결정이다. 공개 회원가입은 기본 거부하고 승인된 가상 계정 시드만 허용하는 설계 후보로 둔다. 학교 SSO·운영 DB·실제 학생 확인은 범위 밖이다. |
-| 착수 상태 | FastAPI/Pydantic/OpenAPI 계약 검토는 가능하다. 실제 인증/DB/RLS 구축은 OPEN-002/003, DB·인증 자격 증명 소유자, 테스트 환경과 비용 한도를 승인한 뒤 별도 PR에서 진행한다. |
+| 착수 상태 | FastAPI/Pydantic/OpenAPI와 MariaDB용 논리 계약 검토는 가능하다. 실제 인증/DB 연결·계정 생성은 OPEN-002/003의 남은 인증·접속정보·자격 증명 소유자·테스트 환경·비용 한도를 승인한 뒤 별도 PR에서 진행한다. |
 
 ## 3. 공통 API 형식
 
@@ -32,11 +32,11 @@
 
 ## 4. P0 원장과 무결성
 
-아래는 논리 스키마다. 물리 타입·인덱스·migration 문법은 DB 채택 후 별도 리뷰한다. PostgreSQL 채택 시 `id uuid PK`, `created_at/updated_at timestamptz UTC`, 변경 가능한 행의 `revision integer > 0`을 사용한다. FK 삭제는 기본 제한, 공개 콘텐츠 삭제는 상태 전이와 감사 기록으로 처리한다. 특정 공급자의 인증 스키마를 전제하지 않는다.
+아래는 MariaDB 대상 논리 스키마다. ID는 애플리케이션 UUID, 시각은 UTC, 변경 가능한 행은 양수 revision을 사용한다. UUID 저장 형식·시각 컬럼의 물리 타입/정밀도·엔진·인덱스·migration은 클라우드 MariaDB 버전과 트랜잭션/FK 지원을 확인한 뒤 별도 리뷰한다. PostgreSQL의 uuid/timestamptz 문법을 그대로 적용하지 않는다. FK 삭제는 기본 제한, 공개 콘텐츠 삭제는 상태 전이와 감사 기록으로 처리한다. 특정 인증 공급자의 스키마를 전제하지 않는다.
 
 | 테이블 | 필수 필드와 FK/유일성 | 소유·상태 불변식 |
 |---|---|---|
-| `identities` **신규 제안** | `id uuid PK`, `issuer`, `subject`, `status`, `(issuer,subject) UNIQUE` | 공급자 subject의 형식을 가정하지 않는다. 검증된 주체를 승인된 내부 ID에만 매핑; 미등록/비활성 주체는 401. 로그인 비밀은 여기에 저장하지 않는다. |
+| `identities` **신규 제안** | `id`(내부 UUID PK), `issuer`, `subject`, `status`, `(issuer,subject) UNIQUE` | 플랫폼과 chatbot이 공유하는 신원 원장. 공급자 subject의 형식을 가정하지 않는다. 검증된 주체를 승인된 내부 ID에만 매핑; 미등록/비활성 주체는 401. 로그인 비밀은 여기에 저장하지 않는다. |
 | `profiles` | `user_id PK/FK → identities.id`, `display_name`, `status`, `source_kind` | 내부 사용자 ID와 1:1. 가상 프로필만 P0. 이메일·로그인 비밀은 별도 인증 원장; 공개 모집 응답에 이메일 없음. |
 | `departments` | `id`, `code UNIQUE`, `name`, `source_url?`, `checked_at?` | 공개 확인 자료와 가상 시드 구분. 코드 미확정이면 운영 공식 코드로 가장하지 않음(OPEN-R10). |
 | `academic_memberships` **신규 제안** | `id`, `user_id FK`, `department_id FK`, `academic_year > 0?`, `term_id?`, `status`, `valid_from`, `valid_to?` | 승인된 현재 소속 한 건을 권위로 사용. 휴학·전과·기간 만료 시 권한 재평가. 학년 상한·학제는 미확정이며 시연 속성일 뿐 실제 학적 아님. P0에서 `profiles.department_id/year`는 읽기 projection일 뿐 권한 원장 아님. |
@@ -49,7 +49,7 @@
 | `saved_opportunities` | `id`, `user_id FK`, `opportunity_id FK`, `status`, `memo`, `self_reported_submitted_at?`, `revision` | `(user_id,opportunity_id) UNIQUE`. `interested→preparing→self_reported_submitted/closed` 기본 흐름. 실수 정정은 본인 요청과 감사 기록으로 허용하되 외부 접수 확인으로 승격 불가. |
 | `opportunity_check_items` | `id`, `saved_id FK`, `text`, `sort_order`, `completed_at?`, `revision` | 부모 저장 항목의 본인만 CRUD. 항목 순서/완료를 서버가 원자적으로 갱신. |
 
-`academic_memberships` 추가는 기존 `profiles`·`role_assignments`·`enrollments`의 의미를 바꾸지 않기 위한 제안이다. 실제 테이블명·학기 모델은 승인 전 변경 가능하다. 익명 공개 모델은 PostgreSQL의 일반 view가 소유자 권한으로 RLS를 우회할 수 있다는 [공식 설명](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)을 고려해 별도 읽기 테이블을 후보로 둔다. 공개 모델 동기화 실패 시 비공개 원장 commit도 실패해야 한다.
+`academic_memberships` 추가는 기존 `profiles`·`role_assignments`·`enrollments`의 의미를 바꾸지 않기 위한 제안이다. chatbot도 동일 원장의 승인 소속/수강을 조회하며 별도 학적 복제를 권위로 삼지 않는다. 실제 테이블명·학기 모델은 승인 전 변경 가능하다. 익명 공개 모델은 별도 읽기 테이블 후보이며 비공개 원장과 원자 갱신한다. MariaDB view를 선택한다면 [공식 view 문서](https://mariadb.com/docs/server/server-usage/views/create-view)의 DEFINER/INVOKER 권한 문맥을 별도 검토한다. view가 앱 사용자의 신원을 자동 검증한다고 가정하지 않는다. 확인일: 2026-10-30.
 
 소속 상태 후보는 `pending|active|inactive`; 권한은 `active`이고 유효 기간 안인 기록만 인정한다. `role_assignments.scope_type` 후보는 `platform|department|course_offering`이며 역할은 기존 학생·교수·조교·관리자 유형을 사용한다. 한 사용자에게 유효한 주 소속이 겹치지 않도록 DB 제약 또는 직렬화 트랜잭션으로 막는다. 학과 코드/학년별 기간·교직원 다중 소속·학기 변경 규칙은 학교 정책으로 확정하지 않고 OPEN-003/OPEN-R10에 남긴다.
 
@@ -70,19 +70,19 @@
 
 `POST /session/login`의 실제 자격 증명·토큰 교환은 인증 공급자 채택 시 FastAPI 어댑터/공급자 계약으로 정의한다. FastAPI 자체가 로그인·세션 저장소를 자동 제공한다고 가정하지 않는다. 기존 시연용 이메일/비밀번호를 운영 인증으로 이관하지 않는다. 실명 모집 프로필은 `profiles`의 허용된 필드만 반환한다. 익명 글과 실명 모집 사이에 공개 작성자 연결 API는 없다.
 
-## 6. FastAPI 권한과 PostgreSQL 후보의 DB 방어선
+## 6. FastAPI 권한과 MariaDB의 DB 방어선
 
 **FastAPI의 필수 책임:** 인증 의존성에서 유효한 주체를 확인하고, 서비스/라우트에서 현재 승인 역할·소속·소유권·자원 상태를 매 요청 판정한다. 401/403/404를 구별해 외부 응답은 존재 추론을 막는다. Pydantic 입력 검증, 공개 응답 필터, 감사·남용 제한, 관리자 승격 승인도 서버 책임이다. 오래된 토큰의 role·학과·학년 claim은 권한 원장 대신 사용하지 않는다. [FastAPI 공식 보안 안내](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/)의 의존성/JWT 예시는 구현 참고이며 특정 인증 공급자를 결정한 근거가 아니다.
 
-**PostgreSQL 채택 시의 추가 책임:** migration/테이블 소유자와 런타임 앱 DB 역할을 분리한다. 앱 역할은 슈퍼유저·테이블 소유자·`BYPASSRLS`가 아니며 필요한 테이블/컬럼/작업만 GRANT한다. 보호 테이블은 RLS 기본 거부에서 시작하고 SELECT/INSERT/UPDATE/DELETE별 허용·거부 정책을 검증한다. RLS는 FastAPI의 객체별 정책을 대체하지 않는다. DB가 달라지면 동등한 최소 권한·행 범위 통제를 별도 설계한다.
+**MariaDB의 추가 책임:** 스키마 관리 계정과 런타임 DB 계정을 분리하고 필요한 테이블·컬럼·작업만 GRANT한다. 런타임에 전역/관리 권한이나 GRANT OPTION을 부여하지 않는다. MariaDB는 테이블/컬럼/루틴 수준 권한을 제공한다([GRANT 공식 문서](https://mariadb.com/docs/server/reference/sql-statements/account-management-sql-statements/grant), 2026-10-30 확인). 이것만으로 플랫폼 사용자별 행 접근이 자동 제한되지는 않는다. FastAPI의 객체별 인가와 권한 범위가 포함된 매개변수화 질의를 필수로 사용하며 조회/삽입/수정/삭제별 교차 계정 테스트를 수행한다.
 
-**주체 전달 경계:** 브라우저의 DB 직접 연결은 허용하지 않는다. FastAPI가 검증한 사용자 ID를 DB 트랜잭션 안에서만 전달할 수 있다. PostgreSQL의 `SET LOCAL`은 트랜잭션 종료 시 사라지지만, 단일 앱 DB 역할이 설정하는 세션 값만으로는 독립적인 신원 증명이 되지 않는다. 따라서 해당 값을 참조하는 RLS도 추가 방어선으로만 취급하고, 세션 변수 오염·커넥션 풀 재사용·SQL 주입을 포함해 교차 계정 테스트한다. [PostgreSQL SET 문서](https://www.postgresql.org/docs/current/sql-set.html), [RLS 문서](https://www.postgresql.org/docs/current/ddl-rowsecurity.html) 확인일: 2026-10-29. 인증/DB 공급자 결정 전에는 특정 RLS 함수를 확정하지 않는다.
+**주체 전달 경계:** 브라우저·chatbot의 사용자 입력에 DB 직접 연결이나 신뢰할 사용자 ID 전달을 허용하지 않는다. services/api가 검증한 공통 세션에서 내부 사용자·현재 소속을 도출하고 자원/부모 소유권 조건을 질의에 적용한다. 누락된 주체·범위는 기본 거부하며 연결 풀 재사용, 우회 질의, SQL 주입을 테스트한다. 과거 PostgreSQL/Supabase 구상의 `auth.uid()`, `SET LOCAL`, `BYPASSRLS` 또는 행 정책을 MariaDB의 현재 준수 수단으로 사용하지 않는다. DB 세션 변수나 루틴 인수에 담긴 UUID는 독립된 신원 증명이 아니다.
 
 **익명 부수 저장소 경계:** 감사·접근 로그, 멱등 레코드/응답, rate-limit 키, 분석·백업도 작성자↔공개 글 ID의 제2 원장이 될 수 있다. 일반 감사 담당자의 권한으로 두 값을 결합해 조회할 수 없어야 한다. 일반 로그/감사에는 익명 요청의 actor와 원시 글 경로/식별자를 함께 남기지 않으며 토큰·본문도 제외한다. 업무상 필요한 연결은 비식별화 또는 제한된 별도 저장소·접근권으로 격리한다. 격리 구현·복호/가명화 키 책임자·보존/삭제/백업 절차는 OPEN-009와 익명 신고 접근 절차 승인 후 정한다. 익명 멱등 저장소의 사용자 범위 격리는 필요하지만 일반 감사/로그 역할의 조회 허가는 아니다.
 
-**DB 권한 분리 추가 검토:** 일반 앱 읽기/쓰기, 역할·소속 승인, 익명 신원 조회, outbox 업무가 단일 자격 증명에 모두 묶이면 한 경로의 SQL 오용이 넓은 권한으로 이어진다. 별도 DB 역할·연결 풀·제한된 프로시저 등의 후보를 OPEN-002/003에서 검토하고, 자격 증명과 함수 실행권/검색 경로까지 승인한 뒤 구현한다. `SECURITY DEFINER` 함수가 전달받은 `p_user`만 비교하는 방식은 호출자의 신원 위조를 해결하지 않으므로 채택된 해결책으로 보지 않는다. 구체 함수·정책·역할 이름과 RLS SQL은 아직 미확정이다.
+**DB 권한 분리 추가 검토:** 일반 앱 읽기/쓰기, 역할·소속 승인, 익명 신원 조회, outbox 업무가 단일 자격 증명에 모두 묶이면 한 경로의 SQL 오용이 넓은 권한으로 이어진다. 별도 DB 계정·연결 풀·제한된 view/루틴 후보를 검토하고 자격 증명·실행권·스키마 참조를 승인한 뒤 구현한다. MariaDB 루틴의 `SQL SECURITY DEFINER|INVOKER`와 EXECUTE 권한은 [공식 문서](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-function)에 있다(2026-10-30 확인). 권한상승 문맥의 루틴에서 전달받은 `p_user`만 비교하는 방식은 신원 위조 해결책이 아니다. 구체 루틴·계정·뷰 선택은 아직 미확정이다.
 
-다음 표는 **FastAPI를 통한 최종 사용자별 유효 접근**을 나타낸다. 각 열의 학생·관리자는 PostgreSQL 로그인 역할을 뜻하지 않는다. DB 역할과 RLS 정책은 공급자·연결 방식 승인 후 별도 명세한다.
+다음 표는 **FastAPI를 통한 최종 사용자별 유효 접근**을 나타낸다. 각 열의 학생·관리자는 MariaDB 로그인 계정을 뜻하지 않는다. DB 권한과 스코프 질의·뷰/루틴은 클라우드 연결/계정 권한 승인 후 별도 명세한다.
 
 | 자원 | 공개/미인증 | 승인 학생 | 모집자·작성자 | 관리자/운영자 |
 |---|---|---|---|---|
@@ -92,9 +92,9 @@
 | `recruitments` | 없음 | 공개 모집 SELECT/본인 INSERT | 본인 UPDATE/종료 | 허가된 조치만 감사 기록 |
 | `recruitment_applications` | 없음 | 본인 지원/철회/조회 | 본인 모집의 지원 조회·결정 | 일반 관리자 기본 거부 |
 | `opportunities` | 출처가 허용한 공개 정보만 별도 공개 projection | 공개/대상 공고 SELECT | 동일 | 승인 담당자만 공고 쓰기(P1) |
-| `saved_opportunities`, `opportunity_check_items` | 없음 | FastAPI가 검증한 현재 사용자와 행/부모 소유를 대조해 CRUD; PostgreSQL 채택 시 같은 범위의 RLS 추가 | 동일 | 일반 관리자 기본 거부; 복구는 별도 승인 절차 |
+| `saved_opportunities`, `opportunity_check_items` | 없음 | FastAPI가 검증한 현재 사용자와 행/부모 소유를 대조해 CRUD; MariaDB 질의에도 같은 소유/부모 범위 조건 적용 | 동일 | 일반 관리자 기본 거부; 복구는 별도 승인 절차 |
 
-RLS 정책이 테이블 행을 막아도 **컬럼 노출·view 소유권·함수 실행권**은 별도 검토한다. 익명 private/public 간 공개 join, `author_id`가 담긴 실시간 payload, 역할 변경을 허용하는 넓은 `UPDATE`, DB 관리자 자격 증명·인증 비밀값의 클라이언트 노출은 차단 이슈다. 익명 댓글은 FR-COM-002의 P2이므로 이 계약에서 별도 공개 원장/별칭을 구현 완료로 간주하지 않는다.
+**컬럼 노출·view 권한 문맥·루틴 실행권**은 FastAPI 인가와 별도로 검토한다. 익명 private/public 간 공개 join, `author_id`가 담긴 실시간 payload, 역할 변경을 허용하는 넓은 `UPDATE`, DB 관리자 자격 증명·인증 비밀값의 클라이언트 노출은 차단 이슈다. 익명 댓글은 FR-COM-002의 P2이므로 이 계약에서 별도 공개 원장/별칭을 구현 완료로 간주하지 않는다.
 
 ## 7. 상태 전이·이벤트·동시성
 
@@ -121,6 +121,6 @@ RLS 정책이 테이블 행을 막아도 **컬럼 노출·view 소유권·함수
 | TC-V1-OPP-004, TC-V1-X03 | A 공고 저장·상태·체크 수정/삭제 후 새로고침; B의 A 저장 ID 접근 거부; 중복 PUT 한 행; 외부 제출은 `self_reported_submitted`로만 표시. |
 | TC-V1-AUTH-002, TC-V1-COM-004/005, TC-V1-OPP-004 | A/B가 같은 멱등 키·본문을 사용해도 서로의 응답이 노출되지 않음. 동일 사용자의 다른 경로·메서드는 분리. 역할/소속 철회 후 재시도는 저장 응답 재생 전 거부. 같은 revision을 다른 키로 수정해도 한 요청만 성공하며, 동일 키 동시 요청은 한 번만 실행. 실제 실행 증거는 NOT_RUN. |
 | TC-V1-AUTH-001/002, TC-V1-COM-001/004 | 미허용 issuer/audience/alg·동적 키 URL·미등록 subject 거부, 이메일 일치만으로 계정/역할 자동 바인딩 불가. 요청에 서버 소유 필드나 알 수 없는 필드를 추가하면 거부. 인증 방식·바인딩 절차 승인 및 실제 구현 전 NOT_RUN. |
-| 서버·DB 권한 통합 | 미인증·A·B·관리자 세션 각각으로 FastAPI 읽기/쓰기/수정/삭제 허용·거부 확인. PostgreSQL 채택 시 앱 전용 최소 권한 역할로 각 보호 테이블 SELECT/INSERT/UPDATE/DELETE와 view/함수/실시간 우회 경로 검사; 테이블 소유자·`BYPASSRLS`로 PASS 판정 금지. |
+| 서버·DB 권한 통합 | 미인증·A·B·관리자 공통 플랫폼 세션 각각으로 FastAPI/chatbot 읽기/쓰기/수정/삭제 허용·거부 확인. MariaDB 런타임 최소 권한 계정으로 스코프 질의 누락·부모 소유권·view/루틴/실시간 우회 경로 검사. 관리 계정으로 PASS 판정 금지. 인증/공통 원장 통합 전 NOT_RUN. |
 
-이 계약의 인증·업무 API·DB/RLS 테스트 실행 상태는 **NOT_RUN**이며 해당 기능은 미구현이다. 독립 FastAPI 기반·문서 링크·MVP CI의 성공은 이 업무 계약의 보안 검증을 뜻하지 않는다. 필수 결정은 OPEN-002(공급자/리전/비용), OPEN-003(가상 권한 시드 책임자), OPEN-009(보존), OPEN-R10(학과 코드), 익명 신고 담당자/작성자 매핑 접근 절차다. 승인 전에는 이 문서가 구현 허가나 공식 학교 정책이 되지 않는다.
+이 계약의 인증·업무 API·MariaDB 권한 테스트는 **NOT_RUN**이며 해당 기능은 미구현이다. DB 제품 선택은 확정되었지만 클라우드 접속정보가 없어 연결하지 않았다. FastAPI 기반·문서 링크·과거 MVP CI의 성공은 이 업무 계약의 보안 검증이나 최종 프런트 구현 증거가 아니다. 남은 게이트는 OPEN-002의 인증·클라우드 접속/리전/비용, OPEN-003의 가상 권한 시드 책임자·DB 계정 권한, OPEN-009(보존), OPEN-R10(학과 코드), 익명 신고 담당자/작성자 매핑 접근 절차다. 승인 전에는 이 문서가 실제 계정 생성·민감 정책 변경 허가나 공식 학교 정책이 되지 않는다.

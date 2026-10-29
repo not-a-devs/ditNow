@@ -4,6 +4,14 @@
 
 추가 Claude 리뷰 확인·후속 보완일: **2026-10-30 KST**. 10월 29일의 원 설계와 Codex 검토 기록은 위와 같이 보존한다.
 
+## 최신 사용자 결정과 현재 계약
+
+2026-10-30 사용자가 DB를 **MariaDB로 확정**했다. 클라우드 인스턴스는 예정이며 접속정보·버전·계정 권한·비용 조건은 아직 없다. DB 제품 선택에 대한 차단은 해제하고 인증 공급자·공통 세션, 가상 권한 생성 책임자, 클라우드 접속/관리 권한·비용·보존 게이트는 유지한다. 아래 Codex/Claude 원 리뷰의 PostgreSQL/RLS 설명은 당시 원 HEAD의 **역사적 맥락**이며 최신 MariaDB 준수 기준이 아니다.
+
+chatbot은 하나의 DIT NOW 플랫폼 내부 기능으로 사용자·로그인 세션·학적 원장을 공유한다. 최종 통합은 services/api 중심이며 standalone 로그인은 대체한다. 사용자 결정에 따라 mvp는 사전 프로토타입으로 격리하고 최종 시연·제출·소스 복사에 사용하지 않는다. apps/web의 프런트는 신규 작성한다. 과거 MVP 코드 확인이나 CI 결과를 최종 구현 증거로 사용하지 않는다.
+
+현재 계약은 FastAPI 인가·소유권/부모 범위 질의·MariaDB 최소 GRANT를 요구하고 제한 view/루틴·계정 분리를 후보로 남긴다. PostgreSQL의 auth.uid/SET LOCAL/BYPASSRLS·행 정책은 전제하지 않는다. 공식 지원 확인(2026-10-30): [MariaDB GRANT](https://mariadb.com/docs/server/reference/sql-statements/account-management-sql-statements/grant)는 테이블/컬럼/루틴 권한, [CREATE VIEW](https://mariadb.com/docs/server/server-usage/views/create-view)는 DEFINER/INVOKER 권한 문맥, [CREATE FUNCTION](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/create-function)은 루틴 권한 문맥과 EXECUTE 권한을 설명한다. 이 지원 사실이 앱 사용자 신원이나 자원 소유권을 자동 증명하지는 않는다. 실제 클라우드의 기능·물리 타입·운영 권한은 NOT_RUN/미확인이다.
+
 ## 검토 주체와 범위
 
 초기 설계 작성 에이전트와 별도의 **Codex 리뷰 에이전트**가 PR #11의 전체 변경 파일 15개, 관련 FRD/NFR/RBAC와 현재 브라우저 모의 API를 읽기 전용으로 검토했다. 이후 사용자의 명시 요청으로 **실제 Claude Code CLI**의 추가 독립 리뷰를 수행했고 아래에 별도로 기록했다. 둘 다 AI 설계 리뷰이며 사람의 보안 승인으로 간주하지 않는다. Codex 리뷰 당시 GitHub 리뷰·댓글은 0건, 해당 HEAD의 MVP CI는 SUCCESS였다. 이후 PR #11의 사용자 병합은 과거 사실이며 이 후속 변경의 승인까지 뜻하지 않는다.
@@ -46,9 +54,9 @@
 
 M8의 capacity 20 상한은 기존 FRD의 설계 기본값이며 승인된 영구 DB CHECK로 승격하지 않았다. Claude의 제안은 전체를 규범으로 복사하지 않았으며 위 수용·보류·비채택 결과도 사람의 정책 승인과 구분한다.
 
-## 정합성 확인과 제한
+## 원 HEAD 시점의 정합성 확인과 제한
 
-FastAPI가 매 요청 인증·현재 역할/소속·자원 소유권을 검사하고 PostgreSQL 후보의 최소 GRANT/RLS가 추가 방어선이라는 경계를 확인했다. 외부 `(issuer, subject)`와 내부 UUID, 익명 공개 응답과 비공개 작성자 원장, 실명 모집의 허용 프로필 응답도 분리되어 있다. 이는 문서 확인이며 보안 동작의 실행 검증이 아니다.
+원 HEAD 검토 당시 FastAPI가 매 요청 인증·현재 역할/소속·자원 소유권을 검사하고 PostgreSQL 후보의 최소 GRANT/RLS가 추가 방어선이라는 문서 경계를 확인했다. 현재 기준은 위 MariaDB 사용자 결정과 갱신된 계약이다. 외부 `(issuer, subject)`와 내부 UUID, 익명 공개 응답과 비공개 작성자 원장, 실명 모집의 허용 프로필 응답 분리는 유지한다. 모두 문서 확인이며 보안 동작의 실행 검증이 아니다.
 
 저장소 적격성은 [사용자 해결 확인 기록](02_HACKATHON_ELIGIBILITY.md)에 따라 개발 장애로 반복 분류하지 않는다. README의 관련 상태 문구는 병행 중인 백엔드 담당자의 변경 범위이며 이 PR에서 제외했다. 운영진의 해결 방식·승인 증빙을 새로 확인했다고 주장하지 않는다.
 
@@ -62,11 +70,11 @@ FastAPI가 매 요청 인증·현재 역할/소속·자원 소유권을 검사�
 | DEC-001~015 행 비교 | PASS, 기존 행 동일 | 새 정책 승인 기록 없음 |
 | API 경로 매개변수 중복 검사 | PASS | 라우트는 문서 계약이며 실제 서버 import 검사가 아님 |
 | `git diff --check` | PASS | 공백/패치 정합성 |
-| MVP 타입·빌드 | PR의 실제 GitHub Actions 결과로 확인 | 이 문서의 로컬 작업에서 별도 실행하지 않음 |
-| 인증·권한·DB·RLS·멱등 경합·삭제 | NOT_RUN | 구현·공급자·정책 승인 선행 필요 |
+| 과거 MVP 타입·빌드 | PR의 실제 GitHub Actions 결과로 확인 | 격리된 프로토타입 회귀 참고만 가능; 최종 시연/제출 구현 증거 아님 |
+| 인증·권한·MariaDB·멱등 경합·삭제 | NOT_RUN | 접속정보·계정 권한·인증·정책 승인 선행 필요 |
 
 후속 PR은 보안/NFR 계약에 영향을 주므로 자동 병합하지 않는다. PR HEAD와 일치하는 CI 결과는 GitHub PR에서 기록하고 사람 리뷰를 요청한다. 새 보고서의 탐색 안내는 병행 중인 NAV 담당자가 추가한다.
 
 ## 남은 승인과 다음 작업
 
-OPEN-002의 인증 방식/DB/운영 환경/비용, OPEN-003의 가상 권한 책임자, OPEN-009의 보존·모집 삭제/지원 이력 처리, 익명 신고 담당자와 작성자 매핑 열람 절차가 남아 있다. 이 계약 보완은 사람 승인 전이며 실제 인증·DB 구현 허가로 사용하지 않는다. FastAPI 건강 확인·공통 오류·설정 검증·테스트/CI 등 독립 기반 작업은 진행할 수 있다.
+DB 제품은 MariaDB로 확정되었다. OPEN-002의 남은 인증 방식/클라우드 접속정보·버전·운영 환경/비용, OPEN-003의 가상 권한 책임자·DB 계정 권한, OPEN-009의 보존·모집 삭제/지원 이력 처리, 익명 신고 담당자와 작성자 매핑 열람 절차가 남아 있다. 이 계약 보완은 사람 승인 전이며 실제 인증·DB 계정 생성이나 연결 허가로 사용하지 않는다. FastAPI 공통 기반과 신규 apps/web의 계약 기반 독립 작업은 진행할 수 있다.

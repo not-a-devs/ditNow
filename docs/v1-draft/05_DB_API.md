@@ -1,6 +1,8 @@
 # DIT NOW DB·API 계약 v1.0 초안
 
-본 파일은 구현 전 데이터/인터페이스 계약이다. 실제 DB 마이그레이션이나 애플리케이션 코드를 작성하지 않았다. [DEC-015](../11_DECISION_LOG.md)에 따라 보호 API의 서버 경계는 FastAPI이며 PostgreSQL은 권장 DB 후보이다. [기존 모델](../05_DATA_MODEL.md)의 UUID PK, UTC 시각, role_assignments, 단일 공지 원본, 서버 검증과 DB 채택 시 최소 권한/RLS 설계를 보존한다. 학교 원장에 연결하지 않고 [가상 시연 데이터 계약](../research/07_DATA_PROVENANCE_AND_SEEDS.md)을 따른다.
+본 파일은 구현 전 데이터/인터페이스 계약이다. 실제 DB 마이그레이션이나 업무 API를 구현한 기록이 아니다. [결정 대장](../11_DECISION_LOG.md)과 2026-10-30 사용자 확정에 따라 보호 API의 서버 경계는 FastAPI, DB는 **MariaDB**다. [기존 모델](../05_DATA_MODEL.md)의 애플리케이션 UUID PK, UTC 시각, role_assignments, 단일 공지 원본, 서버 인가와 최소 DB 권한·스코프 질의 원칙을 보존한다. 학교 원장에 연결하지 않고 [가상 시연 데이터 계약](../research/07_DATA_PROVENANCE_AND_SEEDS.md)을 따른다. 클라우드 MariaDB 접속정보·인증 공급자·계정 권한·비용은 미정이며 연결하지 않았다.
+
+chatbot은 services/api 중심의 같은 플랫폼 기능이다. 사용자·로그인 세션·승인 소속/학적은 같은 원장을 사용하고 별도 로그인/사용자 시스템을 최종 구조로 유지하지 않는다. 프런트는 apps/web에서 신규 작성하며 mvp 사전 프로토타입을 최종 시연/제출이나 소스 복사에 사용하지 않는다.
 
 ## 공통 컬럼·제약
 모든 저장 레코드는 id, created_at, updated_at, source_kind(OFFICIAL_PUBLIC/DEMO/USER_DEMO), source_url?, checked_at?, revision?, owner_scope를 가진다. 감사 대상 변경은 actor_id, action, entity_id, before/after의 민감정보 제거 요약, timestamp를 audit_logs에 남긴다. 시연 레코드는 실제 학교 공식 배지를 얻을 수 없다. 관계 FK·unique·check 제약과 서버 시간으로 마감/정원을 판정한다. 삭제는 공개 콘텐츠/거래/감사에 따라 soft delete 또는 보존으로 구분하고 실제 보존기간은 OPEN-R14 이후 결정한다.
@@ -19,7 +21,7 @@
 | 도서/공간/생활 | library_titles(id), library_items(id), library_loans(id,item_id,user_id), library_reservations(id), facilities(id), facility_reservations(id,slot), dorm_applications(id), dorm_assignments(id,room_id) | 동일 소장본 활성 대출 1건; 슬롯/방 중복 배정 금지 |
 | 지원/공개 | service_requests(id), support_cases(id), case_access_logs(id), public_content(id), content_revisions(id), source_records(id), demo_badges(id) | 고충 별도 접근; 공개 스냅샷 출처/확인일; 가상 배지 명시 |
 
-이 목록은 제품 데이터 모델의 최소 테이블 묶음이다. 기능별 관련 테이블은 [추적표](09_FEATURE_TRACEABILITY.csv)의 db_tables 열을 따른다. 실제 컬럼의 최종 타입·인덱스·보존기간·RLS 문법은 구현 태스크에서 승인된 계약과 함께 버전 관리한다.
+이 목록은 제품 데이터 모델의 최소 테이블 묶음이다. 기능별 관련 테이블은 [추적표](09_FEATURE_TRACEABILITY.csv)의 db_tables 열을 따른다. MariaDB 실제 버전/엔진에 맞는 컬럼 타입·인덱스·보존기간·GRANT·스코프 질의/제한 view·루틴은 구현 태스크의 승인된 계약과 함께 버전 관리한다. PostgreSQL 전용 RLS를 MariaDB에서 적용한 것처럼 표시하지 않는다.
 
 ## API 공통 계약
 인증이 필요한 요청은 FastAPI에서 검증된 세션/토큰으로 user_id를 도출하고 현재 권한 원장을 재조회한다. FastAPI의 Pydantic 입출력 모델과 OpenAPI를 경계 계약으로 사용한다. 성공은 data와 resource_version, server_time; 실패는 code, message, field_errors?, retryable?, request_id를 반환한다. 400 검증, 401 미인증, 403 범위 위반, 404 없음, 409 중복/상태 경합, 429 제한, 5xx 장애를 구별한다. 목록은 cursor/limit과 scope 필터를 가진다. POST/PUT의 중복 위험 작업은 Idempotency-Key를 받거나 자연 유일키로 막는다. 비공개 자원의 403/404 상세는 존재 추론을 막도록 정책화한다.
