@@ -1,5 +1,27 @@
 // Generated from services/api/openapi.json. Do not edit.
 export interface paths {
+    "/api/v1/ai/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description 자연어 질문에 교내 데이터·(로그인 시) 본인 가상 학적을 근거로 LLM이 답한다.
+         *
+         *     history를 보내면 '거기 몇 시까지 해?' 같은 후속 질문을 완전한 질문으로 바꿔 처리한다.
+         */
+        post: operations["ask_api_v1_ai_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/campus/search": {
         parameters: {
             query?: never;
@@ -14,6 +36,43 @@ export interface paths {
         get: operations["search_campus_api_v1_ai_campus_search_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login
+         * @description 학번과 초기 비밀번호로 로그인한다. 학생·학적은 모두 가상(DEMO) 데이터다.
+         */
+        post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -98,6 +157,72 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AskData */
+        AskData: {
+            /** Answer */
+            answer: string;
+            /**
+             * Classified By
+             * @enum {string}
+             */
+            classified_by: "keyword" | "llm";
+            /** Found */
+            found: boolean;
+            /**
+             * Generated
+             * @default true
+             * @constant
+             */
+            generated: true;
+            /** Intent */
+            intent: string;
+            /** Locations */
+            locations: components["schemas"]["AskLocation"][];
+            /** Need Login */
+            need_login: boolean;
+            /** Personal Data Access */
+            personal_data_access: boolean;
+            /**
+             * Record Source
+             * @default DEMO
+             * @constant
+             */
+            record_source: "DEMO";
+            /** Rewritten Question */
+            rewritten_question?: string | null;
+            /** Sources */
+            sources: string[];
+        };
+        /** AskInput */
+        AskInput: {
+            /** History */
+            history?: components["schemas"]["AskTurn"][];
+            /** Question */
+            question: string;
+        };
+        /** AskLocation */
+        AskLocation: {
+            /** Building */
+            building: string;
+            /** Id */
+            id: string;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+        };
+        /** AskTurn */
+        AskTurn: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+        };
         /** CampusSearchData */
         CampusSearchData: {
             /** Found */
@@ -213,6 +338,34 @@ export interface components {
              */
             status: "ok";
         };
+        /** LoginData */
+        LoginData: {
+            /** Name */
+            name: string;
+            /**
+             * Record Source
+             * @default DEMO
+             * @constant
+             */
+            record_source: "DEMO";
+            /** Student Id */
+            student_id: string;
+            /** Token */
+            token: string;
+            /**
+             * Token Type
+             * @default Bearer
+             * @constant
+             */
+            token_type: "Bearer";
+        };
+        /** LoginInput */
+        LoginInput: {
+            /** Password */
+            password: string;
+            /** Student Id */
+            student_id: string;
+        };
         /** PublicGuide */
         PublicGuide: {
             /**
@@ -315,6 +468,17 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** SuccessResponse[AskData] */
+        SuccessResponse_AskData_: {
+            data: components["schemas"]["AskData"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
         /** SuccessResponse[CampusSearchData] */
         SuccessResponse_CampusSearchData_: {
             data: components["schemas"]["CampusSearchData"];
@@ -329,6 +493,17 @@ export interface components {
         /** SuccessResponse[HealthData] */
         SuccessResponse_HealthData_: {
             data: components["schemas"]["HealthData"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[LoginData] */
+        SuccessResponse_LoginData_: {
+            data: components["schemas"]["LoginData"];
             /** Resource Version */
             resource_version?: number | null;
             /**
@@ -359,6 +534,20 @@ export interface components {
              */
             server_time?: string;
         };
+        /** SuccessResponse[dict[str, str]] */
+        SuccessResponse_dict_str__str__: {
+            /** Data */
+            data: {
+                [key: string]: string;
+            };
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -381,6 +570,57 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ask_api_v1_ai_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_AskData_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     search_campus_api_v1_ai_campus_search_get: {
         parameters: {
             query: {
@@ -418,6 +658,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    login_api_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_LoginData_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_dict_str__str__"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Internal Server Error */

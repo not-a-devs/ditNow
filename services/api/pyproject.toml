@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "DIT NOW FastAPI foundation"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "ditnow-chatbot",
+  "ditnow-chatbot[standalone]",
   "sqlalchemy[asyncio]>=2.0.36,<2.1",
   "aiomysql==0.3.2",
   "fastapi>=0.115,<1",

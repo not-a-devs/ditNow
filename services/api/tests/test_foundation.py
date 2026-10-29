@@ -40,6 +40,9 @@ def test_openapi_matches_runtime(application):
         "/health",
         "/api/v1/health",
         "/api/v1/ai/campus/search",
+        "/api/v1/ai/ask",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
         "/api/v1/public-campus",
         "/api/v1/public-campus/{record_id}",
     }

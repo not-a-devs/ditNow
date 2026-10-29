@@ -4,6 +4,28 @@ TASK-B · NFR-SEC-004/005, NFR-PRIV-003, NFR-REL-004, NFR-OPS-001/002의 기반 
 
 TASK-F는 [기존 챗봇](../../chatbot/README.md)의 검색기를 통합 API의 `GET /api/v1/ai/campus/search`에 연결한다. 시설 스냅샷 검색만 제공하며 별도 시연 로그인·관리자 API·학생 DB·LLM을 실행하지 않는다. 검색 결과의 공식 출처·최신성은 UNKNOWN이며 개인정보 질문과 전체 AI 브리핑의 완료를 뜻하지 않는다.
 
+## 학번 로그인과 AI 답변 (DEC-020)
+
+챗봇의 의도 분류·후속 질문·개인 질문 계산·LLM 답변을 패키지 함수 그대로 호출한다(복제 없음). 학생·학적은 가상(DEMO) 데이터다.
+
+| 경로 | 설명 |
+| --- | --- |
+| `POST /api/v1/auth/login` | `{student_id, password}` → Bearer 토큰 (12시간). 시연 계정 `20231001` / `3000001` |
+| `POST /api/v1/auth/logout` | 토큰 폐기 |
+| `POST /api/v1/ai/ask` | `{question, history?}` + 선택 `Authorization: Bearer`. 교내 질문은 비로그인 허용, 개인 질문은 로그인 필요(`need_login`) |
+
+설정(`DIT_API_` 환경 변수): `DATABASE_URL`(학적 DB, 없으면 로그인·개인 질문 503), `LLM_PROVIDER`·`LLM_MODEL`·`LLM_API_KEY`·`LLM_BASE_URL`(없으면 `/ai/ask` 503, 공개 검색은 동작), `CURRENT_SEMESTER`, `ASK_RATE_LIMIT_PER_MIN`(IP당 분당, 기본 20).
+
+서버 시작 시 테이블을 만들지 않는다. 처음 한 번 migration 계정으로 테이블 생성·가상 데이터 시드를 실행하고, 서버는 DML 계정(`ditnow_app`)으로 띄운다.
+
+```sh
+export DIT_API_ENVIRONMENT=development
+export DIT_API_DATABASE_URL='mysql+aiomysql://ditnow_migrator:<pw>@<tailscale-ip>:3307/ditnow?charset=utf8mb4'
+uv run --locked python -m app.seed_demo   # 학생이 이미 있으면 건너뜀
+```
+
+테스트는 가짜 LLM과 메모리 SQLite로 실행하며 외부 LLM·MariaDB를 호출하지 않는다(`tests/test_ai_ask.py`). 요청 제한은 프로세스 메모리 기준이라 워커 1개를 전제한다.
+
 ## 실행과 검증
 
 Python 3.13과 uv 0.13.6을 사용한다. `uv.lock`을 함께 커밋한다. 의존성 변경 때만 `uv lock`하고, 평소에는 잠금 파일을 검증한다. [uv 공식 안내](https://docs.astral.sh/uv/concepts/projects/sync/)의 `--locked` 동작을 따른다.
@@ -51,6 +73,8 @@ GitHub의 `Python API 검증`은 잠금 설치·Ruff·pytest·앱 import/OpenAPI
 MariaDB 11.4, 플랫폼 `ditnow`, 런타임 `ditnow_app`(DML 전용), 별도 `ditnow_migrator`라는 사용자 결정을 따른다. `.env.example`의 `DIT_API_DB_*`는 비밀값 없는 설명이며, 실제 사설 주소·비밀번호는 저장하지 않는다. 설정이 전혀 없으면 공개 API는 계속 실행할 수 있다. HOST/USER/PASSWORD 일부만 있거나 다른 DB·관리자 계정이면 설정 검증이 실패한다. 포트 기본값은 3307이다. 이 검증은 실제 GRANT 검사를 대신하지 않는다.
 
 `app/core/db_connection.py`는 SQLAlchemy async + aiomysql 엔진을 **생성만** 하며 앱 factory·라우터·readiness에 연결하지 않는다. 마이그레이터 자격 증명, DDL, 자동 스키마 생성, 인증 공급자 구현은 포함하지 않는다. TASK-N은 승인 대기 PR #19/26을 격리 조합하여 SQLAlchemy P0 저장소와 async `run_sync` 실행 경계를 작성한다. 라우터에 연결하지 않으며 실제 DB 적용 전에 독립 리뷰·사람 승인을 받는다. 한 서비스 트랜잭션은 하나의 async session에서 실행한다.
+
+이 엄격한 factory는 `DIT_API_DB_*`만 사용한다. PR39의 legacy `DIT_API_DATABASE_URL`/학번 원장 경로와 별개이며 해당 경로를 승인하거나 TLS factory로 자동 대체하지 않는다. legacy 원격 원장·시드 안전 차단 보완은 승인 대기 PR28에서 검토하므로, 그 경로를 공통 인증·실제 운영 준비로 사용하지 않는다.
 
 TLS 인증서와 호스트명 검증을 필수로 한다. 별도 CA가 없으면 시스템 신뢰 저장소를 사용하며 검증을 완화하지 않는다. aiomysql 0.3.2의 TLS 미지원 서버 fallback을 막기 위해 인증 직전의 private hook에서 TLS capability와 검증 설정을 검사한다. 따라서 드라이버 버전을 고정했으며 버전 변경 시 해당 hook 재검토와 핸드셰이크 테스트가 필요하다. 테스트는 가짜 연결에서 인증 위임 전 차단을 확인하며 실제 서버 TLS·인증 성공을 증명하지 않는다. LOCAL INFILE, autocommit, SQL echo는 비활성이다. 엔진 URL에는 자격 증명을 넣지 않는다.
 
