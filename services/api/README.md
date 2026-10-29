@@ -102,6 +102,12 @@ uv run --locked uvicorn app.main:app --loop app.core.event_loop:new_event_loop -
 
 SQLAlchemy MySQL dialect의 내부 `SET NAMES utf8mb4`가 드라이버 `init_command`의 collation을 덮어쓰는 것을 설치 소스로 확인했다. `db_connection.py`는 engine 생성 뒤 `connect` 리스너를 **append**하여 최종 `SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci`를 실행한다(`insert=True` 금지). 사용자 입력을 SQL에 넣지 않으며 테이블/지속 데이터 변경은 없다. 설정 실패 시 커서를 정리하고 비밀값 없는 오류로 연결 준비를 거부한다. [SQLAlchemy async 이벤트](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-events-with-the-asyncio-extension)·[연결 이벤트 순서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#changing-the-sql-mode)를 따른다. 실제 dialect listener 뒤에 정적 COLLATE 문이 실행되는 회귀와 실패 경로를 오프라인 검사한다. 기존 TLS capability·CERT_REQUIRED·check_hostname·LOCAL INFILE 금지·DML 계정 분리·비밀 로그 보호를 완화하지 않는다. 전체 연결/업무 SQL의 시간 제한과 다중 프로세스 안정성은 별도 검증 범위다.
 
+## 바이트 파라미터 호환 검사
+
+잠금 조합 aiomysql 0.3.2·PyMySQL 1.2.3은 바이트 바인딩에서 import 전용 내부 항목을 함수로 호출해 신원 해시 충돌 조회가 실패했다. 엄격 연결 클래스의 bytes/bytearray만 PyMySQL의 이진 hex 리터럴 표현으로 보완한다. TLS·현재 권한·원장 타입은 그대로 검증하며 드라이버 글로벌 패치나 보안 버전 하향은 하지 않는다. API의 PyMySQL 범위는 `>=1.2.3,<1.3`이다.
+
+`tests/test_db_binary_parameters.py`는 실제 잠금 DBAPI의 바이트 전 범위·인용 경계·SQL 모드와 기존 타입을 네트워크 없이 검사한다. 실제 원격 읽기 전용 왕복과 25개 테이블 준비 결과, 계정 생성 승인 전의 미실행 범위는 [재검증 기록](../../docs/dev-prep/TASK_MARIADB_LIVE_REVALIDATION.md)을 따른다. 기본 오프라인 테스트를 실제 계정·업무 CRUD 검증으로 표시하지 않는다.
+
 ## 공개 통합 검색
 
 GET `/api/v1/discovery`는 기존 공개 안내·시설 검색 서비스를 읽기 전용으로 조합한다. 정규화 검색·종류 필터·bounded 집계/페이지와 근거를 제공하며 개인정보·DB·LLM을 조회하지 않는다. 신규 앱 `/app/search`와 안내/시설 상세 링크에 연결했다. 전체 서비스 검색 완료를 뜻하지 않으며 [TASK-P](../../docs/dev-prep/TASK_PUBLIC_DISCOVERY_IMPLEMENTATION.md)를 따른다.
