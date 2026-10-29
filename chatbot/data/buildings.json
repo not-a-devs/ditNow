@@ -1,0 +1,147 @@
+[
+  {
+    "building_id": "bonkwan",
+    "name": "본관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "bonkwan_annex",
+    "name": "본관 별관",
+    "aliases": [
+      "별관"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "hwangryeong",
+    "name": "황령관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "changjo",
+    "name": "창조관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "sanhak",
+    "name": "산학관",
+    "aliases": [
+      "산학협력관",
+      "산협관"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "jinri",
+    "name": "진리관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "neulbeot",
+    "name": "늘벗터",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "tamgu",
+    "name": "탐구관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "jeongbo",
+    "name": "정보관",
+    "aliases": [
+      "도서관 건물"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "seokdang",
+    "name": "석당문화관",
+    "aliases": [
+      "석당관"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "mirae",
+    "name": "미래관",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "onnuri",
+    "name": "온누리광장",
+    "aliases": [
+      "광장"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "field",
+    "name": "운동장",
+    "aliases": [
+      "대운동장"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "dorm",
+    "name": "학생생활관",
+    "aliases": [
+      "기숙사",
+      "생활관",
+      "긱사"
+    ],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "main_gate",
+    "name": "정문",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "building_id": "back_gate",
+    "name": "후문",
+    "aliases": [],
+    "address": "부산광역시 부산진구 양지로 54 (47230)",
+    "lat": null,
+    "lng": null
+  }
+]

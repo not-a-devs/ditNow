@@ -1,0 +1,1498 @@
+[
+  {
+    "id": "dept_mech",
+    "category": "학과사무실",
+    "name": "기계공학과",
+    "aliases": [
+      "기계과",
+      "기계공학",
+      "기공과"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": "3층",
+    "room": null,
+    "phone": "051-860-3220",
+    "hours": null,
+    "note": null,
+    "text": "기계공학과 학과사무실은 진리관 3층에 있습니다. 전화번호는 051-860-3220입니다."
+  },
+  {
+    "id": "dept_semi",
+    "category": "학과사무실",
+    "name": "반도체전자산업과",
+    "aliases": [
+      "반도체과",
+      "전자과",
+      "반도체",
+      "반전과"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "302호",
+    "phone": "051-860-3190",
+    "hours": null,
+    "note": null,
+    "text": "반도체전자산업과 학과사무실은 탐구관 302호에 있습니다. 전화번호는 051-860-3190입니다."
+  },
+  {
+    "id": "dept_elec",
+    "category": "학과사무실",
+    "name": "전기과",
+    "aliases": [
+      "전기",
+      "전기공학"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "302호",
+    "phone": "051-860-3200",
+    "hours": null,
+    "note": null,
+    "text": "전기과 학과사무실은 탐구관 302호에 있습니다. 전화번호는 051-860-3200입니다."
+  },
+  {
+    "id": "dept_fire",
+    "category": "학과사무실",
+    "name": "소방안전관리과",
+    "aliases": [
+      "소방과",
+      "소방",
+      "소방안전"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": null,
+    "room": "707호",
+    "phone": "051-860-3310",
+    "hours": null,
+    "note": null,
+    "text": "소방안전관리과 학과사무실은 정보관 707호에 있습니다. 전화번호는 051-860-3310입니다."
+  },
+  {
+    "id": "dept_ev",
+    "category": "학과사무실",
+    "name": "전기자동차과",
+    "aliases": [
+      "전기차과",
+      "자동차과",
+      "전기차",
+      "전자차과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": "504호",
+    "phone": "051-860-3260",
+    "hours": null,
+    "note": null,
+    "text": "전기자동차과 학과사무실은 미래관 504호에 있습니다. 전화번호는 051-860-3260입니다."
+  },
+  {
+    "id": "dept_cs",
+    "category": "학과사무실",
+    "name": "컴퓨터소프트웨어과",
+    "aliases": [
+      "컴소과",
+      "컴소",
+      "컴퓨터과",
+      "소프트웨어과",
+      "컴공",
+      "컴퓨터공학",
+      "소웨과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": "4층",
+    "room": "405-2호",
+    "phone": "051-860-3210",
+    "hours": null,
+    "note": null,
+    "text": "컴퓨터소프트웨어과 학과사무실은 미래관 4층 405-2호에 있습니다. 전화번호는 051-860-3210입니다."
+  },
+  {
+    "id": "dept_chem",
+    "category": "학과사무실",
+    "name": "에너지·화학공학과",
+    "aliases": [
+      "에너지화학공학과",
+      "화공과",
+      "화학과",
+      "에너지과",
+      "화학공학"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "106호",
+    "phone": "051-860-3510",
+    "hours": null,
+    "note": null,
+    "text": "에너지·화학공학과 학과사무실은 탐구관 106호에 있습니다. 전화번호는 051-860-3510입니다."
+  },
+  {
+    "id": "dept_smartprod",
+    "category": "학과사무실",
+    "name": "스마트생산공정관리과(온라인)",
+    "aliases": [
+      "스마트생산공정관리과",
+      "생산공정과",
+      "스마트생산과"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3143",
+    "hours": null,
+    "note": null,
+    "text": "스마트생산공정관리과(온라인) 학과사무실의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3143입니다."
+  },
+  {
+    "id": "dept_nursing",
+    "category": "학과사무실",
+    "name": "간호학과",
+    "aliases": [
+      "간호과",
+      "간호",
+      "간호학"
+    ],
+    "building": "황령관",
+    "building_id": "hwangryeong",
+    "floor": "7·8층",
+    "room": null,
+    "phone": "051-860-3280",
+    "hours": null,
+    "note": null,
+    "text": "간호학과 학과사무실은 황령관 7·8층에 있습니다. 전화번호는 051-860-3280입니다."
+  },
+  {
+    "id": "dept_radio",
+    "category": "학과사무실",
+    "name": "방사선과",
+    "aliases": [
+      "방사선",
+      "방사선학과",
+      "방사과"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "4층",
+    "room": "405호",
+    "phone": "051-860-3530",
+    "hours": null,
+    "note": null,
+    "text": "방사선과 학과사무실은 본관 4층 405호에 있습니다. 전화번호는 051-860-3530입니다."
+  },
+  {
+    "id": "dept_herb",
+    "category": "학과사무실",
+    "name": "한방약재과",
+    "aliases": [
+      "한방과",
+      "약재과",
+      "한방약재"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": null,
+    "room": "405호",
+    "phone": "051-860-3500",
+    "hours": null,
+    "note": "보건계열 학과사무실",
+    "text": "한방약재과 학과사무실은 본관 405호에 있습니다. 참고: 보건계열 학과사무실. 전화번호는 051-860-3500입니다."
+  },
+  {
+    "id": "dept_healthadmin",
+    "category": "학과사무실",
+    "name": "보건행정과",
+    "aliases": [
+      "보행과",
+      "보건행정",
+      "병원행정"
+    ],
+    "building": "황령관",
+    "building_id": "hwangryeong",
+    "floor": "5층",
+    "room": "519호",
+    "phone": "051-860-3130",
+    "hours": null,
+    "note": null,
+    "text": "보건행정과 학과사무실은 황령관 5층 519호에 있습니다. 전화번호는 051-860-3130입니다."
+  },
+  {
+    "id": "dept_ems",
+    "category": "학과사무실",
+    "name": "응급구조과",
+    "aliases": [
+      "응구과",
+      "응급구조",
+      "응급과"
+    ],
+    "building": "황령관",
+    "building_id": "hwangryeong",
+    "floor": null,
+    "room": "901호",
+    "phone": "051-860-3290",
+    "hours": null,
+    "note": null,
+    "text": "응급구조과 학과사무실은 황령관 901호에 있습니다. 전화번호는 051-860-3290입니다."
+  },
+  {
+    "id": "dept_pt",
+    "category": "학과사무실",
+    "name": "물리치료과",
+    "aliases": [
+      "물치과",
+      "물리치료",
+      "물치"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3250",
+    "hours": null,
+    "note": null,
+    "text": "물리치료과 학과사무실의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3250입니다."
+  },
+  {
+    "id": "dept_clinical",
+    "category": "학과사무실",
+    "name": "임상병리과",
+    "aliases": [
+      "임병과",
+      "임상병리",
+      "임상과"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3520",
+    "hours": null,
+    "note": null,
+    "text": "임상병리과 학과사무실의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3520입니다."
+  },
+  {
+    "id": "dept_sports",
+    "category": "학과사무실",
+    "name": "스포츠재활트레이닝과(재활트레이닝·경기지도자 전공)",
+    "aliases": [
+      "스포츠재활트레이닝과",
+      "스포츠재활과",
+      "재활트레이닝과",
+      "경기지도자",
+      "스포츠과",
+      "체육과"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": null,
+    "room": "310호",
+    "phone": "051-860-3230",
+    "hours": null,
+    "note": null,
+    "text": "스포츠재활트레이닝과(재활트레이닝·경기지도자 전공) 학과사무실은 진리관 310호에 있습니다. 전화번호는 051-860-3230입니다."
+  },
+  {
+    "id": "dept_police",
+    "category": "학과사무실",
+    "name": "경찰경호보안과",
+    "aliases": [
+      "경찰과",
+      "경호과",
+      "경찰경호",
+      "경호보안과"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": null,
+    "room": "707호",
+    "phone": "051-860-3430",
+    "hours": null,
+    "note": null,
+    "text": "경찰경호보안과 학과사무실은 정보관 707호에 있습니다. 전화번호는 051-860-3430입니다."
+  },
+  {
+    "id": "dept_parkgolf",
+    "category": "학과사무실",
+    "name": "파크골프지도과",
+    "aliases": [
+      "파크골프과",
+      "파크골프",
+      "골프과"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "7층",
+    "room": null,
+    "phone": "051-860-3430",
+    "hours": null,
+    "note": "사무실은 7층, 학과는 6층",
+    "text": "파크골프지도과 학과사무실은 정보관 7층에 있습니다. 참고: 사무실은 7층, 학과는 6층. 전화번호는 051-860-3430입니다."
+  },
+  {
+    "id": "dept_realestate",
+    "category": "학과사무실",
+    "name": "부동산재테크정보과(야간)",
+    "aliases": [
+      "부동산재테크정보과",
+      "부동산재테크과",
+      "재테크과",
+      "부동산과"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "5층",
+    "room": null,
+    "phone": "051-860-3460",
+    "hours": null,
+    "note": null,
+    "text": "부동산재테크정보과(야간) 학과사무실은 정보관 5층에 있습니다. 전화번호는 051-860-3460입니다."
+  },
+  {
+    "id": "dept_welfare",
+    "category": "학과사무실",
+    "name": "사회복지학과",
+    "aliases": [
+      "사복과",
+      "사회복지과",
+      "사회복지"
+    ],
+    "building": "황령관",
+    "building_id": "hwangryeong",
+    "floor": "4층",
+    "room": null,
+    "phone": "051-860-3420",
+    "hours": null,
+    "note": null,
+    "text": "사회복지학과 학과사무실은 황령관 4층에 있습니다. 전화번호는 051-860-3420입니다."
+  },
+  {
+    "id": "dept_early",
+    "category": "학과사무실",
+    "name": "유아교육과",
+    "aliases": [
+      "유교과",
+      "유아교육",
+      "유아과"
+    ],
+    "building": "산학관",
+    "building_id": "sanhak",
+    "floor": null,
+    "room": "214호",
+    "phone": "051-860-3410",
+    "hours": null,
+    "note": null,
+    "text": "유아교육과 학과사무실은 산학관 214호에 있습니다. 전화번호는 051-860-3410입니다."
+  },
+  {
+    "id": "dept_creative",
+    "category": "학과사무실",
+    "name": "특수창의라이프과",
+    "aliases": [
+      "특수창의과",
+      "창의라이프과",
+      "특창과"
+    ],
+    "building": "창조관",
+    "building_id": "changjo",
+    "floor": "5층",
+    "room": null,
+    "phone": "051-860-3420",
+    "hours": null,
+    "note": null,
+    "text": "특수창의라이프과 학과사무실은 창조관 5층에 있습니다. 전화번호는 051-860-3420입니다."
+  },
+  {
+    "id": "dept_culinary",
+    "category": "학과사무실",
+    "name": "외식조리산업과",
+    "aliases": [
+      "조리과",
+      "외식조리과",
+      "외식과",
+      "요리과"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "3층",
+    "room": "306호",
+    "phone": "051-860-3170",
+    "hours": null,
+    "note": null,
+    "text": "외식조리산업과 학과사무실은 본관 3층 306호에 있습니다. 전화번호는 051-860-3170입니다."
+  },
+  {
+    "id": "dept_bakery",
+    "category": "학과사무실",
+    "name": "베이커리카페산업과",
+    "aliases": [
+      "베이커리과",
+      "제빵과",
+      "카페과",
+      "바리스타과"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "3층",
+    "room": "306호",
+    "phone": "051-860-3170",
+    "hours": null,
+    "note": null,
+    "text": "베이커리카페산업과 학과사무실은 본관 3층 306호에 있습니다. 전화번호는 051-860-3170입니다."
+  },
+  {
+    "id": "dept_medskin",
+    "category": "학과사무실",
+    "name": "의료피부미용과",
+    "aliases": [
+      "피부미용과",
+      "의료피부과",
+      "피부과"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "302호",
+    "phone": "051-860-3471",
+    "hours": null,
+    "note": null,
+    "text": "의료피부미용과 학과사무실은 탐구관 302호에 있습니다. 전화번호는 051-860-3471입니다."
+  },
+  {
+    "id": "dept_hair",
+    "category": "학과사무실",
+    "name": "헤어뷰티과",
+    "aliases": [
+      "헤어과",
+      "미용과",
+      "헤어"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "501호",
+    "phone": "051-860-3470",
+    "hours": null,
+    "note": null,
+    "text": "헤어뷰티과 학과사무실은 탐구관 501호에 있습니다. 전화번호는 051-860-3470입니다."
+  },
+  {
+    "id": "dept_makeup",
+    "category": "학과사무실",
+    "name": "메이크업네일뷰티과",
+    "aliases": [
+      "메이크업과",
+      "네일과",
+      "메이크업",
+      "네일"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": "302호",
+    "phone": "051-860-3476",
+    "hours": null,
+    "note": null,
+    "text": "메이크업네일뷰티과 학과사무실은 탐구관 302호에 있습니다. 전화번호는 051-860-3476입니다."
+  },
+  {
+    "id": "dept_brew",
+    "category": "학과사무실",
+    "name": "양조발효과",
+    "aliases": [
+      "양조과",
+      "발효과",
+      "양조"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": "410호",
+    "phone": "051-860-3069",
+    "hours": null,
+    "note": null,
+    "text": "양조발효과 학과사무실은 미래관 410호에 있습니다. 전화번호는 051-860-3069입니다."
+  },
+  {
+    "id": "dept_care",
+    "category": "학과사무실",
+    "name": "사회복지융합계열 요양서비스전공",
+    "aliases": [
+      "요양서비스전공",
+      "요양서비스",
+      "요양과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3069",
+    "hours": null,
+    "note": null,
+    "text": "사회복지융합계열 요양서비스전공 학과사무실은 미래관에 있으나 정확한 호실은 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3069입니다."
+  },
+  {
+    "id": "dept_healthcare",
+    "category": "학과사무실",
+    "name": "사회복지융합계열 헬스케어전공",
+    "aliases": [
+      "헬스케어전공",
+      "헬스케어",
+      "헬스케어과"
+    ],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": "504호",
+    "phone": "051-860-3249",
+    "hours": null,
+    "note": null,
+    "text": "사회복지융합계열 헬스케어전공 학과사무실은 미래관 504호에 있습니다. 전화번호는 051-860-3249입니다."
+  },
+  {
+    "id": "dept_fengshui",
+    "category": "학과사무실",
+    "name": "부동산풍수과",
+    "aliases": [
+      "풍수과",
+      "풍수"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3069",
+    "hours": null,
+    "note": null,
+    "text": "부동산풍수과 학과사무실의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3069입니다."
+  },
+  {
+    "id": "dept_smartbeauty",
+    "category": "학과사무실",
+    "name": "스마트뷰티케어과",
+    "aliases": [
+      "뷰티케어과",
+      "스마트뷰티과"
+    ],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3569",
+    "hours": null,
+    "note": null,
+    "text": "스마트뷰티케어과 학과사무실은 탐구관에 있으나 정확한 호실은 확인되지 않았으며 전화로 문의 가능합니다. 전화번호는 051-860-3569입니다."
+  },
+  {
+    "id": "dept_wellness",
+    "category": "학과사무실",
+    "name": "스마트웰니스의료뷰티과",
+    "aliases": [
+      "웰니스과",
+      "웰니스의료뷰티과",
+      "스마트웰니스과"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": null,
+    "room": "809호",
+    "phone": "051-860-3568",
+    "hours": null,
+    "note": null,
+    "text": "스마트웰니스의료뷰티과 학과사무실은 정보관 809호에 있습니다. 전화번호는 051-860-3568입니다."
+  },
+  {
+    "id": "dept_smartfood",
+    "category": "학과사무실",
+    "name": "스마트푸드조리과",
+    "aliases": [
+      "스마트푸드과",
+      "푸드조리과",
+      "스마트조리과"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "3층",
+    "room": "306호",
+    "phone": "051-860-3567",
+    "hours": null,
+    "note": null,
+    "text": "스마트푸드조리과 학과사무실은 본관 3층 306호에 있습니다. 전화번호는 051-860-3567입니다."
+  },
+  {
+    "id": "admin_academic",
+    "category": "행정부서",
+    "name": "교무부",
+    "aliases": [
+      "교무처",
+      "학사",
+      "휴학",
+      "복학",
+      "휴복학",
+      "수강신청",
+      "수강",
+      "학적",
+      "수업",
+      "증명서 발급 문의",
+      "자퇴"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "1층",
+    "room": null,
+    "phone": "051-860-3042~4",
+    "hours": null,
+    "note": "수업·수강(3042), 학적·휴복학(3043), 증명서(3044)",
+    "text": "교무부는 본관 1층에 있습니다. 참고: 담당 업무 수업·수강(3042), 학적·휴복학(3043), 증명서(3044). 전화번호는 051-860-3042~4입니다."
+  },
+  {
+    "id": "admin_welfare",
+    "category": "행정부서",
+    "name": "학생복지부",
+    "aliases": [
+      "학생지원",
+      "장학금",
+      "장학",
+      "학자금대출",
+      "학자금",
+      "국가근로",
+      "근로장학"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3045~8",
+    "hours": null,
+    "note": "장학금(3048), 학자금대출·국가근로(3046~7)",
+    "text": "학생복지부의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 장학금(3048), 학자금대출·국가근로(3046~7). 전화번호는 051-860-3045~8입니다."
+  },
+  {
+    "id": "admin_career",
+    "category": "행정부서",
+    "name": "취업지원센터",
+    "aliases": [
+      "취업센터",
+      "취업상담",
+      "취업",
+      "해외취업",
+      "일자리"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3072~5",
+    "hours": null,
+    "note": "취업상담(3075), 해외취업(3072)",
+    "text": "취업지원센터의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 취업상담(3075), 해외취업(3072). 전화번호는 051-860-3072~5입니다."
+  },
+  {
+    "id": "admin_admission",
+    "category": "행정부서",
+    "name": "입학홍보부",
+    "aliases": [
+      "입학처",
+      "입학",
+      "입시",
+      "입학상담"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3031~4",
+    "hours": null,
+    "note": "입학 문의",
+    "text": "입학홍보부의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 입학 문의. 전화번호는 051-860-3031~4입니다."
+  },
+  {
+    "id": "admin_finance",
+    "category": "행정부서",
+    "name": "경리부",
+    "aliases": [
+      "등록금",
+      "등록금 납부",
+      "등록금 환불",
+      "재무"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3018",
+    "hours": null,
+    "note": "등록금",
+    "text": "경리부의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 등록금. 전화번호는 051-860-3018입니다."
+  },
+  {
+    "id": "admin_intl",
+    "category": "행정부서",
+    "name": "국제협력부",
+    "aliases": [
+      "국제교류",
+      "외국인 입학",
+      "유학생",
+      "외국인"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3240",
+    "hours": null,
+    "note": "외국인 입학",
+    "text": "국제협력부의 위치는 확인되지 않았으며 전화로 문의 가능합니다. 참고: 담당 업무 외국인 입학. 전화번호는 051-860-3240입니다."
+  },
+  {
+    "id": "admin_ctl",
+    "category": "행정부서",
+    "name": "교수학습개발센터",
+    "aliases": [
+      "교학센터",
+      "학습상담",
+      "진로상담",
+      "멘토링",
+      "학습지원"
+    ],
+    "building": "산학협력관",
+    "building_id": "sanhak",
+    "floor": "3층",
+    "room": null,
+    "phone": "051-860-3163~4",
+    "hours": null,
+    "note": "학습·진로 상담, 멘토링",
+    "text": "교수학습개발센터는 산학협력관 3층에 있습니다. 참고: 담당 업무 학습·진로 상담, 멘토링. 전화번호는 051-860-3163~4입니다."
+  },
+  {
+    "id": "admin_dorm",
+    "category": "행정부서",
+    "name": "학생생활관(기숙사)",
+    "aliases": [
+      "기숙사",
+      "긱사",
+      "생활관",
+      "기숙사 행정실",
+      "기숙사 신청"
+    ],
+    "building": "학생생활관",
+    "building_id": "dorm",
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3426~8",
+    "hours": null,
+    "note": "기숙사",
+    "text": "학생생활관(기숙사)은 학생생활관에 있습니다. 참고: 담당 업무 기숙사. 전화번호는 051-860-3426~8입니다."
+  },
+  {
+    "id": "admin_main",
+    "category": "행정부서",
+    "name": "대표전화",
+    "aliases": [
+      "대표번호",
+      "학교 전화번호",
+      "문의",
+      "학교 연락처"
+    ],
+    "building": null,
+    "building_id": null,
+    "floor": null,
+    "room": null,
+    "phone": "051-852-0011",
+    "hours": null,
+    "note": null,
+    "text": "동의과학대학교 대표전화는 051-852-0011입니다. 모르는 내용은 대표전화로 문의할 수 있습니다."
+  },
+  {
+    "id": "fac_cafeteria",
+    "category": "식당",
+    "name": "학생식당",
+    "aliases": [
+      "학식",
+      "밥",
+      "식당",
+      "밥 먹는 곳",
+      "점심",
+      "구내식당",
+      "학생 식당"
+    ],
+    "building": "늘벗터",
+    "building_id": "neulbeot",
+    "floor": null,
+    "room": null,
+    "phone": "051-860-3362·3365",
+    "hours": "학기 중 09:50~13:50 / 방학 11:30~13:30",
+    "note": "462석",
+    "text": "학생식당은 늘벗터에 있습니다. 운영시간은 학기 중 09:50~13:50 / 방학 11:30~13:30입니다. 참고: 462석. 전화번호는 051-860-3362·3365입니다."
+  },
+  {
+    "id": "fac_staff_cafeteria",
+    "category": "식당",
+    "name": "교직원식당",
+    "aliases": [
+      "교식",
+      "직원식당",
+      "교수식당"
+    ],
+    "building": "늘벗터",
+    "building_id": "neulbeot",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": "11:30~13:30",
+    "note": "144석",
+    "text": "교직원식당은 늘벗터에 있습니다. 운영시간은 11:30~13:30입니다. 참고: 144석."
+  },
+  {
+    "id": "fac_health",
+    "category": "편의시설",
+    "name": "보건실",
+    "aliases": [
+      "양호실",
+      "아플 때",
+      "약",
+      "의무실"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "1층",
+    "room": "105-2호",
+    "phone": null,
+    "hours": "09:00~17:00",
+    "note": null,
+    "text": "보건실은 본관 1층 105-2호에 있습니다. 운영시간은 09:00~17:00입니다."
+  },
+  {
+    "id": "fac_cert",
+    "category": "편의시설",
+    "name": "증명서 발급기",
+    "aliases": [
+      "증명서",
+      "재학증명서",
+      "성적증명서",
+      "졸업증명서",
+      "서류 뽑는 곳",
+      "무인발급기"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "24시간",
+    "note": null,
+    "text": "증명서 발급기는 본관 1층에 있습니다. 운영시간은 24시간입니다."
+  },
+  {
+    "id": "fac_atm",
+    "category": "편의시설",
+    "name": "현금인출기(ATM)",
+    "aliases": [
+      "ATM",
+      "에이티엠",
+      "현금인출기",
+      "돈 뽑는 곳",
+      "현금",
+      "출금"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~23:00",
+    "note": "부산은행·우체국",
+    "text": "현금인출기(ATM)는 본관 1층에 있습니다. 운영시간은 09:00~23:00입니다. 참고: 부산은행·우체국."
+  },
+  {
+    "id": "fac_lounge_bonkwan",
+    "category": "편의시설",
+    "name": "학생휴게실",
+    "aliases": [
+      "휴게실",
+      "쉬는 곳",
+      "라운지"
+    ],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": "3층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~21:00",
+    "note": null,
+    "text": "본관 학생휴게실은 본관 3층에 있습니다. 운영시간은 09:00~21:00입니다."
+  },
+  {
+    "id": "fac_jipbap",
+    "category": "식당",
+    "name": "집밥(김밥·분식)",
+    "aliases": [
+      "집밥",
+      "김밥",
+      "분식",
+      "분식집",
+      "떡볶이",
+      "라면"
+    ],
+    "building": "본관 별관",
+    "building_id": "bonkwan_annex",
+    "floor": "1층",
+    "room": null,
+    "phone": "051-864-3622",
+    "hours": "09:00~19:00",
+    "note": null,
+    "text": "집밥(김밥·분식)은 본관 별관 1층에 있습니다. 운영시간은 09:00~19:00입니다. 전화번호는 051-864-3622입니다."
+  },
+  {
+    "id": "fac_lounge_annex",
+    "category": "편의시설",
+    "name": "학생휴게실",
+    "aliases": [
+      "휴게실",
+      "쉬는 곳",
+      "라운지"
+    ],
+    "building": "본관 별관",
+    "building_id": "bonkwan_annex",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~19:00",
+    "note": null,
+    "text": "본관 별관 학생휴게실은 본관 별관 1층에 있습니다. 운영시간은 09:00~19:00입니다."
+  },
+  {
+    "id": "fac_bnk",
+    "category": "편의시설",
+    "name": "부산은행",
+    "aliases": [
+      "은행",
+      "부산은행 지점",
+      "통장"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~16:00",
+    "note": null,
+    "text": "부산은행은 진리관 1층에 있습니다. 운영시간은 09:00~16:00입니다."
+  },
+  {
+    "id": "fac_lounge_jinri",
+    "category": "편의시설",
+    "name": "학생휴게실",
+    "aliases": [
+      "휴게실",
+      "쉬는 곳",
+      "라운지"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "진리관 학생휴게실은 진리관 1층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_travel",
+    "category": "편의시설",
+    "name": "여행사",
+    "aliases": [
+      "여행",
+      "항공권"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": "1층",
+    "room": null,
+    "phone": "051-868-9970",
+    "hours": "09:00~17:00",
+    "note": null,
+    "text": "여행사는 진리관 1층에 있습니다. 운영시간은 09:00~17:00입니다. 전화번호는 051-868-9970입니다."
+  },
+  {
+    "id": "fac_job_academy",
+    "category": "편의시설",
+    "name": "취업아카데미",
+    "aliases": [
+      "취업 아카데미",
+      "취업 교육"
+    ],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "취업아카데미는 진리관 1층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_store_jeongbo",
+    "category": "편의시설",
+    "name": "편의점",
+    "aliases": [
+      "편의점",
+      "매점",
+      "간식",
+      "편의점 정보관"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "정보관 편의점은 정보관 1층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_lib_loan",
+    "category": "편의시설",
+    "name": "도서관 대출실",
+    "aliases": [
+      "도서관",
+      "책 빌리는 곳",
+      "대출",
+      "도서 대출",
+      "반납"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "2층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "도서관 대출실은 정보관 2층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_lib_arete",
+    "category": "편의시설",
+    "name": "도서관 아레테홀",
+    "aliases": [
+      "아레테홀",
+      "영화 감상",
+      "그룹 스터디룸",
+      "영화"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "3층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": "영화 감상, 그룹 스터디룸",
+    "text": "도서관 아레테홀은 정보관 3층에 있습니다. 운영시간은 09:00~18:00입니다. 참고: 영화 감상, 그룹 스터디룸."
+  },
+  {
+    "id": "fac_lib_reading",
+    "category": "편의시설",
+    "name": "도서관 열람실",
+    "aliases": [
+      "열람실",
+      "공부하는 곳",
+      "독서실",
+      "자습실"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": "4층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "도서관 열람실은 정보관 4층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_bookstore",
+    "category": "편의시설",
+    "name": "교내서점(문구·복사)",
+    "aliases": [
+      "서점",
+      "문구점",
+      "복사",
+      "프린트",
+      "인쇄",
+      "출력",
+      "교재"
+    ],
+    "building": "산학협력관",
+    "building_id": "sanhak",
+    "floor": "1층",
+    "room": null,
+    "phone": "051-866-6847",
+    "hours": "09:00~17:00",
+    "note": null,
+    "text": "교내서점(문구·복사)은 산학협력관 1층에 있습니다. 운영시간은 09:00~17:00입니다. 전화번호는 051-866-6847입니다."
+  },
+  {
+    "id": "fac_ai_cafe",
+    "category": "편의시설",
+    "name": "AI Cafe",
+    "aliases": [
+      "AI카페",
+      "에이아이카페",
+      "AI 강의실"
+    ],
+    "building": "산학협력관",
+    "building_id": "sanhak",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~17:00",
+    "note": "AI 교육용 강의실",
+    "text": "AI Cafe는 산학협력관 1층에 있습니다. 운영시간은 09:00~17:00입니다. 참고: AI 교육용 강의실."
+  },
+  {
+    "id": "fac_studyroom",
+    "category": "편의시설",
+    "name": "스터디룸",
+    "aliases": [
+      "스터디",
+      "팀플",
+      "조모임",
+      "공부방"
+    ],
+    "building": "산학협력관",
+    "building_id": "sanhak",
+    "floor": "3층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "스터디룸은 산학협력관 3층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_store_dorm",
+    "category": "편의시설",
+    "name": "편의점",
+    "aliases": [
+      "편의점",
+      "매점",
+      "간식",
+      "기숙사 편의점"
+    ],
+    "building": "학생생활관",
+    "building_id": "dorm",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "학생생활관 편의점은 학생생활관 1층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_lounge_dorm",
+    "category": "편의시설",
+    "name": "학생휴게실",
+    "aliases": [
+      "휴게실",
+      "쉬는 곳",
+      "기숙사 휴게실"
+    ],
+    "building": "학생생활관",
+    "building_id": "dorm",
+    "floor": "1층",
+    "room": null,
+    "phone": null,
+    "hours": "09:00~18:00",
+    "note": null,
+    "text": "학생생활관 학생휴게실은 학생생활관 1층에 있습니다. 운영시간은 09:00~18:00입니다."
+  },
+  {
+    "id": "fac_sports",
+    "category": "편의시설",
+    "name": "스포츠센터",
+    "aliases": [
+      "수영장",
+      "헬스장",
+      "헬스",
+      "체육관",
+      "실내골프장",
+      "스킨스쿠버",
+      "잠수풀",
+      "운동",
+      "카페테리아"
+    ],
+    "building": "석당문화관",
+    "building_id": "seokdang",
+    "floor": null,
+    "room": null,
+    "phone": "051-852-1655",
+    "hours": null,
+    "note": "수영장, 실내골프장, 체육관, 헬스장, 스킨스쿠버 잠수풀, 카페테리아",
+    "text": "스포츠센터는 석당문화관에 있습니다. 참고: 수영장, 실내골프장, 체육관, 헬스장, 스킨스쿠버 잠수풀, 카페테리아. 전화번호는 051-852-1655입니다."
+  },
+  {
+    "id": "fac_field",
+    "category": "편의시설",
+    "name": "인조잔디 운동장·육상트랙·족구장",
+    "aliases": [
+      "운동장",
+      "축구장",
+      "트랙",
+      "족구장",
+      "육상트랙",
+      "인조잔디"
+    ],
+    "building": "운동장",
+    "building_id": "field",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "인조잔디 운동장·육상트랙·족구장은 운동장에 있습니다."
+  },
+  {
+    "id": "bld_bonkwan",
+    "category": "건물",
+    "name": "본관",
+    "aliases": [],
+    "building": "본관",
+    "building_id": "bonkwan",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "본관에는 방사선과, 한방약재과, 외식조리산업과, 베이커리카페산업과, 스마트푸드조리과, 교무부, 보건실, 증명서 발급기, 현금인출기(ATM), 학생휴게실이 있습니다."
+  },
+  {
+    "id": "bld_bonkwan_annex",
+    "category": "건물",
+    "name": "본관 별관",
+    "aliases": [
+      "별관"
+    ],
+    "building": "본관 별관",
+    "building_id": "bonkwan_annex",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "본관 별관에는 집밥(김밥·분식), 학생휴게실이 있습니다."
+  },
+  {
+    "id": "bld_hwangryeong",
+    "category": "건물",
+    "name": "황령관",
+    "aliases": [],
+    "building": "황령관",
+    "building_id": "hwangryeong",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "황령관에는 간호학과, 보건행정과, 응급구조과, 사회복지학과가 있습니다."
+  },
+  {
+    "id": "bld_changjo",
+    "category": "건물",
+    "name": "창조관",
+    "aliases": [],
+    "building": "창조관",
+    "building_id": "changjo",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "창조관에는 특수창의라이프과가 있습니다."
+  },
+  {
+    "id": "bld_sanhak",
+    "category": "건물",
+    "name": "산학관",
+    "aliases": [
+      "산학협력관",
+      "산협관"
+    ],
+    "building": "산학관",
+    "building_id": "sanhak",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "산학관에는 유아교육과, 교수학습개발센터, 교내서점(문구·복사), AI Cafe, 스터디룸이 있습니다."
+  },
+  {
+    "id": "bld_jinri",
+    "category": "건물",
+    "name": "진리관",
+    "aliases": [],
+    "building": "진리관",
+    "building_id": "jinri",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "진리관에는 기계공학과, 스포츠재활트레이닝과(재활트레이닝·경기지도자 전공), 부산은행, 학생휴게실, 여행사, 취업아카데미가 있습니다."
+  },
+  {
+    "id": "bld_neulbeot",
+    "category": "건물",
+    "name": "늘벗터",
+    "aliases": [],
+    "building": "늘벗터",
+    "building_id": "neulbeot",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "늘벗터에는 학생식당, 교직원식당이 있습니다."
+  },
+  {
+    "id": "bld_tamgu",
+    "category": "건물",
+    "name": "탐구관",
+    "aliases": [],
+    "building": "탐구관",
+    "building_id": "tamgu",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "탐구관에는 반도체전자산업과, 전기과, 에너지·화학공학과, 의료피부미용과, 헤어뷰티과, 메이크업네일뷰티과, 스마트뷰티케어과가 있습니다."
+  },
+  {
+    "id": "bld_jeongbo",
+    "category": "건물",
+    "name": "정보관",
+    "aliases": [
+      "도서관 건물"
+    ],
+    "building": "정보관",
+    "building_id": "jeongbo",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "정보관에는 소방안전관리과, 경찰경호보안과, 파크골프지도과, 부동산재테크정보과(야간), 스마트웰니스의료뷰티과, 편의점, 도서관 대출실, 도서관 아레테홀, 도서관 열람실이 있습니다."
+  },
+  {
+    "id": "bld_seokdang",
+    "category": "건물",
+    "name": "석당문화관",
+    "aliases": [
+      "석당관"
+    ],
+    "building": "석당문화관",
+    "building_id": "seokdang",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "석당문화관에는 스포츠센터가 있습니다."
+  },
+  {
+    "id": "bld_mirae",
+    "category": "건물",
+    "name": "미래관",
+    "aliases": [],
+    "building": "미래관",
+    "building_id": "mirae",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "미래관에는 전기자동차과, 컴퓨터소프트웨어과, 양조발효과, 사회복지융합계열 요양서비스전공, 사회복지융합계열 헬스케어전공이 있습니다."
+  },
+  {
+    "id": "bld_onnuri",
+    "category": "건물",
+    "name": "온누리광장",
+    "aliases": [
+      "광장"
+    ],
+    "building": "온누리광장",
+    "building_id": "onnuri",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "온누리광장은 동의과학대학교 교내 장소입니다."
+  },
+  {
+    "id": "bld_field",
+    "category": "건물",
+    "name": "운동장",
+    "aliases": [
+      "대운동장"
+    ],
+    "building": "운동장",
+    "building_id": "field",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "운동장에는 인조잔디 운동장·육상트랙·족구장이 있습니다."
+  },
+  {
+    "id": "bld_dorm",
+    "category": "건물",
+    "name": "학생생활관",
+    "aliases": [
+      "기숙사",
+      "생활관",
+      "긱사"
+    ],
+    "building": "학생생활관",
+    "building_id": "dorm",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "학생생활관에는 학생생활관(기숙사), 편의점, 학생휴게실이 있습니다."
+  },
+  {
+    "id": "bld_main_gate",
+    "category": "건물",
+    "name": "정문",
+    "aliases": [],
+    "building": "정문",
+    "building_id": "main_gate",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "정문은 동의과학대학교 교내 장소입니다."
+  },
+  {
+    "id": "bld_back_gate",
+    "category": "건물",
+    "name": "후문",
+    "aliases": [],
+    "building": "후문",
+    "building_id": "back_gate",
+    "floor": null,
+    "room": null,
+    "phone": null,
+    "hours": null,
+    "note": null,
+    "text": "후문은 동의과학대학교 교내 장소입니다."
+  }
+]
