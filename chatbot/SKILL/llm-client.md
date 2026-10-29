@@ -37,7 +37,7 @@ LLM_TIMEOUT_SEC=20
 ```
 
 - `app/llm/__init__.py`에 `get_llm_client(settings) -> LLMClient` 팩토리를 둡니다.
-- `openai_compatible`은 OpenAI SDK에 `base_url`만 바꿔 재사용합니다. 나중에 팀이 파인튜닝한 한국어 모델을 서빙하면 이 경로로 붙입니다.
+- `openai_compatible`은 OpenAI SDK에 `base_url`만 바꿔 재사용합니다. `LLM_BASE_URL`은 보통 `/v1`까지 적습니다(예: `http://서버:8000/v1`). 키가 없는 서버면 `LLM_API_KEY`를 비워 두면 됩니다. 나중에 팀이 파인튜닝한 한국어 모델을 서빙하면 이 경로로 붙입니다.
 - 모델 이름은 코드에 하드코딩하지 않고 `.env`에서만 읽습니다.
 
 ## 3. 공급자별 구현 메모

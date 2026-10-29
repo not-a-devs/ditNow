@@ -48,3 +48,14 @@ async def test_fake_client_echoes_context_ids() -> None:
     msg = ChatMessage(role="user", content="<context>\n[a_1] 가\n- x\n[b_2] 나\n</context>")
     answer = await FakeLLMClient().chat([msg])
     assert answer.endswith("[근거: a_1, b_2]")
+
+
+def test_openai_compatible_without_key() -> None:
+    """키 없는 자체 서버도 클라이언트를 만들 수 있다."""
+    settings = Settings(
+        _env_file=None,
+        llm_provider="openai_compatible",
+        llm_model="m",
+        llm_base_url="http://10.0.0.1:8000/v1",
+    )
+    assert str(get_llm_client(settings).client.base_url).startswith("http://10.0.0.1:8000/v1")
