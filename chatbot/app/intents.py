@@ -133,9 +133,10 @@ async def classify_with_llm(question: str, llm: LLMClient) -> Intent | None:
     # LLM이 고른 값은 정해진 목록 안에서만 받는다 (학번 같은 다른 값은 쓰지 않는다)
     name = data.get("intent")
     day = data.get("day")
+    # isinstance 먼저: 리스트 같은 해시 불가 값이 오면 `in` 검사가 TypeError로 500을 낸다
     return Intent(
-        name=name if name in PERSONAL_INTENTS else CAMPUS,
-        day=day if day in VALID_DAYS else None,
+        name=name if isinstance(name, str) and name in PERSONAL_INTENTS else CAMPUS,
+        day=day if isinstance(day, str) and day in VALID_DAYS else None,
         by="llm",
     )
 
