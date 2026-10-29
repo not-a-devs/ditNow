@@ -4,13 +4,13 @@ AsyncSession.run_sync bridges SQLAlchemy calls to aiomysql without blocking the 
 This module never opens an engine, reads credentials, installs routes, creates schema, or seeds.
 """
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TypeVar
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.api.dependencies import VerifiedPrincipal
 from app.core.errors import ApiError
@@ -35,9 +35,17 @@ class P0Services:
 
 
 class P0Executor:
-    def __init__(self, engine: AsyncEngine, clock: Callable[[], datetime] = utc_now):
+    def __init__(
+        self,
+        engine: AsyncEngine,
+        clock: Callable[[], datetime] = utc_now,
+        *,
+        verify_principal: Callable[[AsyncSession, VerifiedPrincipal], Awaitable[None]]
+        | None = None,
+    ):
         self.sessions = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
         self.clock = clock
+        self.verify_principal = verify_principal
 
     async def run(self, principal: VerifiedPrincipal, operation: Callable[[P0Services], T]) -> T:
         if not principal.active:
@@ -67,6 +75,8 @@ class P0Executor:
 
         try:
             async with self.sessions() as session, session.begin():
+                if self.verify_principal is not None:
+                    await self.verify_principal(session, principal)
                 return await session.run_sync(invoke)
         except SQLAlchemyError:
             raise ApiError(ErrorCode.UNAVAILABLE) from None
@@ -92,6 +102,8 @@ class P0Executor:
 
         try:
             async with self.sessions() as session, session.begin():
+                if self.verify_principal is not None:
+                    await self.verify_principal(session, principal)
                 return await session.run_sync(invoke)
         except SQLAlchemyError:
             raise ApiError(ErrorCode.UNAVAILABLE) from None

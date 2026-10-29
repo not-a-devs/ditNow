@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ApiError
 from app.integrations.chatbot.assistant import Assistant, get_assistant
+from app.integrations.platform_runtime.models import SessionProfile
 from app.schemas.auth import LoginData, LoginInput
-from app.schemas.common import SuccessResponse
+from app.schemas.common import ErrorCode, SuccessResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,3 +59,13 @@ async def logout(
     if creds:
         await assistant.logout(db, creds.credentials)
     return SuccessResponse(data={"status": "ok"})
+
+
+@router.get("/me", response_model=SuccessResponse[SessionProfile])
+async def me(request: Request, creds: Credentials, assistant: AssistantDep):
+    runtime = request.app.state.platform_runtime
+    if runtime is None:
+        raise ApiError(ErrorCode.UNAVAILABLE)
+    assistant.check_rate_limit(client_ip(request))
+    binding = await runtime.context(creds.credentials if creds else None)
+    return SuccessResponse(data=binding.profile)

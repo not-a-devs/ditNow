@@ -1,5 +1,6 @@
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import Field, FilePath, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,6 +15,10 @@ class Settings(BaseSettings):
     log_level: Literal["INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: list[str] = []
     docs_enabled: bool = False
+    # Operator attestation and pinned approval records; never provision from these settings.
+    p0_runtime_enabled: bool = False
+    p0_schema_approved: bool = False
+    p0_identity_approval_ids: list[UUID] = Field(default_factory=list, max_length=100, repr=False)
     # Optional until operational access is approved; a partial configuration is invalid.
     db_host: str | None = Field(default=None, repr=False)
     db_port: int = Field(default=3307, ge=1, le=65535)
