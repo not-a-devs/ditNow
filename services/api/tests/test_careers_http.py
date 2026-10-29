@@ -1,5 +1,6 @@
 """HTTP contract for the API-JOB router: fail-closed defaults, authz order, cache, replay."""
 
+import json
 from datetime import timedelta
 from uuid import UUID, uuid4
 
@@ -178,14 +179,23 @@ def test_profile_create_replay_and_conflicts_over_http(env):
         {"alias": "별빛", "summary": "연락 010 1234 5678"},
     ],
 )
-def test_profile_rejects_identity_contact_and_file_fields(env, body):
+def test_profile_rejects_identity_contact_and_file_fields(env, body, monkeypatch):
+    request_id = UUID("01000000-0000-4000-8000-000000000001")
+    monkeypatch.setattr("app.core.logging.uuid4", lambda: request_id)
     response = env["client"].post(
         "/api/v1/careers/me/profile",
         json=body,
         headers=as_user(USER_A, **{"Idempotency-Key": "profile-key-001"}),
     )
     assert response.status_code == 400 and response.json()["code"] == "VALIDATION"
-    assert "010" not in response.text and "a@b.kr" not in response.text  # no input echo
+    error = response.json()
+    assert set(error) == ERROR_KEYS
+    assert error["request_id"] == response.headers["X-Request-ID"] == str(request_id)
+    # A server UUID may contain a phone prefix by chance. Check all user-facing
+    # error fields, including nested validation details, without discarding them.
+    detail = json.dumps({k: v for k, v in error.items() if k != "request_id"}, ensure_ascii=False)
+    assert "010" not in detail and "a@b.kr" not in detail
+    assert all(value not in detail for value in body.values())
     assert response.headers["Cache-Control"] == PRIVATE
     assert env["uow"].profiles == {}
 
@@ -282,6 +292,9 @@ def test_employer_draft_flow_and_tombstone_over_http(env):
 
 
 def test_deadlock_or_lock_timeout_is_bounded_409_without_driver_text(env, monkeypatch):
+    request_id = UUID("10621205-1213-4010-8000-000000000001")
+    monkeypatch.setattr("app.core.logging.uuid4", lambda: request_id)
+
     def busy(self, user_id):
         raise StoreBusy("Deadlock found when trying to get lock (1213) password=secret")
 
@@ -294,8 +307,11 @@ def test_deadlock_or_lock_timeout_is_bounded_409_without_driver_text(env, monkey
         headers=as_user(USER_A, **{"Idempotency-Key": "apply-key-busy"}),
     )
     assert response.status_code == 409 and set(response.json()) == ERROR_KEYS
+    error = response.json()
+    assert error["request_id"] == response.headers["X-Request-ID"] == str(request_id)
+    detail = json.dumps({k: v for k, v in error.items() if k != "request_id"}, ensure_ascii=False)
     for leaked in ("1213", "Deadlock", "secret"):
-        assert leaked not in response.text
+        assert leaked not in detail
     assert response.headers["Cache-Control"] == PRIVATE
     # 1 route grant check + MAX_TX_ATTEMPTS service transactions, nothing written.
     assert uow.transactions - before == 1 + MAX_TX_ATTEMPTS

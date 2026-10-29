@@ -4,8 +4,9 @@ TC-V1-ACA-003~009 / TC-V1-ATT-001~002 HTTP layer: fail-closed 503, private no-st
 validation, rule codes, 404 non-disclosure and redaction. Not a global-app/E2E/DB result.
 """
 
+import json
 import logging
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -175,18 +176,37 @@ def test_request_http_flow_and_non_disclosure(wired):
     }
 
 
-def test_attendance_http_roles_code_and_bluetooth_blocked(wired):
+def test_attendance_http_roles_code_and_bluetooth_blocked(wired, monkeypatch):
     client, state, _ = wired
     path = f"{BASE}/attendance/offerings/{OFFERING_A}"
     assert client.post(f"{path}/sessions", json={"label": "1주"}, headers=KEY).status_code == 403
     state["actor"] = TEACHER
-    session = private(client.post(f"{path}/sessions", json={"label": "1주"}, headers=KEY)).json()[
-        "data"
-    ]
+    session_id = UUID("12345600-0000-4000-8000-000000000001")
+    with monkeypatch.context() as scoped:
+        scoped.setattr("app.features.academics.service.uuid4", lambda: session_id)
+        session = private(
+            client.post(f"{path}/sessions", json={"label": "1주"}, headers=KEY)
+        ).json()["data"]
     assert session["check_in_code"] == CODE
     state["actor"] = STUDENT
     listed = client.get(f"{path}/sessions").json()["data"]
-    assert listed[0]["check_in_code"] is None and CODE not in client.get(f"{path}/sessions").text
+    assert listed[0]["check_in_code"] is None
+    assert len(listed) == 1 and UUID(listed[0]["id"]) == session_id
+    assert UUID(listed[0]["offering_id"]) == OFFERING_A
+    assert set(listed[0]) == {
+        "id",
+        "offering_id",
+        "label",
+        "status",
+        "opened_at",
+        "check_in_closes_at",
+        "closed_at",
+        "revision",
+        "check_in_code",
+        "record_source",
+    }
+    content = {k: v for k, v in listed[0].items() if k not in {"id", "offering_id"}}
+    assert CODE not in json.dumps(content, ensure_ascii=False)
     blue = client.post(
         f"{path}/sessions/{session['id']}/check-in", json={"method": "BLUETOOTH", "code": CODE}
     )
