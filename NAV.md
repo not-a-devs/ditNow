@@ -36,6 +36,7 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
 - 현재 `.github/workflows/mvp-ci.yml`: PR/main의 Node.js 22 MVP 설치·타입·빌드 검증.
+- 현재 `.github/workflows/python-api-ci.yml`: PR/main의 Python 3.13 잠금 설치·Ruff·pytest·앱 import/OpenAPI 생성·에이전트 설정 검사. 두 워크플로가 같은 PR HEAD에서 성공해야 한다.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반. 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `packages/contracts/` (OpenAPI 기반 공유 계약), `infra/db/migrations/` (DB 채택 후). 현재 `mvp/`는 보존한다.
