@@ -7,7 +7,9 @@
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | `GET` | `/health` | 서버·데이터 로드 상태 확인 |
-| `POST` | `/ask` | 질문 → 답변 (핵심) |
+| `POST` | `/ask` | 질문 → 답변 (핵심). 개인 질문은 `Authorization: Bearer <token>` 필요 |
+| `POST` | `/auth/login` | 학번·초기 비밀번호 로그인 → 토큰 (`SKILL/student-assistant.md`) |
+| `POST` | `/auth/logout` | 토큰 폐기 |
 | `GET` | `/facilities` | 시설 목록 (프론트 지도 표시용) |
 | `GET` | `/facilities/{id}` | 시설 상세 |
 | `POST` | `/admin/reload` | JSON 데이터 다시 읽기 (`X-Admin-Token` 헤더 = `.env`의 `ADMIN_TOKEN`, 비어 있으면 비활성) |
@@ -30,6 +32,9 @@
 }
 ```
 
+- `intent`: `campus` | `next_class` | `today_classes` | `remaining_credits`
+- `need_login=true`면 개인 질문인데 로그인하지 않은 것입니다. 프론트는 로그인 화면으로 안내합니다.
+- 잘못되거나 만료된 토큰을 보내면 `401`입니다. 토큰 없이 보내면 교내 질문은 정상 응답합니다.
 - `found=false`이면 데이터에 없다는 뜻입니다. 프론트는 "관리자에게 제보하기" 같은 UI를 띄울 수 있습니다.
 - `user_location`은 지금은 응답에 그대로 쓰지 않고, 이후 길찾기 기능에서 사용합니다. **로그에 저장하지 않습니다.**
 
