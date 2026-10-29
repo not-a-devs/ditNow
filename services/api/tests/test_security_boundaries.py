@@ -134,6 +134,43 @@ def test_chatbot_llm_config_passes_explicit_values_and_keeps_validators():
         assistant_module.IntegratedLLMSettings(db_auto_init=True)
 
 
+@pytest.mark.parametrize("construction", ["direct", "integrated_factory"])
+def test_integrated_dotenv_source_cannot_read_a_file_even_before_source_filter(
+    monkeypatch, construction
+):
+    import pydantic_settings.main as settings_main
+    from pydantic_settings.sources import DotEnvSettingsSource
+
+    # Construct the API settings before installing the source-construction tripwire. Do not
+    # create/read chatbot/.env or depend on whether that real developer file happens to exist.
+    explicit = Settings(environment="test", llm_provider="fake")
+    constructed = []
+
+    class NoFileDotEnvSource(DotEnvSettingsSource):
+        def __init__(self, *args, **kwargs):
+            # BaseSettings eagerly constructs this source BEFORE settings_customise_sources.
+            # Stop before any I/O if an inherited path reaches the source constructor.
+            assert kwargs.get("env_file") is None
+            constructed.append(True)
+            super().__init__(*args, **kwargs)
+
+        def _read_env_file(self, file_path):
+            raise AssertionError("Integrated config must not invoke a dotenv file reader")
+
+    monkeypatch.setattr(settings_main, "DotEnvSettingsSource", NoFileDotEnvSource)
+    config = (
+        assistant_module.IntegratedLLMSettings(llm_provider="fake")
+        if construction == "direct"
+        else assistant_module.chatbot_llm_settings(explicit)
+    )
+    assert constructed == [True]
+    assert config.model_config["env_file"] is None
+    assert config.model_config["extra"] == "ignore"
+    assert config.model_config["hide_input_in_errors"] is True
+    assert config.database_url.get_secret_value() == ""
+    assert config.admin_token.get_secret_value() == ""
+
+
 # F-04: the fake provider is a test double, never a deployed provider.
 @pytest.mark.parametrize("environment", ["development", "production"])
 def test_fake_llm_rejected_outside_test(monkeypatch, environment):

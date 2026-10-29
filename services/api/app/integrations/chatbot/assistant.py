@@ -24,7 +24,7 @@ from chatbot.app.retriever.keyword import KeywordRetriever
 from chatbot.app.schemas import CampusData, Turn
 from chatbot.app.student_repo import load_student
 from fastapi import Request
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
@@ -134,6 +134,10 @@ class IntegratedLLMSettings(ChatbotSettings):
     `_env_file=None`은 .env만 끄고 접두사 없는 `DATABASE_URL`·`DB_AUTO_INIT` 등은 여전히 읽으므로,
     입력 소스를 생성자 인자로 한정한다. 필드 검증기는 그대로 실행된다.
     """
+
+    # Sources are eagerly constructed before settings_customise_sources filters them. Disable
+    # the inherited chatbot/.env path at construction, not just at value-merging time.
+    model_config = SettingsConfigDict(env_file=None, extra="ignore", hide_input_in_errors=True)
 
     @classmethod
     def settings_customise_sources(
