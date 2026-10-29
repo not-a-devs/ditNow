@@ -4,14 +4,14 @@ version = "0.1.0"
 description = "DIT NOW FastAPI foundation"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "ditnow-chatbot",
+  "ditnow-chatbot[standalone]",
   "fastapi>=0.115,<1",
   "pydantic-settings>=2.6,<3",
   "uvicorn>=0.34,<1",
 ]
 
 [dependency-groups]
-dev = ["httpx>=0.28,<1", "pytest>=8,<10", "ruff>=0.11,<1"]
+dev = ["aiosqlite>=0.20,<1", "httpx>=0.28,<1", "pytest>=8,<10", "ruff>=0.11,<1"]
 
 [tool.uv]
 package = false

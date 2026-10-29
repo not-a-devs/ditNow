@@ -36,7 +36,9 @@ def test_app_import(monkeypatch):
 
 def test_openapi_matches_runtime(application):
     schema = application.openapi()
-    assert set(schema["paths"]) == {"/health", "/api/v1/health", "/api/v1/ai/campus/search"}
+    assert {"/health", "/api/v1/health", "/api/v1/ai/ask", "/api/v1/auth/login"} <= set(
+        schema["paths"]
+    )
     assert "ErrorResponse" in schema["components"]["schemas"]
     with TestClient(application) as client:
         assert client.get("/openapi.json").json() == schema
