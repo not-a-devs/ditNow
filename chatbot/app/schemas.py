@@ -152,6 +152,8 @@ class AskResponse(BaseModel):
     sources: list[str] = Field(default_factory=list)
     locations: list[LocationOut] = Field(default_factory=list)
     found: bool
+    intent: str = "campus"  # campus | next_class | today_classes | remaining_credits
+    need_login: bool = False  # 개인 질문인데 로그인하지 않았을 때 true
     latency_ms: int = 0
 
 

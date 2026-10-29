@@ -11,11 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth import SessionStore, authenticate
 from app.config import Settings, get_settings
 from app.data_loader import DataError, load_data, load_student_data
+from app.intents import CAMPUS
 from app.llm import get_llm_client
 from app.prompt import LLM_FAILURE_ANSWER
 from app.rag import answer_question
 from app.retriever.keyword import KeywordRetriever, normalize
-from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse
+from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse, Student
 
 logger = logging.getLogger(__name__)
 CACHE_TTL_SEC = 600
@@ -84,12 +85,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """서버·데이터 로드 상태."""
         return {"status": "ok", "facilities": len(app.state.data.facilities)}
 
+    def current_student(authorization: str) -> Student | None:
+        """Authorization 헤더의 토큰으로 학생을 찾는다. 헤더가 없으면 비로그인."""
+        if not authorization:
+            return None
+        scheme, _, token = authorization.partition(" ")
+        student_id = app.state.sessions.resolve(token) if scheme.lower() == "bearer" else None
+        student = app.state.student_data.students.get(student_id) if student_id else None
+        if student is None:
+            raise HTTPException(401, "로그인이 만료됐어요. 다시 로그인해 주세요.")
+        return student
+
     @app.post("/ask")
-    async def ask(body: AskRequest, request: Request) -> AskResponse:
-        """질문에 교내 데이터 근거로 답한다."""
+    async def ask(
+        body: AskRequest, request: Request, authorization: str = Header(default="")
+    ) -> AskResponse:
+        """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다."""
+        student = current_student(authorization)
         key = " ".join(normalize(body.question).split())
         if not key:
             raise HTTPException(422, "질문을 입력해 주세요.")
+        # 캐시에는 교내 정보 답변만 들어 있어 학생 간에 개인 정보가 섞이지 않는다
         cached = app.state.cache.get(key)
         if cached and cached[0] > time.monotonic():
             return cached[1]
@@ -101,8 +117,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             data=app.state.data,
             top_k=settings.top_k,
             max_context_chars=settings.max_context_chars,
+            student_data=app.state.student_data,
+            student=student,
         )
-        if res.answer != LLM_FAILURE_ANSWER:
+        if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로
             app.state.cache[key] = (time.monotonic() + CACHE_TTL_SEC, res)
         return res

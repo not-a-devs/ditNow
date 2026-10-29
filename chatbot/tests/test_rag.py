@@ -77,5 +77,5 @@ def test_context_limit_keeps_top_hit(retriever: KeywordRetriever) -> None:
     """컨텍스트가 길면 점수 낮은 문서부터 빠지고, 최상위 문서는 항상 남는다."""
     hits = retriever.search("기숙사 편의점 정보관 전기과")
     assert len(hits) > 1
-    msg = build_user_message(hits, "q", max_chars=1)
+    msg = build_user_message([h.doc.to_context() for h in hits], "q", max_chars=1)
     assert f"[{hits[0].doc.id}]" in msg and f"[{hits[1].doc.id}]" not in msg
