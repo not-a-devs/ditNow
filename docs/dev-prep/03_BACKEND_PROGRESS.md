@@ -16,3 +16,5 @@
 독립 Codex 코드 리뷰에서 405의 Allow 헤더 누락을 발견했고 안전한 메서드 허용 목록으로 보존한 뒤 회귀 테스트를 통과했다. 사용자 요청으로 실행한 별도 Claude Code의 PR #11 설계 리뷰는 [후속 계약 PR #13](https://github.com/not-a-devs/ditNow/pull/13)에서 수용·보류 여부를 기록한다. AI 리뷰는 사람의 정책·권한 승인이 아니다.
 
 실행법은 [API README](../../services/api/README.md), 현재 프런트 범위는 [MVP README](../../mvp/README.md)를 따른다. 이 문서의 TESTED는 명시된 공개 기반에 한하며 운영 환경 VERIFIED를 뜻하지 않는다.
+
+작업 중 병합된 PR #14의 `chatbot/`은 별도 RAG/개인질문/시연 세션·MariaDB 어댑터 코드로 보존했다. 해당 모듈의 DB·외부 LLM·인증을 이 태스크에서 실행하거나 통합하지 않았다. 두 서버는 서로 다른 `app` 패키지와 설정이므로 디렉터리별 가상환경을 사용한다. MariaDB 코드의 존재로 OPEN-002의 플랫폼 DB 선택을 확정하지 않는다.

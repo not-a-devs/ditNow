@@ -25,10 +25,13 @@
 | 공통 UI·타입 | `mvp/src/shared/ui/`, `mvp/src/shared/types.ts` | 공통 컴포넌트·계약 |
 | 모의 API | `mvp/src/shared/data/api/` | 현재 브라우저 기반 규칙; 서버 아님 |
 | 모의 저장소·시드 | `mvp/src/shared/data/store.ts`, `mvp/src/shared/data/seed.ts` | localStorage 및 테스트 데이터 |
+| 별도 RAG 시연 서버 | `chatbot/app/main.py`, `chatbot/CLAUDE.md`, `chatbot/requirements.txt` | PR #14의 RAG/개인 질문/시연 세션·DB 코드. 통합 P0 인증·DB 계약과 연결은 미검증 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.
 
 FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작한다. 설정·공통 오류·안전 로그는 `services/api/app/core/`, 테스트는 `services/api/tests/`, 실행·잠금 파일 안내는 `services/api/README.md`를 본다. `/health`는 프로세스 생존만 확인하며 인증·DB 준비 상태는 검사하지 않는다. 작업 상태와 후속 게이트는 `docs/dev-prep/03_BACKEND_PROGRESS.md`에 기록한다.
+
+`chatbot/`과 `services/api/`는 각각 별도 `app` 패키지이므로 각 디렉터리에서 독립 환경으로 실행·검증한다. RAG의 MariaDB 어댑터·자체 세션 코드는 플랫폼 DB·인증 공급자 선정의 승인 근거가 아니다. 이 기반 작업에서 RAG의 외부 LLM·DB·배포는 실행하지 않았다.
 
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
