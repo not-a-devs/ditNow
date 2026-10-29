@@ -7,6 +7,7 @@ export const navigation = [
   { id: 'recruitments', label: '팀원 모집', path: '/app/recruitments', category: '함께하는 대학', description: '실명으로 시작하는 새로운 협업' },
   { id: 'opportunities', label: '장학 · 기회', path: '/app/opportunities', category: '더 넓은 캠퍼스', description: '장학금, 공모전, 취업의 다음 기회' },
   { id: 'support', label: '학생 지원', path: '/app/support', category: '더 넓은 캠퍼스', description: '도서관, 생활, 상담과 지원' },
+  { id: 'information', label: '대학 · 학과 안내', path: '/app/information', category: '더 넓은 캠퍼스', description: '공개 자료를 바탕으로 대학과 학과 탐색' },
   { id: 'ai', label: 'AI 도우미', path: '/app/ai', category: '더 넓은 캠퍼스', description: '궁금한 캠퍼스 생활을 함께 탐색' },
 ] as const;
 export type SectionId = typeof navigation[number]['id'];

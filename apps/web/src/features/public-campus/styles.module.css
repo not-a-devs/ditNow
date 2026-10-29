@@ -17,6 +17,7 @@
 .card p { margin: .6rem 0; }
 .card button { margin-top: .7rem; }
 .detail section p { margin: .7rem 0; }
+.detail h2 { scroll-margin-top: 5.5rem; }
 .evidence { background: #edf2e9; padding: 1rem; margin-top: 1rem; border-radius: .7rem; }
 .evidence a { color: #195641; display: inline-block; padding: .6rem 0; text-decoration: underline; }
 .pagination { display: flex; justify-content: end; gap: .7rem; margin-top: 1rem; }

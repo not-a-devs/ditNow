@@ -9,14 +9,12 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.factory import create_app
 from app.features.public_campus.models import PublicSnapshot, SourceEvidence
-from app.features.public_campus.router import router
 from app.features.public_campus.service import get_public_campus_service
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     application = create_app(Settings(environment="test"))
-    application.include_router(router, prefix="/api/v1")
     with TestClient(application) as test_client:
         yield test_client
 
@@ -147,7 +145,8 @@ def test_snapshot_rejects_duplicates_future_evidence_and_wrong_site() -> None:
         )
 
 
-def test_unmounted_module_is_not_published_in_openapi() -> None:
-    assert (
-        "/api/v1/public-campus" not in create_app(Settings(environment="test")).openapi()["paths"]
-    )
+def test_integrated_public_routes_are_read_only_in_openapi() -> None:
+    paths = create_app(Settings(environment="test")).openapi()["paths"]
+    for path in ("/api/v1/public-campus", "/api/v1/public-campus/{record_id}"):
+        assert set(paths[path]) == {"get"}
+    assert "/auth/login" not in paths

@@ -1,12 +1,12 @@
 # TASK-I — 공개 대학·학과 안내 조회 1차 구현
 
-상태: **PARTIAL / TESTED**. 이 PR의 독립 모듈은 공개 원문을 근거로 작성한 자체 요약의 목록·검색·분류·상세 조회를 제공한다. 공통 라우터와 웹 내비게이션에는 아직 연결하지 않았으며 운영 배포도 미실행이다. FR 전체를 VERIFIED로 표시하지 않는다.
+상태: **PARTIAL / TESTED**. 공개 원문을 근거로 작성한 자체 요약의 목록·검색·분류·상세 조회를 실제 FastAPI와 신규 웹 내비게이션에 연결했다. 로컬 실제 HTTP·브라우저로 검증했으며 운영 배포는 미실행이다. FR 전체를 VERIFIED로 표시하지 않는다.
 
 ## 요구사항·소유 범위
 
 FR-WEB-001~004, FR-DEPT-007/008, API-PUBLIC, RBAC-WEB/DEPT, TC-V1-WEB-001~004, TC-V1-DEPT-007/008의 공개 읽기 부분을 구현한다. NFR-UX-001/003/005, NFR-DATA-003, NFR-SEC-004/005/007, NFR-REL-005와 연결한다.
 
-수정 소유: `services/api/app/features/public_campus/`, `services/api/tests/test_public_campus.py`, `apps/web/src/features/public-campus/`, 이 문서. 공통 인증·DB·패키지·마이그레이션·라우터·App·NAV·기존 mvp를 수정하지 않는다. 공유 라우터/내비/공개 OpenAPI·타입 갱신은 통합 소유자가 수행한다.
+기능 수정 소유: `services/api/app/features/public_campus/`, `services/api/tests/test_public_campus.py`, `apps/web/src/features/public-campus/`, 이 문서. 통합 소유자가 공유 라우터·App·내비·아이콘·공개 OpenAPI·생성 타입·NAV를 별도로 등록했고 기능 작성자가 그 변경을 독립 읽기 검토했다. 공통 인증·DB·패키지·마이그레이션은 수정하지 않는다. 기존 mvp의 생성 타입 갱신은 역사적 CI 드리프트 방지를 위한 것이며 코드를 신규 앱에 재사용하지 않았다.
 
 ## 공개 스냅샷과 출처
 
@@ -27,7 +27,7 @@ FR-WEB-001~004, FR-DEPT-007/008, API-PUBLIC, RBAC-WEB/DEPT, TC-V1-WEB-001~004, T
 
 ## API와 사용자 흐름
 
-`router`는 `/public-campus` 상대 prefix를 export한다. 통합 담당자가 `/api/v1` 아래 한 번 등록한다. 현재 기본 앱의 공개 OpenAPI에 미연결 경로를 수동으로 넣지 않는다.
+`router`는 `/public-campus` 상대 prefix를 export하고 통합 담당자가 `/api/v1` 아래 한 번 등록했다. 기본 앱 OpenAPI를 실제 라우터에서 재생성했으며 신규 웹 `/app/information` 메뉴가 해당 HTTP API를 호출한다.
 
 | 메서드·경로 | 입력·출력 | 예외 |
 | --- | --- | --- |
@@ -53,4 +53,12 @@ FR-WEB-001~004, FR-DEPT-007/008, API-PUBLIC, RBAC-WEB/DEPT, TC-V1-WEB-001~004, T
 - TC-I-004: 중복 ID·확인일 모순·출처 사이트 불일치·유해/비허용 URL을 거부한다.
 - TC-I-005: FE 카드/검색/필터/자체 상세·텍스트 렌더링·출처 한계·원문 링크·빈/오류·취소·응답 오염을 검사한다.
 
-2026-10-30 최신 main `3c0a0bd`를 반영한 Python 신규22개 및 전체419개 PASS, Ruff70개 포맷/정적 검사 PASS. 신규 웹 npm ci(취약점0), 타입 검사·전체147개 Vitest(이 모듈7개)·빌드·OpenAPI 타입 드리프트 검사 PASS. 에이전트 설정·92개 진행표 검사·git diff 검사 PASS. 독립 리뷰·PR HEAD CI는 완료 후 갱신한다. 실제 내비/API 연결·390/1280 브라우저·운영 DB·배포는 통합 전까지 NOT_RUN이다.
+2026-10-30 최신 main `3c0a0bd` 및 공유 등록을 반영한 Python 신규22개 및 전체419개 PASS, Ruff70개 포맷/정적 검사 PASS. 신규 웹 npm ci(취약점0), 타입 검사·전체148개 Vitest(이 모듈7개 및 통합 App 연결1개 포함)·빌드·OpenAPI 타입 드리프트 검사 PASS. `python -m app.export_openapi --check` PASS. 검증 중 잘못 입력한 `app.openapi` 모듈 명령은 존재하지 않아 실패했고 실제 제공되는 `app.export_openapi`로 정정하여 비교했다. 에이전트 설정·92개 진행표 검사·git diff 검사 PASS. 최종 PR HEAD의 원격 CI는 Push 후 확인한다.
+
+별도 Codex 읽기 전용 리뷰에서 기능 소스·7개 공개 근거를 재확인하고 BE22개·FE7개·타입 검사를 직접 통과했다. 중요 차단 finding은 없었다. 향후 콘텐츠 편집을 도입할 때 `pCode` 값도 현재 공개 항목 allowlist로 좁히는 비차단 권고가 남았다. 현재는 고정 스냅샷이며 요청 시 외부 fetch와 쓰기가 없다. 이 AI 리뷰는 사람의 공식 승인이 아니다.
+
+통합 소유자가 작성한 공유 라우터·App·내비·아이콘·GET 전용 OpenAPI 테스트를 기능 작성자가 독립 읽기 검토했다. 빈 결과 문구 불일치를 수정한 뒤 중요 차단 finding은 없었다.
+
+실제 로컬 Uvicorn → 신규 Vite 웹을 Chromium 390px/1280px에서 검증했다. 한글 검색·학과/출처 필터·7개 목록의 페이지 이동·자체 상세 본문·출처 링크/한계 표시·빈 결과·주입한 503의 안전한 오류/재시도·실제 미존재404/쓰기405·명시적 허용 origin CORS/미허용 origin 거부가 PASS였다. 두 폭의 문서 너비는 각각 390/1280px이며 pageerror는 없었다. 목록·상세 스크린샷 4개를 직접 확인했다. 모바일 상세 제목 초점이 sticky 헤더에 가리는 문제는 해당 제목의 scroll margin으로 수정하고 제목 top88.33px > 헤더 bottom66px을 실제 브라우저로 재검증했다. 검사 스크립트와 스크린샷은 저장소 밖 임시 도구 위치에 있으며 개인정보를 포함하지 않는다. 임시 서버는 검증 후 종료했다.
+
+운영 DB·실제 학교 원장·인증/편집 권한·운영 배포는 NOT_RUN이며 공개 읽기 범위 이외의 6개 FR 업무는 계속 PARTIAL/BLOCKED다.
