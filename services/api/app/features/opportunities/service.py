@@ -67,7 +67,8 @@ def safe_url(value: str | None) -> str | None:
         parts = urlsplit(value)
     except ValueError:
         return None
-    if parts.scheme not in {"https", "http"} or not parts.netloc or parts.username:
+    # Any userinfo is refused, including an empty user name ("https://:secret@host").
+    if parts.scheme not in {"https", "http"} or not parts.netloc or "@" in parts.netloc:
         return None
     return value
 

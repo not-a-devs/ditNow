@@ -128,10 +128,34 @@ def test_detail_hidden_for_draft_and_missing(world):
 
 @pytest.mark.parametrize(
     "url",
-    ["javascript:alert(1)", "data:text/html,x", "/relative", "https://u:p@x.test", "ftp://x.test"],
+    [
+        "javascript:alert(1)",
+        "data:text/html,x",
+        "/relative",
+        "https://u:p@x.test",
+        "ftp://x.test",
+        # Any userinfo is refused, including an empty user name or empty credentials.
+        "https://:secret@example.test/x",
+        "https://u@example.test/x",
+        "http://:@example.test/",
+        "https://@example.test/x",
+    ],
 )
 def test_unsafe_urls_are_dropped(url):
     assert safe_url(url) is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.test",
+        "https://example.test/path?q=a@b&r=1#frag@x",
+        "http://example.test:8080/x/y.hwp",
+        "https://www.example.test/%EC%9E%A5%ED%95%99",
+    ],
+)
+def test_standard_urls_are_kept(url):
+    assert safe_url(url) == url
 
 
 def test_detail_never_returns_unsafe_links(world):
