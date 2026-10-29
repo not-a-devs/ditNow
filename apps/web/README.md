@@ -4,7 +4,7 @@ TASK-B-WEB-SHELL · React + TypeScript + Vite + Tailwind CSS 신규 앱이다. �
 
 ## 실행
 
-Node.js 22.12 이상(22 계열) 또는 24 이상을 사용한다.
+Node.js 22.12 이상(22 계열) 또는 24 이상을 사용한다. DB 제품은 DEC-016의 MariaDB이며 이 앱은 DB에 직접 연결하지 않는다.
 
 ```text
 cd apps/web

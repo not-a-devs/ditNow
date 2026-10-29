@@ -16,6 +16,8 @@
 ## 2. 현재 코드 진입점
 | 영역 | 현재 경로 | 확인할 내용 |
 | --- | --- | --- |
+| 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 통합 홈·9개 영역 탐색·공개 연결 확인. 업무 기능은 모듈 통합 전 안내 상태 |
+| 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 현재 공개 서버 계약만 반영 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
 | 학생 홈·시간표 | `mvp/src/features/home/` | 현재 학생 UI |
 | 로그인 UI | `mvp/src/features/auth/` | 시연 인증 UI |
@@ -34,29 +36,33 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 
 실제 공개 API 스냅샷은 `services/api/openapi.json`, 내보내기/드리프트 검사는 `services/api/app/export_openapi.py`다. 프런트 타입은 `mvp/scripts/api-types.mjs`로 `mvp/src/shared/api/schema.d.ts`에 생성한다. 제안 상태의 인증·도메인 API는 스냅샷에 추가하지 않는다.
 
+신규 웹의 독립 생성기는 `apps/web/scripts/api-types.mjs`, 생성 결과는 `apps/web/src/lib/generated/api.d.ts`다. 실행과 구현 한계는 `apps/web/README.md`, 셸·전송 계층 테스트는 `apps/web/src/App.test.tsx`, `apps/web/src/lib/api.test.ts`를 본다.
+
 현재 main의 `chatbot/`과 `services/api/`는 각각 `app` 패키지여서 독립 환경이 필요하다. F 작업이 패키지 import와 공개 검색을 단계적으로 통합한다. DB 선택 근거는 사용자 DEC-016이며 기존 demo 세션은 공통 인증 승인 근거가 아니다. 외부 LLM·실DB·배포는 미검증이다.
 
 ## 3. 현재 도구와 제안된 모노레포 영역
 - 현재 `scripts/check-agent-config.mjs`: 탐색 경로와 스킬 구조 검사.
 - 현재 `.github/workflows/mvp-ci.yml`: 사전 프로토타입 보존 회귀; 최종 앱 완료 증거 아님.
+- 현재 `.github/workflows/web-ci.yml`: 신규 웹의 잠금 설치·OpenAPI 타입 일치·타입·테스트·빌드·운영 의존성 보안 검사.
 - 현재 `.github/workflows/python-api-ci.yml`: PR/main의 Python 3.13 잠금 설치·Ruff·pytest·앱 import/OpenAPI 생성·에이전트 설정 검사. 두 워크플로가 같은 PR HEAD에서 성공해야 한다.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반.
 - 현재 `scripts/check-feature-progress.mjs`: 92개 FR 집합·중복·계층 상태·TC/DB/RBAC 연결 검사.
-- 별도 작업 브랜치: `apps/web/` 신규 작성, 공통 MariaDB 모델/인증 dependency, feature별 API/UI 및 RAG adapter. main 구현으로 집계하지 않는다. 브랜치와 소유 범위는 병렬 보드를 본다.
+- 현재 `apps/web/`: 기존 코드를 복사하지 않은 통합 탐색 셸. 공통 MariaDB 모델/인증 dependency, feature별 API/UI 및 RAG adapter는 별도 브랜치 작업 중이다. 브랜치와 소유 범위는 병렬 보드를 본다.
 
 **주의:** MariaDB는 확정이다. 클라우드 접속·인증·호스팅/비용·관리자 권한은 OPEN-002/003 게이트를 유지한다.
 
 ## 4. 작업 유형별 먼저 읽을 자료
 - 대학 사이트 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`, `docs/15_PLATFORM_BASELINE.md`, `docs/research/`.
 - 기능 기획/정합성: `docs/11_DECISION_LOG.md`, `docs/v1-draft/02_FRD.md`, `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`, `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`.
-- 신규 프런트 UI: B 작업 브랜치의 apps/web과 `docs/v1-draft/07_IA_UX.md`. mvp 구현 참조·복사 금지.
+- 신규 프런트 UI: `apps/web/README.md`, `apps/web/src/`, `docs/v1-draft/07_IA_UX.md`. mvp 구현 참조·복사 금지.
 - 인증/권한/익명/공식 채널: `docs/v1-draft/04_RBAC.md`, `docs/v1-draft/03_NFR.md`, 승인 대기 PR #13과 A 작업 브랜치. 프로토타입 API는 보안 권위가 아니다.
 - DB/API 신규 구현: `docs/v1-draft/05_DB_API.md`, `docs/v1-draft/06_ARCHITECTURE.md`, `docs/v1-draft/04_RBAC.md`; 기존 mock과 서버를 혼동하지 않는다.
 - 릴리스/QA: `docs/v1-draft/08_TEST_QA.md`, `docs/09_RELEASE_SCOPE.md`, `docs/12_HACKATHON_GATE.md`.
 
 ## 5. 현재 확인된 검증 명령
+- `cd apps/web` 후 `npm ci`, `npm run api:types:check`, `npm run typecheck`, `npm test`, `npm run build`, `npm audit --audit-level=moderate`
 - `cd mvp && npm ci`
 - `cd mvp && npm run typecheck`
 - `cd mvp && npm run build`
