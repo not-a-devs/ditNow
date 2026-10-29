@@ -90,6 +90,11 @@ def test_parse_sources_strips_ids_in_body() -> None:
     assert mixed == "데이터베이스(담당 한교수)와 (3학점) 수업"
     bare, _ = parse_sources("금요일에 GE101 수업이 있어요. GE1010호 아님", {"GE101"})
     assert bare == "금요일에 수업이 있어요. GE1010호 아님"
+    meta, _ = parse_sources(
+        "총 4과목이에요. 근거 문서의 id는 CS201, GE101이에요.\n[근거: CS201, GE101]",
+        {"CS201", "GE101"},
+    )
+    assert meta == "총 4과목이에요."
     plain, ids = parse_sources("4과목이에요.\n근거: CS201, CS205", {"CS201", "CS205"})
     assert (plain, ids) == ("4과목이에요.", ["CS201", "CS205"])  # 대괄호 없는 근거 줄
 

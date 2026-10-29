@@ -72,6 +72,11 @@ def test_every_intent_has_handler() -> None:
         ("목요일 수업 몇시야", "day_classes"),  # 요일이 있으면 다음 수업보다 시간표
         ("다음 수업 시간표", "next_class"),
         ("자료구조 강의실 어디야", "next_class"),
+        (
+            "웹프로그래밍 강의실은 어디야?",
+            "next_class",
+        ),  # 조사가 붙어도 (후속 질문 재작성에서 발견)
+        ("오늘은 수업 뭐 있어", "day_classes"),
         ("졸업학점 몇 학점 남았어?", "remaining_credits"),
         ("졸업까지 얼마나 남았지", "remaining_credits"),
         ("이따 수업 몇 시야?", "next_class"),  # '수업'은 교무부 별칭이라 campus로 새던 표현
@@ -208,6 +213,15 @@ def test_day_classes(
 ) -> None:
     blocks, _ = day_classes(*students["20231001"], campus_data, _q(question=question, day=day))
     assert _ids(blocks) == expected and f"{label} 수업" in blocks[0]
+
+
+def test_day_classes_named_course_not_that_day(students: Bundles, campus_data: CampusData) -> None:
+    """과목을 콕 집었는데 그날 수업이 없으면, 없다고 밝히고 그 과목의 일주일을 보여 준다."""
+    blocks, _ = day_classes(
+        *students["20231001"], campus_data, _q(question="내일 웹프로그래밍 강의실", day="목")
+    )
+    assert blocks[0] == "[my_timetable] 목요일에는 웹프로그래밍 수업이 없습니다."
+    assert _ids(blocks)[1:] == ["CS205"] and "미래관 401호" in blocks[1]
 
 
 def test_day_classes_none(students: Bundles, campus_data: CampusData) -> None:

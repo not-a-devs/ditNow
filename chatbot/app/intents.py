@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.llm import ChatMessage, LLMClient, LLMError
 from app.prompt import CLASSIFY_PROMPT
 from app.retriever.base import Retriever
-from app.retriever.keyword import normalize
+from app.retriever.keyword import normalize, tokenize
 from app.schemas import WEEKDAYS
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,8 @@ def extract_day(question: str) -> str | None:
 
 def classify_keywords(question: str) -> str | None:
     """규칙에 맞는 의도. 어떤 규칙에도 안 맞으면 None."""
-    compact = normalize(question).replace(" ", "")
+    # 단어 끝 조사를 떼야 '강의실은 어디야'가 '강의실어디' 규칙에 맞는다
+    compact = "".join(tokenize(question))
     for keyword, intent in RULES:
         if all(part in compact for part in keyword.split("+")):
             return intent

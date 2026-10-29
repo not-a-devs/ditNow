@@ -125,13 +125,24 @@ def day_classes(student: Student, sd: StudentData, campus: CampusData, q: Person
         label = f"{q.day if q.day in _RELATIVE_DAYS else '오늘'}({days[0]}요일)"
     else:
         label = f"{days[0]}요일"
-    picked = sorted(
-        (cs for cs in _classes(named or courses) if cs[1].day in days),
-        key=lambda cs: (WEEKDAYS.index(cs[1].day), cs[1].start),
-    )
+
+    def on(day_list: list[str]) -> list[tuple[Course, ClassSession]]:
+        return sorted(
+            (cs for cs in _classes(named or courses) if cs[1].day in day_list),
+            key=lambda cs: (WEEKDAYS.index(cs[1].day), cs[1].start),
+        )
+
+    picked = on(days)
+    blocks = []
+    if not picked and named:
+        # '내일 웹프 강의실'처럼 과목을 집었는데 그날 수업이 없으면 그 과목 일주일을 보여 준다
+        blocks.append(
+            f"[my_timetable] {label}에는 {', '.join(c.name for c in named)} 수업이 없습니다."
+        )
+        label, picked = "이번 주", on(WEEKDAYS)
     if not picked:
         return [f"[my_timetable] {label} {student.name} 학생의 수업이 없습니다."], []
-    blocks = [_describe(c, s, campus, f"{label} 수업") for c, s in picked]
+    blocks += [_describe(c, s, campus, f"{label} 수업") for c, s in picked]
     return blocks, [loc for c, s in picked for loc in _location(c, s, campus)]
 
 

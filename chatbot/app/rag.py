@@ -38,6 +38,11 @@ def parse_sources(raw: str, allowed: set[str]) -> tuple[str, list[str]]:
             if doc_id in allowed and doc_id not in ids:
                 ids.append(doc_id)
     answer = _SOURCES_LINE.sub("", raw)
+    # '근거 문서의 id는 CS201…이에요'처럼 근거를 본문 문장으로 쓰면 그 문장을 뺀다
+    answer = "\n".join(
+        " ".join(s for s in re.split(r"(?<=[.!?])\s+", line) if "근거" not in s)
+        for line in answer.splitlines()
+    )
     if allowed:
         names = "|".join(re.escape(i) for i in sorted(allowed, key=len, reverse=True))
         answer = re.sub(rf"\s*[(\[](?:{names})[)\]]", "", answer)  # '자료구조(CS201)'
