@@ -99,11 +99,16 @@ DIT NOW 통합 플랫폼(FastAPI 백엔드 + RAG 챗봇)이 함께 쓰는 MariaD
     ├── db-client.sh        서비스 계정으로 TCP 접속 테스트
     ├── backup.sh           논리 백업 (gzip, 600, 보관기간 자동 정리)
     ├── restore-test.sh     백업을 테스트 DB로 복원 검증
+    ├── gen-tls.sh          팀 CA 생성 + 서버 TLS 인증서 발급 (8.1.1)
     └── export-role-env.sh  역할별 연결 정보 파일 생성 (secrets/)
 
 # 서버에만 존재 (git 제외)
 .env                        실제 설정과 비밀번호 (600)
 secrets/*.env               역할별 연결 정보 (600)
+secrets/tls/ca-key.pem      CA 개인키 (600) — 절대 배포 금지
+tls/ca.pem                  CA 인증서 — 클라이언트에 배포 (공개 가능)
+tls/server-*.pem            서버 인증서/개인키 (개인키는 컨테이너 mysql 사용자 전용)
+conf/tls.cnf                gen-tls.sh가 생성하는 TLS 설정
 backups/*.sql.gz            백업 파일 (600)
 LOCAL_OPS.md                서버 고유 운영 메모 (IP, tailnet 등)
 ```
@@ -397,8 +402,54 @@ DBeaver/HeidiSQL 등은 연결 설정의 "SSH 터널" 탭에 같은 정보를 �
 ### 8.1.1 전송 암호화 (TLS)
 
 - 원격 구간은 **Tailscale(WireGuard)로 암호화**됩니다.
-- MariaDB 11.4는 기동 시 **자체 서명 인증서로 TLS를 자동 활성화**합니다(TLSv1.2/1.3, 확인 시 TLSv1.3 사용). 클라이언트에서 `SHOW STATUS LIKE 'Ssl_version'`으로 확인할 수 있습니다.
-- 다만 이 인증서는 CA가 발급한 것이 아니어서 **클라이언트의 인증서 검증(verify)은 아직 설정되지 않았습니다.** CA 검증이 필요하면 팀 CA로 서버 인증서를 발급해 `conf/`에 `ssl_cert`/`ssl_key`/`ssl_ca`를 추가하고 클라이언트에 CA를 배포합니다(OPEN-002 후속). 검증 실패를 이유로 검증을 끄는 방식으로 우회하지 않습니다.
+- 추가로 MariaDB 자체 TLS를 **팀 사설 CA로 발급한 서버 인증서**로 운영하고, 클라이언트는 CA 인증서(`ca.pem`)로 서버를 검증합니다.
+  `scripts/gen-tls.sh`를 실행하지 않은 서버는 MariaDB 11.4가 만든 임시 자체서명 인증서를 쓰므로 검증할 수 없습니다.
+
+#### 서버: CA·인증서 발급과 적용
+
+```sh
+# .env — 클라이언트가 접속에 쓰는 모든 이름/주소를 넣는다 (여기 없는 이름으로 접속하면 검증 실패)
+DB_TLS_SANS=DNS:localhost,IP:127.0.0.1,IP:<Tailscale IPv4>,IP:<Tailscale IPv6>,DNS:<MagicDNS 이름>
+
+scripts/gen-tls.sh                  # 최초 실행 시 CA 생성(10년), 서버 인증서 발급(825일), conf/tls.cnf 생성
+docker compose up -d                # 컨테이너 재생성으로 적용 (데이터 유지, 수 초 중단)
+scripts/db-root.sh -e "SHOW VARIABLES LIKE 'ssl_%';"   # ssl_ca/ssl_cert/ssl_key 경로 확인
+```
+
+- CA는 한 번 만들면 재사용합니다. 서버 인증서 갱신이나 접속 이름 추가는 `DB_TLS_SANS` 수정 → `gen-tls.sh` → `docker compose up -d`. **클라이언트의 `ca.pem`은 바꿀 필요가 없습니다.**
+- `secrets/tls/ca-key.pem`이 유출되면 누구든 이 DB 서버를 사칭하는 인증서를 만들 수 있습니다. 서버 밖으로 꺼내지 말고, 유출이 의심되면 `secrets/tls/`와 `tls/`의 pem을 지우고 재발급한 뒤 새 `ca.pem`을 다시 배포합니다.
+- 서버 인증서 만료일 확인: `openssl x509 -in tls/server-cert.pem -noout -enddate`
+
+#### 클라이언트: `ca.pem` 배포와 검증 설정
+
+`tls/ca.pem`은 **공개 정보**라 팀 채널이나 저장소 밖의 공유 위치로 전달해도 됩니다(개인키 아님). 받은 뒤 지문을 서버 값과 비교하세요.
+
+```sh
+openssl x509 -in ca.pem -noout -fingerprint -sha256      # 서버에서 같은 명령으로 출력한 값과 일치해야 함
+```
+
+| 클라이언트 | 설정 |
+|---|---|
+| mariadb CLI | `mariadb -h <host> -P 3307 -u ditnow_app -p --ssl-ca=ca.pem --ssl-verify-server-cert` |
+| DBeaver | 연결 설정 → SSL 탭: Use SSL, CA Certificate=`ca.pem`, **Verify server certificate 체크** |
+| HeidiSQL (Windows) | 세션 설정 → SSL 탭: Use SSL, SSL CA certificate=`ca.pem` |
+| Python (aiomysql / SQLAlchemy async) | 아래 예시 |
+
+```python
+import ssl
+from sqlalchemy.ext.asyncio import create_async_engine
+
+tls = ssl.create_default_context(cafile="/run/secrets/ditnow-db-ca.pem")  # 호스트명 검증 + 체인 검증 기본 활성
+engine = create_async_engine(
+    "mysql+aiomysql://ditnow_app:<pw>@<host>:3307/ditnow?charset=utf8mb4",
+    connect_args={"ssl": tls},
+    pool_pre_ping=True, pool_recycle=1800,
+)
+```
+
+- 접속 호스트는 `DB_TLS_SANS`에 들어 있는 이름/주소를 그대로 써야 합니다(예: Tailscale IP 또는 MagicDNS 이름).
+- `check_hostname=False`, `CERT_NONE`, DBeaver의 검증 해제 등 **검증을 끄는 방식으로 오류를 우회하지 않습니다.**
+- 모든 클라이언트가 TLS로 접속하게 되면 `conf/tls.cnf`의 `require_secure_transport = ON` 주석을 해제해 평문 접속을 막습니다.
 
 ### 8.2 역할별 연결 파일 만들기 (서버에서)
 

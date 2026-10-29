@@ -111,10 +111,12 @@
 | Frontend | React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, Vitest + Testing Library, openapi-typescript (API 타입 자동 생성) |
 | Backend | Python 3.13, FastAPI, Pydantic v2, uv (잠금 설치), Ruff, pytest |
 | AI · RAG | 키워드·별칭·자모 오타 검색(RapidFuzz), LLM 의도 분류·답변 생성 (OpenAI / OpenAI 호환 학교 서버 / Anthropic 중 `.env`로 선택) |
-| Database | MariaDB 11.4 (utf8mb4), SQLAlchemy 2.0 async + aiomysql (학번 로그인·학적) |
+| Database | MariaDB 11.4.13 (utf8mb4), SQLAlchemy async + aiomysql. 원격 읽기·직접 GRANT 확인, 엄격 async TLS는 CA/SAN 대기 |
 | Infra | Docker Compose, Proxmox VM (Ubuntu 24.04), Tailscale 사설망 |
 | CI | GitHub Actions: 신규 웹, Python API, 챗봇, 프로토타입 검증 워크플로 4개 |
 | 개발 도구 | Claude Code, Codex, Git / GitHub |
+
+학번 로그인 선택은 DEC-020에 기록되어 있지만 공통 UUID·현재 권한·실DB 연결 완료를 뜻하지 않습니다. 원격 migration·CRUD 쓰기·백업은 미검증이며 인증서 검증을 해제하지 않습니다. 통합 API는 `DIT_API_` 환경 변수를 사용하고 `.env`를 자동으로 읽지 않습니다. 기존 standalone 챗봇 설정과 구분하며 [현재 DB 검사](docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)를 따릅니다.
 
 <br>
 
