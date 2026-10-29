@@ -17,7 +17,7 @@
 ## 2. 현재 코드 진입점
 | 영역 | 현재 경로 | 확인할 내용 |
 | --- | --- | --- |
-| 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 통합 홈·9개 영역 탐색·공개 연결 확인. 업무 기능은 모듈 통합 전 안내 상태 |
+| 신규 통합 웹 | `apps/web/package.json`, `apps/web/src/main.tsx`, `apps/web/src/App.tsx` | 통합 홈 포함 11개 메뉴 탐색·공개 연결 확인. 업무 기능은 모듈 통합 전 안내 상태 |
 | 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 현재 공개 서버 계약만 반영 |
 | 신규 앱의 캠퍼스 안내 | `apps/web/src/features/ai/index.tsx`, `services/api/app/api/v1/ai.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색. 기존 검색기 재사용, 개인 원장·LLM 생성·운영 배포는 미검증 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
@@ -32,6 +32,7 @@
 | 모의 저장소·시드 | `mvp/src/shared/data/store.ts`, `mvp/src/shared/data/seed.ts` | localStorage 및 테스트 데이터 |
 | 학번 로그인·AI 답변 | `services/api/app/api/v1/auth.py`, `services/api/app/integrations/chatbot/assistant.py`, `services/api/app/seed_demo.py` | `/api/v1/auth/login`·`/api/v1/ai/ask`. 챗봇 의도 분류·개인 질문·LLM을 패키지로 재사용, 가상 학적(DEMO), 시작 시 DDL 없음(DEC-020) |
 | 공개 대학·학과 안내 | `services/api/app/features/public_campus/`, `apps/web/src/features/public-campus/` | 공식 근거 7건의 편집 요약 목록·검색·필터·상세, 운영 업무 전체와 구분 |
+| 공개 통합 검색 | `services/api/app/features/discovery/`, `apps/web/src/features/discovery/` | `/app/search`에서 기존 공개 안내/시설 서비스 조합·종류 필터·집계·상세 이동. 개인 검색 없음 |
 | 통합 RAG 구성요소 | `chatbot/README.md`, `chatbot/pyproject.toml`, `chatbot/app/retriever/keyword.py` | 설치 가능한 패키지와 공개 검색 통합. 기존 별도 로그인·관리자·개인 DB는 통합 경로에 mount하지 않음 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.

@@ -20,7 +20,7 @@ function detailPath(path: unknown, kind: string, id: string): path is string {
     const key = kind === 'guide' ? 'guide' : 'q';
     return path.startsWith(`${expected}?`) && url.pathname === expected
       && [...url.searchParams.keys()].length === 1 && url.searchParams.has(key)
-      && (kind === 'guide' ? url.searchParams.get(key) === id.slice(6) : text(url.searchParams.get(key), 500));
+      && (kind === 'guide' ? url.searchParams.get(key) === id.slice(6) : text(url.searchParams.get(key), 200));
   } catch { return false; }
 }
 

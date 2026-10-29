@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings
 from app.core.errors import ApiError
 from app.factory import create_app
-from app.features.discovery.router import router
 from app.features.discovery.service import DiscoveryService, get_discovery_service
 from app.features.public_campus.models import PublicGuide, PublicSnapshot, SourceEvidence
 from app.features.public_campus.service import PublicCampusService
@@ -113,6 +112,13 @@ def test_invalid_or_duplicate_facility_ids_are_not_linked_or_miscounted():
     assert page.total == 1 and not page.complete
 
 
+@pytest.mark.parametrize("name", ["x" * 201, "\u200bhidden", "   "])
+def test_facility_links_respect_destination_query_limits(name):
+    facilities = Facilities([hit(0).model_copy(update={"name": name})])
+    page = service(facilities=facilities).search("가상", "facility", 0, 20)
+    assert page.items == [] and not page.complete
+
+
 def test_empty_and_out_of_range_page_have_consistent_counts():
     empty = service(facilities=Facilities([])).search("찾을수없는가상어", "all", 0, 8)
     assert empty.items == [] and empty.total == 0
@@ -139,7 +145,6 @@ def test_invalid_queries_are_rejected(query):
 )
 def test_http_input_uses_common_validation_error(params):
     app = create_app(Settings(environment="test"))
-    app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_discovery_service] = service
     with TestClient(app) as client:
         response = client.get("/api/v1/discovery", params=params)
@@ -149,7 +154,6 @@ def test_http_input_uses_common_validation_error(params):
 
 def test_http_envelope_is_public_only_and_missing_provider_returns_safe_503():
     app = create_app(Settings(environment="test"))
-    app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_discovery_service] = service
     with TestClient(app) as client:
         response = client.get("/api/v1/discovery", params={"q": "library"})

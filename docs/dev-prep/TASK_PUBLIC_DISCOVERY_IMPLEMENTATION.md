@@ -22,7 +22,7 @@
 - `generated=false`, `personal_data_access=false` 고정. 외부 source URI를 API가 fetch하지 않는다.
 - 상세 경로는 서버가 고정한 `/app/information?guide=<encoded ID>` 또는 `/app/ai?q=<encoded name>`뿐이다. 프런트도 경로·단일 파라미터·종류와 근거의 일치를 검증한다.
 
-공통 router와 App·navigation·OpenAPI·NAV는 공유 소유자가 통합한다. 대상 대학/시설 화면의 query 초기값 처리 역시 공유 소유자 범위다. 이 모듈 단독 커밋 시점의 실제 앱 탐색 통합·브라우저 전체 여정은 **NOT_RUN**이며, 공유 통합 후 다시 검사해야 한다.
+공통 router와 App·navigation·OpenAPI·NAV는 root가 통합했다. `/app/search`에서 실제 GET API를 호출하며 대학/시설 화면의 query 초기값 처리도 연결했다. 개인 검색·인증·DB는 연결하지 않는다.
 
 ## 파일과 상태
 
@@ -31,7 +31,7 @@
 | `services/api/app/features/discovery/` | 공개 서비스 조합, DTO, dependency router | IMPLEMENTED / TESTED(전용 테스트 앱) |
 | `services/api/tests/test_discovery.py` | 정규화·전역 정렬/페이지·100개 상한·근거·400/503 | TESTED |
 | `apps/web/src/features/discovery/` | 검색 폼·필터·집계·근거·내부 링크·재시도·검증 | IMPLEMENTED / TESTED(Vitest) |
-| 공유 router/App와 대상 deep link | 신규 앱 실제 진입/이동 | 통합 담당자 작업 |
+| 공유 router/App와 대상 deep link | 신규 앱 실제 진입/이동 | IMPLEMENTED / TESTED(로컬 API·실제 브라우저) |
 
 요청은 공통 `requestData('/discovery?...')`로 API prefix를 한 번 적용한다. 결과 도착 시 제목으로 focus를 이동하고, 진행/빈/오류 상태를 구분한다. 실패 재시도와 페이지 이동은 적용된 검색을 유지하며 수정 중인 입력 초안을 덮어쓰지 않는다. 화면 이탈·새 요청 시 이전 요청을 취소하고 늦은 응답을 무시한다. 원본 예외나 잘못된 응답을 화면에 표시하지 않는다.
 
@@ -41,5 +41,15 @@
 - FE 전용 Vitest 15개 성공: 입력/폼 제출, 근거 차이, 내부 링크, 재시도 초안 보존, 페이지 검색 유지, 빈/로딩/취소, 응답·출처·집계·링크 위장 거부, 실제 공통 client의 prefix 계산.
 - 실제 브라우저 390/1280·keyboard: 모듈 단독 시점 **NOT_RUN**, 공유 통합 후 담당자 검사 필요.
 - 원격 DB/실제 신원/배포/개인 검색: **NOT_RUN / 범위 밖**.
+
+## 공유 통합과 독립 검증
+
+root는 신규 `/app/search`·11개 메뉴 탐색, 실제 API 전역 mount, OpenAPI·생성 타입 및 두 상세 링크 대상을 연결했다. 안내 ID는 allowlist·80자, 시설 초기 검색어는200자·제어 문자 거부를 적용한다. 시설 결과도 대상 검색어 한도를 넘거나 잘못된 이름이면 제외하고 `complete=false`로 표시한다. 데이터 원본은 복제하지 않았다.
+
+- Codex F: 원본 모듈 BE18·FE15 직접 PASS·공개 자료/근거/개인 접근 없음 독립 리뷰. q200 정합·초점 여백 권고를 root가 반영했다(추가 BE3 경계 회귀 PASS).
+- Codex B: root 공유 변경의 FE44 직접 PASS, 고정 경로/상세 ID·취소·신규 mount·snapshot 정합 독립 리뷰. 파일 수정 없음.
+- root 초기 공유 통합: API514·FE200·타입·빌드·audit0·OpenAPI/타입 갱신 PASS. 이후 최신 main 합성은 PR 새 HEAD CI와 구분해서 확인한다.
+- root 실제 Chromium 390/1280: 신규 검색→대학 자체 상세→목록 복귀, 시설 검색→AI 시설 화면의 검색어/실제 결과, 한글 종류 필터·빈 결과·503 안전 오류/동일 요청 재시도·초점·가로 넘침 없음·pageerror0 PASS. POST405와 비허용 origin의 CORS 헤더 부재 확인. 처음 두 브라우저 시도는 검사 스크립트의 label/정확한 시설명 선택자가 틀려 실패했고 이를 실제 DOM/자료에 맞춰 수정한 후 성공했다.
+- 전체 FR-HOME-002는 PARTIAL이다. 보호 자료 통합 검색·공통 로그인·실DB·운영 배포 완료 증거가 아니다.
 
 PR 최종 HEAD에서 전체 API/웹 회귀·정적 검사·타입·빌드와 실제 CI를 다시 확인한다. 독립 AI 리뷰는 사람의 정책 승인을 대신하지 않는다.

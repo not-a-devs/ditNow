@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 describe('integrated campus shell', () => {
+  it('connects global search to the public feature without exposing personal records', () => {
+    window.history.replaceState(null, '', '/app/search');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: '통합 검색' })).toBeInTheDocument();
+    expect(screen.getByText(/개인 시간표·성적·신청·대화 검색은 아직/)).toBeInTheDocument();
+  });
   it('connects the public information menu to the live API namespace', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {
       items: [], total: 0, offset: 0, limit: 6,
@@ -26,7 +32,7 @@ describe('integrated campus shell', () => {
     render(<App />);
     expect(screen.getByText('로그인되지 않음')).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
-    expect(within(menu).getAllByRole('link')).toHaveLength(10);
+    expect(within(menu).getAllByRole('link')).toHaveLength(11);
     expect(screen.getByRole('heading', { name: /이번 학기도,\s*나답게\./ })).toBeInTheDocument();
   });
   it('changes route and clearly marks unfinished functionality', () => {

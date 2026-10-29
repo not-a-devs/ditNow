@@ -68,7 +68,13 @@ class DiscoveryService:
             complete = len(result.hits) <= FACILITY_CANDIDATE_LIMIT
             seen = set()
             for hit in result.hits[:FACILITY_CANDIDATE_LIMIT]:
-                if not _SOURCE_ID.fullmatch(hit.source_id) or hit.source_id in seen:
+                if (
+                    not _SOURCE_ID.fullmatch(hit.source_id)
+                    or hit.source_id in seen
+                    or not hit.name.strip()
+                    or len(hit.name) > 200
+                    or any(unicodedata.category(c) in {"Cc", "Cf", "Cs"} for c in hit.name)
+                ):
                     complete = False
                     continue
                 seen.add(hit.source_id)
