@@ -111,7 +111,7 @@
 | Frontend | React 19, TypeScript 5.9, Vite 8, Tailwind CSS 4, Vitest + Testing Library, openapi-typescript (API 타입 자동 생성) |
 | Backend | Python 3.13, FastAPI, Pydantic v2, uv (잠금 설치), Ruff, pytest |
 | AI · RAG | 키워드·별칭·자모 오타 검색(RapidFuzz), LLM 의도 분류·답변 생성 (OpenAI / OpenAI 호환 학교 서버 / Anthropic 중 `.env`로 선택) |
-| Database | MariaDB 11.4.13 (utf8mb4), SQLAlchemy async + aiomysql. 원격 읽기·직접 GRANT 확인, 엄격 async TLS는 CA/SAN 대기 |
+| Database | MariaDB 11.4.13 (utf8mb4), SQLAlchemy async + aiomysql. CA 지문·엄격 TLSv1.3·앱/migrator 읽기·직접 GRANT·연결 정렬 확인. 마이그레이션·공통 신원·업무 CRUD 통합 전 |
 | Infra | Docker Compose, Proxmox VM (Ubuntu 24.04), Tailscale 사설망 |
 | CI | GitHub Actions: 신규 웹, Python API, 챗봇, 프로토타입 검증 워크플로 4개 |
 | 개발 도구 | Claude Code, Codex, Git / GitHub |
