@@ -58,3 +58,40 @@ class CampusData(BaseModel):
 
     facilities: dict[str, Facility]
     buildings: dict[str, Building]
+
+
+# ── API 모델 ──────────────────────────────────────────────
+
+
+class UserLocation(BaseModel):
+    """사용자 현재 위치 (이후 길찾기용, 로그에 남기지 않음)."""
+
+    lat: float
+    lng: float
+
+
+class AskRequest(BaseModel):
+    """/ask 요청."""
+
+    question: str = Field(min_length=1, max_length=200)
+    user_location: UserLocation | None = None
+
+
+class LocationOut(BaseModel):
+    """지도에 표시할 근거 시설의 좌표."""
+
+    id: str
+    name: str
+    building: str
+    lat: float
+    lng: float
+
+
+class AskResponse(BaseModel):
+    """/ask 응답."""
+
+    answer: str
+    sources: list[str] = Field(default_factory=list)
+    locations: list[LocationOut] = Field(default_factory=list)
+    found: bool
+    latency_ms: int = 0
