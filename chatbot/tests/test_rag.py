@@ -58,6 +58,26 @@ async def test_llm_says_not_registered(
     assert res.found is False
 
 
+async def test_refusal_with_sources_is_not_found(
+    retriever: KeywordRetriever, campus_data: CampusData
+) -> None:
+    """거절하면서 [근거]를 붙여도 found=False (실제 LLM 평가에서 발견)."""
+    llm = _FixedLLM("해당 정보는 아직 등록되어 있지 않아요.\n[근거: fac_cafeteria]")
+    res = await _ask("학식 메뉴 뭐야", llm, retriever, campus_data)
+    assert res.found is False
+
+
+async def test_partial_answer_is_found(
+    retriever: KeywordRetriever, campus_data: CampusData
+) -> None:
+    """아는 부분을 답하고 일부만 등록되어 있지 않다고 하면 정상 답변."""
+    llm = _FixedLLM(
+        "학생식당은 13:50까지 운영해요. 메뉴는 아직 등록되어 있지 않아요.\n[근거: fac_cafeteria]"
+    )
+    res = await _ask("학식 몇시까지 하고 메뉴 뭐야", llm, retriever, campus_data)
+    assert res.found is True and res.sources == ["fac_cafeteria"]
+
+
 def test_parse_sources_drops_unknown_ids() -> None:
     """검색 결과에 없던 id(환각)는 버린다."""
     answer, ids = parse_sources("답입니다.\n[근거: a, ghost, a, b]", {"a", "b"})

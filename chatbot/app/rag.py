@@ -34,6 +34,14 @@ def parse_sources(raw: str, allowed: set[str]) -> tuple[str, list[str]]:
     return _SOURCES_LINE.sub("", raw).strip(), ids
 
 
+def _is_refusal(answer: str, sources: list[str]) -> bool:
+    """'등록되어 있지 않아요'만 말한 답인지. 일부만 모른다는 여러 문장 답변은 정상 답변이다."""
+    if NOT_FOUND_MARKER not in answer:
+        return False
+    sentences = [s for s in re.split(r"[.!?]\s*", answer.strip()) if s]
+    return not sources or len(sentences) == 1
+
+
 def find_locations(data: CampusData, source_ids: list[str]) -> list[LocationOut]:
     """근거 시설 중 건물 좌표가 있는 것만 지도용으로 모은다."""
     out: list[LocationOut] = []
@@ -93,7 +101,8 @@ async def answer_question(
 
     allowed = {m.group(1) for b in blocks if (m := _BLOCK_ID.match(b))}
     answer, sources = parse_sources(raw, allowed)
-    if not sources and NOT_FOUND_MARKER in answer:
+    if _is_refusal(answer, sources):
+        # 거절하면서 [근거]를 붙이는 모델도 있어, 근거 유무와 상관없이 거절로 본다
         return done(answer=answer, found=False)
     if intent == CAMPUS:
         locations = find_locations(data, sources)
