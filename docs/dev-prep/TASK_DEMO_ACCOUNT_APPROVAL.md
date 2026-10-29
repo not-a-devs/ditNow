@@ -46,6 +46,7 @@
 root가 실행 직전에 확인하고 증거의 날짜·HEAD·고정 결과 코드만 공개 보고한다. 이 문서는 원격 검증의 새로운 성공 증거가 아니다.
 
 - [ ] 승인 A의 명시 기록과 실행 HEAD를 확인했다. 현재 HEAD가 기준에서 바뀌었다면 시더·DB 모델·권한/런타임 변경을 다시 검토했다.
+- [ ] root가 합성 키 충돌의 실제 읽기 전용 조회에서 발견한 aiomysql/PyMySQL bytes 매개변수 `TypeError` 호환 보완이 병합되고 새 HEAD CI를 통과했다. 보완 브랜치의 조회 성공은 root의 별도 보고이며 문서 작성자의 원격 검증이나 계정 생성 증거가 아니다. 보완 전 기준 main으로 생성하지 않는다.
 - [ ] 접속 계정은 기존 DML 전용 `ditnow_app`이다. migrator 자격 증명을 앱/시더 환경에 넣지 않았다. 실제 GRANT 검토는 별도 운영 증거로 확인했다.
 - [ ] `DIT_API_DB_*` strict factory, 승인 CA/호스트명 검증, 인증서 검증 필수 설정을 유지했다. 연결 문제를 `verify=false`·평문 fallback·관리자 계정으로 해결하지 않는다.
 - [ ] `VERSION()`은 MariaDB 11.4, `DATABASE()`는 `ditnow`, connection collation은 `utf8mb4_unicode_ci`, `@@foreign_key_checks=1`, `@@check_constraint_checks=1`이다.
