@@ -1,7 +1,9 @@
 """챗봇 RAG(의도 분류·검색·개인 질문·LLM 답변)와 학번 로그인을 통합 API에 연결한다.
 
-챗봇 코드를 복제하지 않고 패키지 함수를 그대로 호출한다. 서버 시작 시 테이블을 만들지 않는다
-(DEC-019). 테이블 생성·가상 데이터 시드는 `python -m app.seed_demo`로 따로 실행한다.
+챗봇 코드를 복제하지 않고 패키지 함수를 그대로 호출한다. 서버 시작 시 테이블·시드를 만들지 않는다.
+legacy 학번 원장은 공통 UUID·현재 학적 bridge 승인 전이라 `environment=test`의 정확한 격리
+메모리 DB에서만 쓴다. 그 외 환경의 로그인·토큰 개인 질문은 503이며, `app.seed_demo`도 격리
+메모리 이외 대상을 연결 전에 거부한다(원격 테이블 생성·시드 명령이 아니다).
 """
 
 import time
@@ -22,6 +24,7 @@ from chatbot.app.retriever.keyword import KeywordRetriever
 from chatbot.app.schemas import CampusData, Turn
 from chatbot.app.student_repo import load_student
 from fastapi import Request
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
@@ -125,29 +128,53 @@ class Assistant:
         )
 
 
+class IntegratedLLMSettings(ChatbotSettings):
+    """통합 API가 넘긴 값만 쓰는 챗봇 설정. 환경 변수·.env·secret 파일을 읽지 않는다.
+
+    `_env_file=None`은 .env만 끄고 접두사 없는 `DATABASE_URL`·`DB_AUTO_INIT` 등은 여전히 읽으므로,
+    입력 소스를 생성자 인자로 한정한다. 필드 검증기는 그대로 실행된다.
+    """
+
+    # Sources are eagerly constructed before settings_customise_sources filters them. Disable
+    # the inherited chatbot/.env path at construction, not just at value-merging time.
+    model_config = SettingsConfigDict(env_file=None, extra="ignore", hide_input_in_errors=True)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings,)
+
+
+def chatbot_llm_settings(settings: Settings) -> IntegratedLLMSettings:
+    return IntegratedLLMSettings(
+        llm_provider=settings.llm_provider,
+        llm_model=settings.llm_model,
+        llm_api_key=settings.llm_api_key,
+        llm_base_url=settings.llm_base_url,
+        llm_timeout_sec=settings.llm_timeout_sec,
+    )
+
+
 def build_assistant(settings: Settings) -> Assistant:
     """설정에서 Assistant를 만든다. DB·LLM 연결은 실제 요청 때 맺는다."""
     with as_file(files("chatbot").joinpath("data")) as data_dir:
         campus = load_data(data_dir)
-    llm = None
-    if settings.llm_provider:
-        # _env_file=None: chatbot/.env를 읽지 않고 통합 API 설정만 쓴다
-        llm = get_llm_client(
-            ChatbotSettings(
-                _env_file=None,
-                llm_provider=settings.llm_provider,
-                llm_model=settings.llm_model,
-                llm_api_key=settings.llm_api_key.get_secret_value(),
-                llm_base_url=settings.llm_base_url,
-                llm_timeout_sec=settings.llm_timeout_sec,
-            )
-        )
+    llm = get_llm_client(chatbot_llm_settings(settings)) if settings.llm_provider else None
     url = settings.database_url.get_secret_value() if settings.database_url else ""
+    # This legacy student/session ledger has no approved common UUID/current-grant bridge.
+    # Even an approved DB engine alone must not activate it. Only isolated test memory is allowed.
+    memory_demo = settings.environment == "test" and url == "sqlite+aiosqlite:///:memory:"
     return Assistant(
         campus=campus,
         retriever=KeywordRetriever(list(campus.facilities.values())),
         llm=llm,
-        engine=make_engine(url) if url else None,
+        engine=make_engine(url) if memory_demo else None,
         semester=settings.current_semester,
         rate_limit_per_min=settings.ask_rate_limit_per_min,
     )

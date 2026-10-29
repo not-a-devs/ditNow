@@ -1,25 +1,31 @@
+import asyncio
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.db import init_db, make_engine
 from app.main import create_app
+from app.schemas import MockData
 from tests.conftest import FIXTURES, SQLITE_MEMORY
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(mock_data: MockData, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     """FakeLLMClient와 픽스처 데이터로 띄운 테스트 서버."""
     settings = Settings(
         _env_file=None,
         llm_provider="fake",
         data_dir=FIXTURES,
         mock_dir=FIXTURES / "mock",
-        database_url=SQLITE_MEMORY,  # 시작 시 테이블 생성 + 픽스처 목업 시드
+        database_url=SQLITE_MEMORY,
         admin_token="secret",
         rate_limit_per_min=3,
     )
+    engine = make_engine(SQLITE_MEMORY)
+    asyncio.run(init_db(engine, mock_data))  # 초기화는 테스트 준비 단계에서만 수행한다.
+    monkeypatch.setattr("app.main.make_engine", lambda _url, **_options: engine)
     with TestClient(create_app(settings)) as c:
         yield c
 

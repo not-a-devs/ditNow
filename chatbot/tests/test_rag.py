@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from app.llm import ChatMessage, LLMClient, LLMError
@@ -48,6 +50,19 @@ async def test_llm_failure(retriever: KeywordRetriever, campus_data: CampusData)
     """LLM이 최종 실패하면 안내 문구를 돌려준다."""
     res = await _ask("학식", _FixedLLM(LLMError("x")), retriever, campus_data)
     assert res.answer == LLM_FAILURE_ANSWER and res.sources == []
+
+
+async def test_llm_failure_logs_error_type_only(
+    retriever: KeywordRetriever, campus_data: CampusData, caplog: pytest.LogCaptureFixture
+) -> None:
+    """공급자 오류 문자열(키 일부·요청 조각)은 로그에 남기지 않고 예외 종류만 남긴다."""
+    error = LLMError("sentinel-key-hint sk-sentinel 학식 질문")
+    with caplog.at_level(logging.ERROR, logger="app.rag"):
+        res = await _ask("학식", _FixedLLM(error), retriever, campus_data)
+    assert res.answer == LLM_FAILURE_ANSWER
+    assert "LLMError" in caplog.text
+    assert "sentinel" not in caplog.text and "학식 질문" not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 async def test_llm_says_not_registered(

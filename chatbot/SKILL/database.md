@@ -1,5 +1,7 @@
 # SKILL: 데이터베이스 (MariaDB)
 
+> 최신 안전 경계: DB_AUTO_INIT=false, 런타임 DDL/자동 시드 금지. 기존 스키마를 읽기 전용으로 검사하고 부재 시 시작을 거부한다. 운영 migration/시드는 공통 플랫폼 마이그레이션 소유자와 별도 승인 계정의 작업이다. 원격 create_all/reset/중복 학생·세션 원장을 만들지 않는다. 실제 MariaDB 접속/GRANT는 미검증이며 [README](../README.md)의 TASK-F-DB-SAFETY를 따른다.
+
 > 대상 파일: `app/models.py`, `app/db.py`, `app/student_repo.py`, `app/auth.py`, `docker-compose.yml`, `scripts/seed_db.py`
 
 ## 1. 무엇이 어디에 있나
@@ -9,21 +11,20 @@
 | 학생·강의·수강 이력·졸업 기준·로그인 세션 | **MariaDB** | 학생별 조회, 런타임 쓰기(세션), 재시작해도 유지 |
 | 교내 시설·건물 (`data/*.json`) | JSON → 메모리 검색 인덱스 | 팀이 직접 편집·검증, 검색은 메모리가 빠름 |
 
-- 이 DB는 **해커톤용 원본**입니다. 학교 학사 시스템과 동기화하지 않습니다.
-- `data/mock/*.json`은 DB의 **초기 데이터(시드)** 입니다. 목업을 고치면 `seed_db.py --reset`으로 다시 넣습니다.
+- 위 학생/세션 테이블은 보존된 독립 시연 모델이다. 통합 앱의 공통 사용자·학적 원장을 대체하지 않는다. 학교 학사 시스템과 동기화하지 않는다.
+- `data/mock/*.json`은 폐기 가능한 SQLite 메모리 테스트 픽스처다. 원격 운영 DB에 시드하지 않는다.
 
 ## 2. 실행
 
 ```bash
-docker compose up -d                 # MariaDB 11.4 (localhost:3306, 외부 미노출)
-uvicorn app.main:app --reload        # DB_AUTO_INIT=true면 테이블 생성 + 비어 있으면 시드
-python scripts/seed_db.py --reset    # 목업 수정 후 다시 넣기 (로그인 세션도 지워짐)
-docker compose down                  # 중지 (데이터는 볼륨에 유지)
-docker compose down -v               # 데이터까지 삭제
+uv sync --locked --all-extras
+uv run --locked --all-extras pytest  # 명시적으로 준비한 SQLite 메모리 픽스처
+# 독립 시연 실행은 승인된 기존 스키마와 제한된 DML 계정 구성 후에만 가능하다.
+# 팀 제공 MariaDB 외 중복 컨테이너나 DB를 생성하지 않는다.
 ```
 
-- 접속: `docker exec -it ditnow-mariadb mariadb -uditnow -pditnow ditnow`
-- `.env`의 `DATABASE_URL`: `mysql+aiomysql://ditnow:ditnow@localhost:3306/ditnow?charset=utf8mb4`
+- `.env.example`의 DATABASE_URL은 사용자/암호/호스트 자리표시자와 포트 3307을 제공한다. 실제 비밀값과 내부 주소를 문서/로그에 넣지 않는다.
+- 앱 DML과 마이그레이션 계정은 분리한다. 실제 계정 인증·GRANT·스키마 버전 검증은 별도 수행 전까지 NOT_RUN이다.
 
 ## 3. 테이블
 
@@ -49,13 +50,12 @@ question_logs               질문 로그 (질문, 의도, 분류 방법, 성공
 - 처리기(`personal.py`)는 DB를 모릅니다. `load_student()`가 ORM 행을 `Student`·`StudentData`로 바꿔 넘깁니다.
 - 교내 질문에는 학생 데이터를 읽지 않습니다 (`/ask`에서 의도가 campus면 조회 생략).
 - PBKDF2 비밀번호 검증은 CPU 작업이라 `asyncio.to_thread`로 돌립니다.
-- 스키마를 바꾸면 해커톤 단계에서는 `seed_db.py --reset`으로 다시 만듭니다.
-  - 새 테이블은 서버 시작 때 자동으로 생기지만, **학생이 이미 있으면 시드를 건너뛰어 새 테이블이 비어 있습니다.** 반드시 `--reset`.
-  - `--reset`은 질문 로그·로그인 세션도 지웁니다.
-- 실서비스로 가면 Alembic 마이그레이션을 도입하세요(지금은 없음).
+- 런타임은 기존 필수 테이블만 확인한다. 이 검사는 컬럼/제약/버전/실제 최소 GRANT 검증을 대체하지 않는다.
+- `init_db`와 reset은 SQLite 메모리 테스트에서만 허용한다. 파일 DB와 MariaDB에서는 연결 전에 거부한다. `seed_db.py --reset`은 지원하지 않는다.
+- 운영 스키마 변경은 공통 소유자가 기존 데이터/백업/신원 매핑을 확인한 뒤 별도 리뷰·승인한다. 독립 시연 테이블 전체를 원격으로 생성하는 migration 명령은 제공하지 않는다.
 
 ## 5. 테스트
 
 - 테스트와 `scripts/eval.py`는 Docker 없이 **SQLite 메모리 DB**(`sqlite+aiosqlite:///:memory:`)에 같은 테이블을 만들고 픽스처를 시드합니다.
 - `tests/conftest.py`의 `db`(세션), `students`(학번 → DB에서 읽은 학생) 픽스처를 쓰세요.
-- MariaDB 전용 동작(문자셋, 연결 끊김)은 자동 테스트가 없습니다. 스키마를 바꾸면 `docker compose up -d` 후 서버를 띄워 로그인·개인 질문을 직접 확인합니다.
+- MariaDB 전용 동작(문자셋, 연결 끊김, 계정 권한)은 실제 접속이 준비된 뒤 별도로 검증한다. SQLite 테스트 성공으로 운영 DB를 검증했다고 표시하지 않는다.

@@ -27,7 +27,7 @@ async def condense(history: list[Turn], question: str, llm: LLMClient) -> str:
     try:
         raw = await llm.chat(messages, temperature=0, max_tokens=CONDENSE_MAX_TOKENS)
     except LLMError as e:
-        logger.warning("후속 질문 재작성 실패: %s", e)
+        logger.warning("후속 질문 재작성 실패: %s", type(e).__name__)
         return question
     lines = [line.strip().strip("\"'") for line in raw.strip().splitlines() if line.strip()]
     return lines[0][:MAX_QUESTION_CHARS] if lines else question
