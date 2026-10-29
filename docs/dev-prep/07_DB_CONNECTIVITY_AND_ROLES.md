@@ -10,6 +10,10 @@
 
 최신 메타데이터는 **기존 9개 InnoDB 테이블**(students/auth_sessions/courses/course_sessions/enrollments/exams/graduation_rules/graduation_rule_categories/question_logs)과 관계를 확인했다. 모든 테이블 정렬은 utf8mb4_unicode_ci다. 과거 빈 스키마 결과로 초기화하면 안 된다. 개인 행 값은 읽지 않고 테이블·열·외래키·집계 행 수만 확인했으며, 기존 사용자·세션·학적 데이터를 변경하지 않았다. 앱의 직접 GRANT는 ditnow DML 4종과 ditnow_chatbot SELECT이며 DDL은 없다. 현재 비파괴 추가 migration과 공통 신원 매핑을 검토 중이다. 사용자가 migration·CRUD 진행을 승인했지만 보안 PR 병합·파괴적 변경 승인을 뜻하지 않는다.
 
+### 실제 트랜잭션 DML 검사
+
+Codex B가 임시 진단 코드를 읽기 전용 검토했고 트리거 확인을 권고했다. root가 **별도 migrator 엄격 TLS 세션**에서 검사 대상 graduation_rules의 트리거0과 InnoDB를 확인한 뒤, **앱 계정**으로 기존 키와 겹치지 않는 UUID 접두사의 가상 행1개만 INSERT→SELECT→UPDATE→SELECT→DELETE했다. `finally`에서 전체 트랜잭션을 ROLLBACK하고 다음 트랜잭션에서 해당 행 부재를 확인해 **PASS**했다. 앱의 DML 실행·롤백 증거이며 기존 행 변경0·영구 쓰기0·DDL0이다. 개인/학생 행은 읽거나 수정하지 않았다. 이는 핵심 업무3 CRUD의 API/권한·재시작 영속성 완료 증거가 아니다. 실제 DDL 거부 시험도 아직 하지 않았다.
+
 ### CA 배치 후 오류 분리와 실제 읽기 결과
 
 | 구분 | 결과 |
@@ -19,8 +23,8 @@
 | 기본 Windows Proactor async | FAIL: OperationalError 2003 → OSError 22 → SSLWantReadError. SSLCertVerificationError는 관찰되지 않음 |
 | Windows Selector async | PASS: 기존 엄격 SQLAlchemy/aiomysql factory·앱 계정 인증·SELECT1 |
 | 실제 읽기 전용 schema 검사 | VERIFIED_TLS, MariaDB11.4·ditnow 일치, 기존 legacy 9개 테이블 존재·제안16개 테이블 없음, 개인 행 값 읽기0·쓰기0 |
-| 연결 collation | 기대 utf8mb4_unicode_ci와 불일치. SQLAlchemy dialect 초기화가 driver의 SET NAMES/COLLATE를 뒤에서 덮는 로컬 소스 확인, 접속 listener 보완 중 |
-| 운영 상태 | Windows 실행 helper/CLI·접속 collation 수정·독립 리뷰, 승인된 migration·CRUD 통합 검증 전 |
+| 연결 collation | 보완 뒤 실서버 PASS: N27ff factory의 dialect 초기화 후 listener가 utf8mb4_unicode_ci 유지. 기존 불일치 원인은 SQLAlchemy dialect의 후속 SET NAMES |
+| 운영 상태 | Windows helper·접속 listener 코드 및 오프라인 독립36개·실서버 읽기 재검증 PASS, 승인된 migration·CRUD 통합 검증 전 |
 
 앞선 진단은 체인의 모든 SSLError를 인증서 실패로 분류해 SSLWantReadError까지 포함한 **오분류**였다. 원문 예외·DSN·비밀값을 출력하지 않는 진단으로 위 유형을 분리했다. 현재 CA/SAN 불일치가 확인됐다고 주장하지 않는다. 담당자에게 요청한 서버 인증서 설정 확인과 별개로, 현재 신뢰 검증 성공 사실을 사용자에게 갱신했다.
 
@@ -42,7 +46,7 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 
 사용자가 저장소 밖 `.ditnow-secrets/mariadb-ca.pem` 배치를 알린 뒤 기본 async 검사 두 번이 실패해 반복을 중단했다. 이후 사용자가 정확한 오류 유형 진단을 요청해 무인증 TLS-only 검사와 로컬 단계별 오류 분리·다른 루프 비교를 수행했고 위 성공/호환성 결과를 확인했다. 비밀값·개인키 원문을 출력하지 않았다.
 
-**검증 해제 금지**를 유지한다. 엄격 TLS 재검사와 기존 schema 재확인을 완료했고, 리뷰된 비파괴 추가 migration→앱 DML/롤백·영속성 검사 순서로 진행한다. 기존 자료·관리자·운영 권한 변경은 별도 게이트다. 직접 GRANT 확인은 계정별 최소 권한 설계의 최종 적합성 승인과 구분한다. 새 CA로 실제 SQL 읽기는 성공했으며 원격 DDL·seed·CRUD 쓰기는 아직 없다.
+**검증 해제 금지**를 유지한다. 엄격 TLS·기존 schema·가상 행 트랜잭션 DML/롤백을 확인했고, 리뷰된 비파괴 추가 migration→업무 CRUD/영속성 검사 순서로 진행한다. 기존 자료·관리자·운영 권한 변경은 별도 게이트다. 직접 GRANT 확인은 계정별 최소 권한 설계의 최종 적합성 승인과 구분한다. 원격 DDL·seed·업무 CRUD 영구 쓰기는 아직 없다.
 
 ## 초기 확정 정보와 최초 검사 이력
 
@@ -90,8 +94,8 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 | 순서 | 검사 | 현재 |
 |---|---|---|
 | 1 | Tailscale online·대상 가시성·TCP 3307 | PASS, Codex 환경 재확인 |
-| 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | 엄격 TLS·Selector async 앱 인증/SELECT PASS; 기본 루프·연결 collation 보완 중 |
-| 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | 직접 GRANT 확인 PASS; 실제 DML·DDL 거부 시험 NOT_RUN |
+| 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | 엄격 TLS·Selector async 앱/migrator 인증 PASS, N27ff 연결 collation 보완 실검증 PASS |
+| 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | 직접 GRANT·가상 행 DML/롤백 PASS; 실제 DDL 거부 시험 NOT_RUN |
 | 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 기존 9개 테이블/관계·집계 확인 PASS; 백업·적용 NOT_RUN, PR #37 제안 검토 |
 | 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | 사용자 실행 승인 있음; 스키마 비교·보존 확인 후 수행, 현재 NOT_RUN |
 | 6 | 공통 가상 계정·두 계정 CRUD·재로그인/영속성·RAG 허용 자료만 접근 | NOT_RUN |

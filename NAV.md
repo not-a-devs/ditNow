@@ -33,6 +33,7 @@
 | 학번 로그인·AI 답변 | `services/api/app/api/v1/auth.py`, `services/api/app/integrations/chatbot/assistant.py`, `services/api/app/seed_demo.py` | `/api/v1/auth/login`·`/api/v1/ai/ask`. 챗봇 의도 분류·개인 질문·LLM을 패키지로 재사용, 가상 학적(DEMO), 시작 시 DDL 없음(DEC-020) |
 | 공개 대학·학과 안내 | `services/api/app/features/public_campus/`, `apps/web/src/features/public-campus/` | 공식 근거 7건의 편집 요약 목록·검색·필터·상세, 운영 업무 전체와 구분 |
 | 공개 통합 검색 | `services/api/app/features/discovery/`, `apps/web/src/features/discovery/` | `/app/search`에서 기존 공개 안내/시설 서비스 조합·종류 필터·집계·상세 이동. 개인 검색 없음 |
+| 협업·취업·학습 모듈 | `services/api/app/features/collaboration/`, `services/api/app/features/careers/`, `services/api/app/features/online_learning/`, `services/api/app/features/notice_discussion/` | 병합된 부분 구현. 대응 신규 FE·전용 tests·TASK 문서가 있으나 전역 보호 라우트·실DB 미연결 |
 | 통합 RAG 구성요소 | `chatbot/README.md`, `chatbot/pyproject.toml`, `chatbot/app/retriever/keyword.py` | 설치 가능한 패키지와 공개 검색 통합. 기존 별도 로그인·관리자·개인 DB는 통합 경로에 mount하지 않음 |
 
 **현재 중요한 한계:** `mvp/`는 localStorage + sessionStorage 기반 프런트 프로토타입이다. 서버 DB·인증·RLS·실시간 원격 채팅·실시간 화면 공유가 완성되었다고 주장하지 않는다. 백엔드는 실제 코드와 배포 여부를 다시 확인해야 한다.
