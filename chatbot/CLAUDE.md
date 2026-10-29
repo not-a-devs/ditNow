@@ -35,6 +35,7 @@
 | 데이터 검증 | Pydantic v2 |
 | 검색 | 키워드/별칭 매칭(rapidfuzz) + 선택적 임베딩 검색 |
 | LLM | 외부 API (공급자 교체 가능하도록 추상화) |
+| DB | MariaDB 11.4 (Docker) + SQLAlchemy 2.0 async (`aiomysql`), 테스트는 SQLite 메모리 |
 | 설정 | `.env` + `pydantic-settings` |
 | 테스트 | pytest |
 | 포맷/린트 | ruff (format + lint) |
@@ -50,13 +51,16 @@ ditnow-rag/
 ├── data/                     # 교내 데이터 JSON (원본)
 │   ├── facilities.json       # 검색 대상 (건물·학과·행정·편의시설·식당)
 │   ├── buildings.json        # 건물 주소·좌표
-│   └── mock/                 # 학생·강의·졸업기준 목업 (시연용)
+│   └── mock/                 # DB 시드용 학생·강의·수강이력·졸업기준 목업
 ├── app/
 │   ├── main.py               # FastAPI 진입점
 │   ├── config.py             # 환경설정
 │   ├── schemas.py            # Pydantic 모델 (데이터 + API)
 │   ├── data_loader.py        # JSON 로드·검증
-│   ├── auth.py               # 학번 로그인·토큰 세션
+│   ├── models.py             # DB 테이블 (SQLAlchemy ORM)
+│   ├── db.py                 # DB 연결·테이블 생성·시드
+│   ├── student_repo.py       # DB → 처리기용 학생 정보 (취득 학점 계산)
+│   ├── auth.py               # 학번 로그인·DB 토큰 세션
 │   ├── intents.py            # 질문 의도 분류
 │   ├── personal.py           # 개인 질문 처리기 (시간표·학점 계산)
 │   ├── retriever/
@@ -71,9 +75,11 @@ ditnow-rag/
 │   ├── prompt.py             # 프롬프트 템플릿
 │   └── rag.py                # 파이프라인 조립
 ├── scripts/
-│   └── eval.py               # 검색·답변 품질 평가
+│   ├── eval.py               # 검색·답변 품질 평가
+│   └── seed_db.py            # DB 테이블 생성·목업 시드
 ├── tests/
 ├── reports/                  # 평가 결과
+├── docker-compose.yml        # MariaDB
 ├── .env.example
 ├── pyproject.toml            # ruff·pytest 설정
 └── requirements.txt
@@ -94,6 +100,7 @@ ditnow-rag/
 | API 엔드포인트, React 연동, CORS | `SKILL/api-server.md` |
 | 테스트 작성, 답변 품질 평가 | `SKILL/testing.md` |
 | 개인 질문(시간표·학점), 의도 분류, 로그인·카카오 연동 | `SKILL/student-assistant.md` |
+| DB 테이블·쿼리·시드, MariaDB·Docker | `SKILL/database.md` |
 
 여러 영역에 걸친 작업이면 관련 문서를 모두 읽으세요.
 
@@ -119,6 +126,10 @@ ditnow-rag/
 python3.11 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+
+# DB (MariaDB, Docker) — 서버 시작 시 테이블 생성·목업 시드
+docker compose up -d
+python scripts/seed_db.py --reset  # 목업을 고친 뒤 다시 넣기
 
 # 서버 실행
 uvicorn app.main:app --reload --port 8000

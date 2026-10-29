@@ -1,6 +1,7 @@
 # SKILL: 학생 개인 질문 & 로그인
 
-> 대상 파일: `app/intents.py`, `app/personal.py`, `app/auth.py`, `data/mock/*.json`
+> 대상 파일: `app/intents.py`, `app/personal.py`, `app/auth.py`, `app/student_repo.py`, `data/mock/*.json`
+> 학생 데이터는 MariaDB에 있습니다. 테이블·시드는 `SKILL/database.md`.
 
 ## 1. 흐름
 
@@ -34,7 +35,7 @@
      ("오늘 수업 몇시에 끝나" → `오늘수업`이 `수업+몇시`를 이김).
    - 교내 질문과 겹치는 표현은 피하세요. `졸업`만 넣으면 "졸업증명서 어디서 뽑아"가 개인 질문이 됩니다.
 2. `personal.py`에 처리기를 쓰고 `HANDLERS`에 등록합니다.
-3. 필요하면 `data/mock/`과 `Student` 모델에 필드를 추가합니다.
+3. 새 데이터가 필요하면 `models.py`(테이블) → `data/mock/`(시드) → `student_repo.py`(조회) 순으로 추가하고 `seed_db.py --reset`.
 4. `tests/test_personal.py`에 분류·계산 테스트를, `tests/eval_personal.json`에 평가 질문을 추가합니다.
    `test_eval_questions_stay_campus`가 기존 교내 질문의 오분류를 잡아 줍니다.
 
@@ -44,22 +45,22 @@
 - 이후 요청에 `Authorization: Bearer <token>`. 로그아웃은 `POST /auth/logout`.
 - `/docs`에서 테스트할 때: `/auth/login` 실행 → 응답의 `token` 복사 → 오른쪽 위 **Authorize** 버튼에 토큰만 붙여넣기(`Bearer ` 없이).
 - 토큰은 반드시 `HTTPBearer` 보안 스킴(`main.py`의 `Credentials`)으로 받습니다. `Header()`로 받으면 Swagger가 `Authorization` 헤더를 보내지 않습니다.
-- 토큰은 서버 메모리에 12시간 보관합니다. **서버를 재시작하면 모두 로그아웃됩니다**(단일 워커 전제).
+- 토큰은 DB `auth_sessions`에 해시로 12시간 보관합니다. 서버를 재시작해도 로그인이 유지됩니다.
 
-### 시연용 목업 계정 (`data/mock/students.json`)
+### 시연용 목업 계정 (`data/mock/students.json` → DB)
 
 | 학번 | 비밀번호 | 이름 | 상황 |
 |---|---|---|---|
-| 20231001 | 3000001 | 김동의 | 컴소과 2학년, 4과목 수강 중 |
+| 20231001 | 3000001 | 김동의 | 컴소과 2학년, 4과목 수강 중, 취득 42학점(F 1과목 제외) |
 | 20241002 | 4000002 | 이과학 | 간호학과 1학년, 3과목 수강 중 |
 | 20221003 | 3000003 | 박졸업 | 컴소과, 졸업 학점 모두 충족·수강 없음 |
 
-- 비밀번호는 실제 주민번호와 겹칠 수 없는 가짜 값이며, JSON에는 **PBKDF2 해시만** 저장합니다.
+- 비밀번호는 실제 주민번호와 겹칠 수 없는 가짜 값이며, JSON·DB에는 **PBKDF2 해시만** 저장합니다.
 - 새 계정 해시 만들기: `python -c "from app.auth import hash_password; print(hash_password('비밀번호'))"`
 
 ### 카카오 로그인 (예정)
 
-- `Student.kakao_id`가 준비되어 있습니다. 카카오 OAuth로 받은 사용자 id로 학생을 찾고 `SessionStore.issue()`로 같은 토큰을 발급하면 됩니다.
+- `students.kakao_id`(UNIQUE) 컬럼이 준비되어 있습니다. 카카오 OAuth로 받은 사용자 id로 학생을 찾고 `issue_token()`으로 같은 토큰을 발급하면 됩니다.
 - 처음 연동할 때는 학번 로그인 상태에서 카카오 id를 연결하는 절차가 필요합니다.
 
 ## 5. 보안 규칙
