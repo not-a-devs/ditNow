@@ -1,4 +1,4 @@
-"""Proposed P0 contracts only. No persistence, identity verification, or routes are implemented."""
+"""P0 value contracts; MariaDB mappings are separate and no protected routes are mounted."""
 
 from datetime import UTC, datetime
 from typing import Annotated, Literal
@@ -59,6 +59,14 @@ class Identity(Record):
     subject: str = Field(min_length=1, max_length=512)
     status: Literal["pending", "active", "disabled"]
     origin: DemoOrigin
+
+
+class VerifiedSubject(ApiModel):
+    """Server-only result of a trusted verifier, never an accepted HTTP login payload."""
+
+    model_config = {"extra": "forbid", "frozen": True, "hide_input_in_errors": True}
+    issuer: str = Field(min_length=1, max_length=2048)
+    subject: str = Field(min_length=1, max_length=512)
 
 
 class Profile(ApiModel):
@@ -127,7 +135,7 @@ class AnonymousPostPublic(Record, AnonymousPostCreate):
 class RecruitmentCreate(ApiModel):
     title: str = Field(min_length=2, max_length=120)
     body: str = Field(min_length=1, max_length=5000)
-    capacity: int = Field(ge=2, le=20, description="Proposed MVP default, includes the owner")
+    capacity: int = Field(ge=2, le=20, description="Demo design default, includes the owner")
     deadline_at: UtcDateTime
     opportunity_id: UUID | None = None
 
