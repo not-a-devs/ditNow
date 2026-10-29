@@ -1,0 +1,19 @@
+.page { max-width: 52rem; margin: 0 auto; display: grid; gap: 1.5rem; }
+.page h1 { font-size: clamp(1.7rem, 5vw, 2.5rem); margin: .5rem 0; }
+.eyebrow { color: #365b47; font-size: .9rem; font-weight: 700; }
+.form { display: grid; gap: .6rem; }
+.form label { font-weight: 650; }
+.controls { display: flex; gap: .6rem; }
+.controls input { min-width: 0; flex: 1; padding: .85rem 1rem; border: 1px solid #71817a; border-radius: .7rem; background: white; color: #18352a; }
+.controls button { border: 0; border-radius: .7rem; padding: .85rem 1.1rem; color: white; background: #195641; font-weight: 700; cursor: pointer; }
+.controls button:disabled { opacity: .65; cursor: default; }
+.controls input:focus-visible, .controls button:focus-visible { outline: 3px solid #bb8b27; outline-offset: 3px; }
+.notice { color: #49594f; font-size: .9rem; line-height: 1.65; }
+.error { color: #9c2929; }
+.results { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.card { background: white; border: 1px solid #c8d2ca; border-radius: 1rem; padding: 1.25rem; overflow-wrap: anywhere; }
+.card h2 { margin: .3rem 0 .75rem; font-size: 1.25rem; }
+.card p { line-height: 1.65; }
+.card small { color: #57665b; }
+.category { margin: 0; color: #365b47; font-size: .8rem; font-weight: 700; }
+@media (max-width: 28rem) { .controls { flex-wrap: wrap; } .controls input { flex-basis: 100%; } .controls button { width: 100%; } }
