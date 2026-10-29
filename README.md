@@ -5,7 +5,7 @@
 
 > **제품 방향:** 학사·소통·수업·학생지원·AI를 포함하는 신규 통합 대학 플랫폼입니다. [92개 기능 진행표](docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)에서 화면·API·DB·테스트를 따로 추적합니다.
 >
-> **현재 구현과 경계:** [FastAPI 기반](services/api/README.md)과 [신규 웹 셸](apps/web/README.md)은 구현·단위 테스트되었고, [기존 RAG](chatbot/CLAUDE.md)는 통합 대상입니다. 신규 웹은 통합 홈·9개 영역 탐색·공개 서버 연결 확인을 제공하며, 개별 업무 기능은 모듈 통합 전 안내 상태입니다. `mvp/`는 사전 프로토타입으로 최종 서비스·시연·제출에서 제외하며 코드를 복사하지 않습니다. 실제 학교 연동·공통 로그인·MariaDB 연결·배포는 미완료입니다. [병렬 작업 보드](docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md)와 [사용자 적격성 해결 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
+> **현재 구현과 경계:** [FastAPI 기반](services/api/README.md)과 [신규 웹 셸](apps/web/README.md)은 구현·단위 테스트되었고, [공개 RAG 검색](chatbot/README.md)과 [대학·학과 안내](docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)는 통합 API·신규 앱에 연결했습니다. 신규 웹은 통합 홈을 포함한 10개 메뉴 탐색·공개 서버 연결 확인을 제공하며, 개별 업무 기능은 모듈 통합 전 안내 상태입니다. `mvp/`는 사전 프로토타입으로 최종 서비스·시연·제출에서 제외하며 코드를 복사하지 않습니다. 공통 로그인·MariaDB 운영 API 연결·배포는 미완료입니다. MariaDB11.4.13 두 계정의 직접 읽기/권한 검증은 성공했으며, 실제 비동기 API 연결은 CA/SAN 배포 전 BLOCKED_TLS입니다. [DB 검사 기록](docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)을 참고하세요. [병렬 작업 보드](docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md)와 [사용자 적격성 해결 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
 
 <br>
 

@@ -2,7 +2,27 @@
 
 2026-10-30 KST · TASK-DB-NETWORK · 관련 FR-AUTH-001/002, FR-COM-001/004, FR-OPP-004, FR-AI-001; NFR-SEC-001/002/004/005, NFR-PRIV-003, NFR-OPS-001/002. 승인 근거: 사용자가 현재 작업 대화에서 제공한 운영 정보(DEC-019). 서버 설정을 직접 확인한 사실과 구분한다.
 
-## 확정 운영 정보와 아직 확인하지 않은 사실
+## 최신 상태 — 2026-10-30 갱신
+
+**BLOCKED_TLS**. 사용자가 Windows 원격 인증·SELECT 성공을 알려준 뒤 Codex 환경에서도 Tailscale Running/online/대상 가시성, TCP 약0.08초와 MariaDB11.4.13 핸드셰이크를 다시 확인했다. 아래 초기 네트워크 차단 기록은 이력이다.
+
+DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비밀값을 주입했다. 두 계정 모두 VERSION/DATABASE/CURRENT_USER/SELECT1 성공, 현재 역할 없음, ditnow 기존 테이블 없음이 확인됐다. 비밀번호·해시·원문 GRANT·개인 레코드는 출력하지 않았다.
+
+| Codex 실제 읽기 검사 (2026-10-29 16:19 UTC) | 결과 |
+|---|---|
+| 엔진/DB | 11.4.13-MariaDB-ubu2404 / ditnow |
+| ditnow_app 직접 GRANT | USAGE; ditnow.* SELECT·INSERT·UPDATE·DELETE; ditnow_chatbot.* SELECT. 직접 DDL 없음 |
+| ditnow_migrator 직접 GRANT | ditnow.*와 ditnow_chatbot.* ALL PRIVILEGES. 런타임 주입 금지 |
+| 현재 schema | ditnow 테이블 0개, 양 계정 메타데이터 결과 일치 |
+| DB 문자/정렬 | utf8mb4 / utf8mb4_unicode_ci |
+| 진단 클라이언트 연결 정렬 | utf8mb4_uca1400_ai_ci; 실제 어댑터에서 운영 정렬과 일치 여부 검토 |
+| PyMySQL 진단 TLS | 암호화 활성. 인증서 신뢰/호스트 검증을 입증한 결과는 아님 |
+| FastAPI용 async SQLAlchemy/aiomysql 엄격 TLS | FAIL, 인증서 검증 실패를 안전한 오류로 반환 |
+| DDL·migration·seed·실제 CRUD 쓰기 | NOT_RUN, 변경 0 |
+
+사용자는 인프라 담당자에게 CA와 접속 주소 SAN을 요청했고 공개 CA를 저장소 밖 `.ditnow-secrets/mariadb-ca.pem`에 배치한 뒤 알리기로 했다. **검증 해제 금지**를 명시했다. 이후 엄격 TLS 재검사→기존 schema 재확인→리뷰된 비파괴 초기 migration→앱 DML/롤백·영속성 검사 순서로 진행한다. 기존 자료·관리자·운영 권한 변경은 별도 게이트다. 직접 GRANT 확인은 계정별 최소 권한 설계의 최종 적합성 승인과 구분한다.
+
+## 초기 확정 정보와 최초 검사 이력
 
 | 항목 | 사용자 제공 기준 | 실제 검증 |
 |---|---|---|

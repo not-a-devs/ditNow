@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 describe('integrated campus shell', () => {
+  it('connects the public information menu to the live API namespace', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {
+      items: [], total: 0, offset: 0, limit: 6,
+      snapshot_version: 'public-campus-2026-10-30-v1', notice: '공개 편집 요약',
+    } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetcher);
+    window.history.replaceState(null, '', '/app/information');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: '대학·학과 정보' })).toBeInTheDocument();
+    expect(await screen.findByText('일치하는 안내가 없습니다. 검색어나 분류를 바꿔 보세요.')).toBeInTheDocument();
+    expect(new URL(fetcher.mock.calls[0][0]).pathname).toBe('/api/v1/public-campus');
+  });
   it('connects the AI menu to the campus search feature', () => {
     window.history.replaceState(null, '', '/app/ai');
     render(<App />);
@@ -14,7 +26,7 @@ describe('integrated campus shell', () => {
     render(<App />);
     expect(screen.getByText('로그인되지 않음')).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
-    expect(within(menu).getAllByRole('link')).toHaveLength(9);
+    expect(within(menu).getAllByRole('link')).toHaveLength(10);
     expect(screen.getByRole('heading', { name: /이번 학기도,\s*나답게\./ })).toBeInTheDocument();
   });
   it('changes route and clearly marks unfinished functionality', () => {
