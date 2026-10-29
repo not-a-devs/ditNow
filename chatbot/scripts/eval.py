@@ -153,6 +153,9 @@ async def _eval_personal(
         if llm is not None and missing:
             mismatches += 1
             problems.append(f"답변에 {missing} 없음")
+        leaked = [i for i in res.sources if i in res.answer]
+        if llm is not None and leaked:
+            problems.append(f"본문에 id 노출 {leaked}")
         if llm is not None and problems:
             problems.append(f"답변: {res.answer.replace(chr(10), ' ')}")
         passed += not problems
