@@ -4,6 +4,8 @@ import { isOfferings, isQuestion, isSubmission, isWorkspace, type Assignment, ty
 import styles from './styles.module.css';
 
 type Mutation = (path: string, body: object, method?: 'POST' | 'PUT', key?: string) => Promise<unknown>;
+/** 다른 강의실/목록 조회로 대체된 쓰기. 결과와 오류를 새 화면에 반영하지 않는다. */
+class SupersededWrite extends Error {}
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 503) return '승인된 공통 인증·수강·저장소 연결이 준비되지 않았습니다. 가상 로그인으로 대체하지 않습니다.';
@@ -14,23 +16,26 @@ const localDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { dateStyl
 function AssignmentCard({ assignment, submission, student, busy, mutate, onSaved }: {
   assignment: Assignment; submission?: Submission; student: boolean; busy: boolean; mutate: Mutation; onSaved: (submission: Submission) => void;
 }) {
-  const [text, setText] = useState(submission?.text ?? '');
+  // 저장된 revision이 실제로 바뀔 때만 렌더 중 초안을 교체한다. 마운트 effect는 커밋 직후 입력한 글자를 늦게 덮어쓴다.
+  const revision = submission?.revision ?? 0;
+  const [draft, setDraft] = useState({ revision, text: submission?.text ?? '' });
+  if (draft.revision !== revision) setDraft({ revision, text: submission?.text ?? '' });
+  const text = draft.text;
   const [error, setError] = useState('');
-  useEffect(() => setText(submission?.text ?? ''), [submission?.revision]);
   async function submit(event: FormEvent) {
     event.preventDefault(); setError('');
     try {
-      const data = await mutate(`/assignments/${assignment.id}/submission`, { text, expected_revision: submission?.revision ?? 0 }, 'PUT');
+      const data = await mutate(`/assignments/${assignment.id}/submission`, { text, expected_revision: revision }, 'PUT');
       if (!isSubmission(data)) throw new Error('Invalid response');
       onSaved(data);
-    } catch (error) { setError(errorMessage(error)); }
+    } catch (error) { if (!(error instanceof SupersededWrite)) setError(errorMessage(error)); }
   }
   return <article className={styles.card}>
     <h3>{assignment.title}</h3><p>{assignment.instructions}</p><p>마감: <time dateTime={assignment.deadline_at}>{localDate(assignment.deadline_at)}</time> · {assignment.status === 'published' ? '게시됨' : assignment.status === 'draft' ? '초안' : '종료'}</p>
     {submission && <p role="status">{submission.state === 'resubmitted' ? '다시 제출한' : '제출한'} 시연 기록 · {localDate(submission.submitted_at)}</p>}
     {student && assignment.status === 'published' && <form onSubmit={submit}>
       <label htmlFor={`assignment-${assignment.id}`}>시연 텍스트 과제</label>
-      <textarea id={`assignment-${assignment.id}`} maxLength={2000} required value={text} onChange={event => setText(event.target.value)} disabled={busy} />
+      <textarea id={`assignment-${assignment.id}`} maxLength={2000} required value={text} onChange={event => { const value = event.target.value; setDraft(previous => ({ ...previous, text: value })); }} disabled={busy} />
       <p className={styles.note}>서버 시각으로 마감을 확인합니다. 파일 제출·성적 평가와 연결되지 않는 시연 텍스트입니다.</p>
       <button disabled={busy || !text.trim()}>{busy ? '저장 중…' : submission ? '다시 제출' : '시연 과제 제출'}</button>
     </form>}{error && <p role="alert">{error}</p>}
@@ -46,7 +51,7 @@ function QuestionCard({ question, teacher, busy, mutate, onSaved }: { question: 
       const data = await mutate(`/questions/${question.id}/${resolve ? 'resolve' : 'answer'}`, { expected_revision: question.revision, ...(resolve ? {} : { text: answer }) });
       if (!isQuestion(data)) throw new Error('Invalid response');
       onSaved(data);
-    } catch (error) { setError(errorMessage(error)); }
+    } catch (error) { if (!(error instanceof SupersededWrite)) setError(errorMessage(error)); }
   }
   return <article className={styles.card}>
     <span className={styles.badge}>교수에게만 · {question.state === 'open' ? '답변 대기' : question.state === 'answered' ? '답변됨' : '해결됨'}</span>
@@ -68,8 +73,13 @@ export default function ClassroomsPage() {
   const current = useRef<AbortController | null>(null);
   const writes = useRef(new Set<AbortController>());
 
+  function cancelWrites() {
+    for (const controller of writes.current) controller.abort();
+    writes.current.clear(); setBusy(false);
+  }
+
   async function load(offeringId?: string) {
-    current.current?.abort();
+    current.current?.abort(); cancelWrites();
     const controller = new AbortController(); current.current = controller;
     setPending(true); setError(''); setWorkspace(null); setQuestion('');
     key.current = { text: '', value: crypto.randomUUID() };
@@ -87,11 +97,14 @@ export default function ClassroomsPage() {
     if (!workspace) throw new ApiError('UNAVAILABLE', 503);
     const controller = new AbortController(); writes.current.add(controller); setBusy(true);
     try {
-      return await requestData<unknown>(`/classrooms/${workspace.offering.id}${path}`, {
+      const data = await requestData<unknown>(`/classrooms/${workspace.offering.id}${path}`, {
         method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }, signal: controller.signal,
       });
+      if (controller.signal.aborted) throw new SupersededWrite();
+      return data;
     } catch (error) {
-      if (!controller.signal.aborted && error instanceof ApiError && [401, 403].includes(error.status)) {
+      if (controller.signal.aborted) throw new SupersededWrite();
+      if (error instanceof ApiError && [401, 403].includes(error.status)) {
         setError(errorMessage(error)); setWorkspace(null);
       }
       throw error;
@@ -106,7 +119,7 @@ export default function ClassroomsPage() {
       if (!isQuestion(data)) throw new Error('Invalid response');
       setWorkspace(previous => previous ? { ...previous, questions: [...previous.questions.filter(q => q.id !== data.id), data] } : previous);
       setQuestion(''); key.current = { text: '', value: crypto.randomUUID() };
-    } catch (error) { setError(errorMessage(error)); }
+    } catch (error) { if (!(error instanceof SupersededWrite)) setError(errorMessage(error)); }
   }
 
   return <section className={styles.page} aria-labelledby="classrooms-title">
@@ -117,7 +130,7 @@ export default function ClassroomsPage() {
     {!pending && !workspace && offerings?.length === 0 && <p role="status">현재 승인된 강의실이 없습니다. 등록되지 않은 분반을 임의로 추가하지 않습니다.</p>}
     {!workspace && <div className={styles.grid}>{offerings?.map(offering => <button key={offering.id} className={styles.offering} disabled={pending} onClick={() => load(offering.id)}><span>{offering.term} · {offering.section}</span><strong>{offering.title}</strong><span>{offering.instructor_name} · 시연 분반</span></button>)}</div>}
     {workspace && <>
-      <button className={styles.back} disabled={busy} onClick={() => { setWorkspace(null); setError(''); }}>← 내 강의실 목록</button>
+      <button className={styles.back} disabled={busy} onClick={() => { cancelWrites(); setWorkspace(null); setError(''); }}>← 내 강의실 목록</button>
       <section className={styles.course}><span>{workspace.offering.term} · {workspace.offering.section} · {workspace.role === 'teacher' ? '담당 교수' : '수강생'} 시연 범위</span><h2>{workspace.offering.title}</h2></section>
       <section><h2>수업 자료</h2>{workspace.materials.length === 0 && <p>게시된 자료가 없습니다.</p>}{workspace.materials.map(material => <article className={styles.card} key={material.id}><h3>{material.title}</h3><p>{material.description}</p>{material.public_reference_url && <a href={material.public_reference_url} target="_blank" rel="noopener noreferrer">공개 참고 원문 열기 ↗</a>}<p className={styles.note}>파일 업로드·보호된 첨부 다운로드는 아직 제공하지 않습니다.</p></article>)}</section>
       <section><h2>과제</h2>{workspace.assignments.length === 0 && <p>게시된 과제가 없습니다.</p>}{workspace.assignments.map(assignment => <AssignmentCard key={assignment.id} assignment={assignment} submission={workspace.submissions.find(s => s.assignment_id === assignment.id)} student={workspace.role === 'student'} busy={busy} mutate={mutate} onSaved={submission => setWorkspace(previous => previous ? { ...previous, submissions: [...previous.submissions.filter(s => s.assignment_id !== submission.assignment_id), submission] } : previous)} />)}</section>
