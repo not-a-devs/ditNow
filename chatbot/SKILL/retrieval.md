@@ -9,12 +9,12 @@
 ```python
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
-from app.schemas import BaseDoc
+from app.schemas import Facility
 
 class SearchHit(BaseModel):
-    doc: BaseDoc
+    doc: Facility
     score: float          # 0.0 ~ 1.0 (높을수록 관련)
-    matched_by: str       # "alias" | "keyword" | "embedding"
+    matched_by: str       # "alias" | "fuzzy" | "keyword"
 
 class Retriever(ABC):
     @abstractmethod
@@ -24,19 +24,25 @@ class Retriever(ABC):
 
 ## 2. 검색 단계 (기본: KeywordRetriever)
 
-1. **정규화** — 공백·특수문자 제거, 소문자화, 조사 일부 제거
-   - 예: `"정보관은 어디에 있어요?"` → `"정보관 어디 있어요"`
-   - 끝에 붙는 조사(`은/는/이/가/을/를/에/에서/로`)는 단순 규칙으로 잘라냅니다. 형태소 분석기는 쓰지 않습니다(설치 부담).
-2. **별칭 정확 매칭** — 질문에 `name` 또는 `aliases`가 그대로 포함되면 `score=1.0`, `matched_by="alias"`
-3. **퍼지 매칭** — `rapidfuzz.fuzz.partial_ratio`로 `name`/`aliases`와 비교, 80점 이상이면 후보
-   - 오타 대응: "정보괸", "학생시당" 등
-4. **키워드 점수** — `to_search_text()`에 질문 단어가 몇 개 포함되는지로 보조 점수
-5. 점수 합산 후 `top_k`개 반환, **`MIN_SCORE`(기본 0.35) 미만은 버립니다**
+1. **정규화** — 소문자화, 특수문자 제거, 단어 끝 조사(`은/는/이/가/을/를/에/에서/로/으로/도`) 제거
+   - 예: `"정보관은 어디에 있어요?"` → `["정보관", "어디", "있어요"]`
+   - 형태소 분석기는 쓰지 않습니다(설치 부담).
+2. **이름·별칭 정확 매칭** (`name_score=1.0`, `matched_by="alias"`) — 이름 길이별로 엄격도가 다릅니다.
+   - 3음절 이상: 띄어쓰기를 무시하고 질문 전체에서 찾음 (`컴소과 건물` == `컴소과건물`)
+   - 2음절: **한 단어 안에서만** 찾음 (`간호학 사무실`의 `학사` 오탐 방지)
+   - 1음절(`밥`, `약`): 단어 전체가 같을 때만
+3. **퍼지 매칭** — 정확 매칭이 없을 때, 3음절 이상 이름만 대상으로
+   **자모 분해(`unicodedata` NFD) 후** `rapidfuzz.fuzz.partial_ratio` ≥ 85 이면 후보 (`matched_by="fuzzy"`)
+   - 음절 단위 비교로는 "정보괸"↔"정보관"이 67점이지만 자모로는 89점이 됩니다.
+   - 어떤 문서든 정확 매칭이 있으면 퍼지 결과는 모두 버립니다.
+4. **키워드 점수** — 질문 단어 중 `to_search_text()`에 포함된 비율
+5. `score = 0.7 * name_score + 0.3 * keyword`, **`MIN_SCORE`(기본 0.35) 미만은 버립니다**.
+   이름이 전혀 맞지 않으면 키워드만으로는 결과에 들어가지 않습니다.
+6. 동점이면 더 길게 일치한 이름이 우선합니다 (`전기자동차과` 질문 → `전기`가 아닌 `전기자동차과`).
 
 ## 3. 연관 문서 확장
 
-- 상위 결과 문서에 `related_ids`나 `contains`가 있으면 해당 문서도 함께 가져옵니다 (점수 × 0.8).
-- 예: "학식 몇 시까지?" → `sch-cafeteria` 매칭 → `fac-cafeteria`(위치)도 함께 전달
+- 아직 구현하지 않았습니다. 시설의 `text`·`building`에 위치가 이미 들어 있어 필요성이 낮습니다.
 
 ## 4. 임베딩 검색 (선택, `embedding.py`)
 
@@ -52,6 +58,6 @@ class Retriever(ABC):
 
 ## 6. 테스트 포인트
 
-- 별칭으로 정확히 찾아지는지 ("컴소과 건물" → `fac-info-hall`)
+- 별칭으로 정확히 찾아지는지 ("컴소과 사무실" → `dept_cs`)
 - 오타 질문이 올바른 문서를 찾는지
 - 관련 없는 질문("오늘 날씨 어때?")은 빈 결과가 나오는지

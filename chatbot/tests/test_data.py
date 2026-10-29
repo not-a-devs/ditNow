@@ -6,8 +6,7 @@ import pytest
 
 from app.config import ROOT_DIR
 from app.data_loader import DataError, load_data
-
-FIXTURES = Path(__file__).parent / "fixtures"
+from tests.conftest import FIXTURES
 
 
 def test_real_data_loads() -> None:
