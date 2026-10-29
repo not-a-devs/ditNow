@@ -25,18 +25,28 @@ ACTORS = {
     "a": CommunityActor("user-a-secret-id", True),
     "b": CommunityActor("user-b-secret-id", True),
     "blocked": CommunityActor("user-x-secret-id", False),
+    # Same user as "a" after the server revoked community access.
+    "a-revoked": CommunityActor("user-a-secret-id", False),
 }
 NAMES = {"user-a-secret-id": "가상학생A", "user-b-secret-id": "가상학생B"}
+VISIBLE_OPPORTUNITIES = {"o1"}  # "o-hidden" exists for its owner but is not visible to callers
+_keys = count(1)
 
 
 class FakePosts:
     def __init__(self):
         self.private = {}
         self.public = {}
+        self.claims = {}
 
-    def create(self, post):
+    def create(self, post, claim):
+        # Claim, private row and projection are one unit; an existing claim writes nothing.
+        if claim.namespace in self.claims:
+            return self.claims[claim.namespace]
+        self.claims[claim.namespace] = claim
         self.private[post.id] = post
         self.public[post.id] = _public_row(post)
+        return claim
 
     def get_private(self, post_id):
         return self.private.get(post_id)
@@ -65,9 +75,14 @@ class FakePosts:
 class FakeRecruitments:
     def __init__(self):
         self.rows = {}
+        self.claims = {}
 
-    def create(self, recruitment):
+    def create(self, recruitment, claim):
+        if claim.namespace in self.claims:
+            return self.claims[claim.namespace]
+        self.claims[claim.namespace] = claim
         self.rows[recruitment.id] = recruitment
+        return claim
 
     def get(self, recruitment_id):
         return self.rows.get(recruitment_id)
@@ -91,6 +106,15 @@ class FakeProfiles:
         return {uid: NAMES[uid] for uid in user_ids if uid in NAMES}
 
 
+class FakeOpportunities:
+    def __init__(self):
+        self.calls = []
+
+    def is_linkable(self, actor_id, opportunity_id):
+        self.calls.append((actor_id, opportunity_id))
+        return opportunity_id in VISIBLE_OPPORTUNITIES
+
+
 class Clock:
     def __init__(self):
         self.now = NOW
@@ -112,6 +136,7 @@ def env():
         posts=lambda: posts,
         recruitments=lambda: recruitments,
         profiles=lambda: profiles,
+        opportunities=FakeOpportunities,
         clock=clock,
         id_factory=lambda: f"id-{next(ids)}",
     )
@@ -121,8 +146,16 @@ def env():
         yield client, posts, recruitments, profiles, clock
 
 
-def call(client, method, path, who=None, **kwargs):
+CREATE_PATHS = {"/anonymous-posts", "/recruitments"}
+
+
+def call(client, method, path, who=None, key=None, **kwargs):
+    """``key`` defaults to a fresh Idempotency-Key on create POSTs; pass ``""`` to omit it."""
     headers = {"X-Test-Actor": who} if who else {}
+    if method == "POST" and path in CREATE_PATHS and key is None:
+        key = f"auto-key-{next(_keys)}"
+    if key:
+        headers["Idempotency-Key"] = key
     return client.request(method, PREFIX + path, headers=headers, **kwargs)
 
 
@@ -446,3 +479,195 @@ def test_anonymous_and_recruitment_are_not_linked(env):
         str(value) for value in rec_view["data"]["owner"].values()
     }
     assert shared == set()
+
+
+# ------------------------------------------------------------------- idempotent creates
+
+
+def test_same_key_and_body_replays_the_same_post(env):
+    """Review finding: two POSTs with one Idempotency-Key must not create two posts."""
+    client, posts, *_ = env
+    body = {"title": "중복 클릭", "body": "본문"}
+    first = call(client, "POST", "/anonymous-posts", "a", key="k-1", json=body)
+    second = call(client, "POST", "/anonymous-posts", "a", key="k-1", json=body)
+    assert (first.status_code, second.status_code) == (201, 201)
+    assert first.json()["data"]["id"] == second.json()["data"]["id"] == "id-1"
+    assert "Idempotent-Replayed" not in first.headers
+    assert second.headers["Idempotent-Replayed"] == "true"
+    assert len(posts.private) == len(posts.public) == 1
+    assert_no_identity(second.json())
+
+
+def test_same_key_and_body_replays_the_same_recruitment(env):
+    client, _, recruitments, *_ = env
+    payload = new_recruitment()
+    first = call(client, "POST", "/recruitments", "a", key="k-1", json=payload)
+    second = call(client, "POST", "/recruitments", "a", key="k-1", json=payload)
+    assert first.json()["data"]["id"] == second.json()["data"]["id"]
+    assert second.headers["Idempotent-Replayed"] == "true"
+    assert len(recruitments.rows) == 1
+
+
+def test_normalized_body_is_the_same_request(env):
+    client, posts, *_ = env
+    call(client, "POST", "/anonymous-posts", "a", key="k", json={"title": "제목", "body": "b"})
+    retry = call(
+        client, "POST", "/anonymous-posts", "a", key="k", json={"title": " 제목 ", "body": "b"}
+    )
+    assert retry.headers["Idempotent-Replayed"] == "true"
+    assert len(posts.private) == 1
+
+
+@pytest.mark.parametrize(
+    "path,first,second",
+    [
+        ("/anonymous-posts", {"title": "제목", "body": "a"}, {"title": "제목", "body": "b"}),
+        ("/recruitments", new_recruitment(), new_recruitment(capacity=4)),
+    ],
+)
+def test_same_key_different_body_is_conflict(env, path, first, second):
+    client, posts, recruitments, *_ = env
+    assert call(client, "POST", path, "a", key="k", json=first).status_code == 201
+    conflict = call(client, "POST", path, "a", key="k", json=second)
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "CONFLICT"
+    assert len(posts.private) + len(recruitments.rows) == 1
+
+
+def test_key_scope_is_actor_method_and_path(env):
+    client, posts, recruitments, *_ = env
+    body = {"title": "제목", "body": "b"}
+    a = call(client, "POST", "/anonymous-posts", "a", key="shared", json=body).json()["data"]
+    b = call(client, "POST", "/anonymous-posts", "b", key="shared", json=body).json()["data"]
+    rec = call(client, "POST", "/recruitments", "a", key="shared", json=new_recruitment())
+    assert a["id"] != b["id"]
+    assert (a["is_mine"], b["is_mine"]) == (True, True)
+    assert rec.status_code == 201 and "Idempotent-Replayed" not in rec.headers
+    assert (len(posts.private), len(recruitments.rows)) == (2, 1)
+
+
+@pytest.mark.parametrize("key", ["", "has space", "한글키".encode(), "x" * 129])
+@pytest.mark.parametrize("path", ["/anonymous-posts", "/recruitments"])
+def test_create_requires_a_valid_key(env, path, key):
+    client, posts, recruitments, *_ = env
+    body = new_recruitment() if path == "/recruitments" else {"title": "제목", "body": "b"}
+    headers = {"X-Test-Actor": "a"}
+    if key:
+        headers["Idempotency-Key"] = key
+    response = client.post(PREFIX + path, headers=headers, json=body)
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION"
+    assert posts.private == {} and recruitments.rows == {}
+
+
+def test_missing_key_still_answers_401_first(env):
+    assert call(env[0], "POST", "/anonymous-posts", key="", json={}).status_code == 401
+
+
+def test_replay_rechecks_current_permission(env):
+    client, posts, *_ = env
+    body = {"title": "제목", "body": "b"}
+    call(client, "POST", "/anonymous-posts", "a", key="k", json=body)
+    revoked = call(client, "POST", "/anonymous-posts", "a-revoked", key="k", json=body)
+    assert revoked.status_code == 403
+    assert "id-1" not in revoked.text
+    assert len(posts.private) == 1
+
+
+def test_replay_reads_current_visibility_and_revision(env):
+    client, posts, *_ = env
+    body = {"title": "제목", "body": "b"}
+    call(client, "POST", "/anonymous-posts", "a", key="k", json=body)
+    call(client, "PATCH", "/anonymous-posts/id-1", "a", json={"revision": 1, "body": "v2"})
+    replay = call(client, "POST", "/anonymous-posts", "a", key="k", json=body)
+    assert (replay.json()["data"]["body"], replay.json()["resource_version"]) == ("v2", 2)
+    call(client, "DELETE", "/anonymous-posts/id-1?revision=2", "a")
+    gone = call(client, "POST", "/anonymous-posts", "a", key="k", json=body)
+    assert gone.status_code == 404
+    assert len(posts.private) == 1  # a replay never resurrects or re-creates
+
+
+def test_revision_and_key_are_checked_independently(env):
+    client = env[0]
+    call(client, "POST", "/anonymous-posts", "a", key="k", json={"title": "제목", "body": "b"})
+    call(client, "PATCH", "/anonymous-posts/id-1", "a", json={"revision": 1, "body": "v2"})
+    # A key on a revisioned change does not bypass the stale-revision check.
+    stale = call(
+        client, "PATCH", "/anonymous-posts/id-1", "a", key="k", json={"revision": 1, "body": "v3"}
+    )
+    assert stale.status_code == 409
+    call(client, "POST", "/recruitments", "a", key="r", json=new_recruitment())
+    close = call(client, "POST", "/recruitments/id-2/close", "a", key="r", json={"revision": 1})
+    assert close.json()["data"]["status"] == "closed"
+    again = call(client, "POST", "/recruitments/id-2/close", "a", key="r", json={"revision": 1})
+    assert again.status_code == 409
+
+
+# ------------------------------------------------------------------- private caching
+
+
+@pytest.mark.parametrize(
+    "create_path,read_path",
+    [
+        ("/anonymous-posts", "/anonymous-posts"),
+        ("/anonymous-posts", "/anonymous-posts/id-1"),
+        ("/recruitments", "/recruitments"),
+        ("/recruitments", "/recruitments/id-1"),
+    ],
+)
+def test_per_caller_reads_are_private_no_store(env, create_path, read_path):
+    client = env[0]
+    body = new_recruitment() if create_path == "/recruitments" else {"title": "제목", "body": "b"}
+    created = call(client, "POST", create_path, "a", json=body)
+    assert created.headers["Cache-Control"] == "private, no-store"
+    mine = call(client, "GET", read_path, "a")
+    theirs = call(client, "GET", read_path, "b")
+    for response in (mine, theirs):
+        assert response.headers["Cache-Control"] == "private, no-store"
+
+    def flag(response):
+        data = response.json()["data"]
+        return (data["items"][0] if "items" in data else data)["is_mine"]
+
+    assert (flag(mine), flag(theirs)) == (True, False)
+
+
+# ------------------------------------------------------------------- opportunity link seam
+
+
+def _without_request_id(response):
+    return {k: v for k, v in response.json().items() if k != "request_id"}
+
+
+def test_opportunity_link_requires_visible_opportunity(env):
+    client, _, recruitments, *_ = env
+    ok = call(client, "POST", "/recruitments", "a", json=new_recruitment(opportunity_id="o1"))
+    assert ok.status_code == 201 and ok.json()["data"]["opportunity_id"] == "o1"
+    missing = call(client, "POST", "/recruitments", "a", json=new_recruitment(opportunity_id="no"))
+    hidden = call(
+        client, "POST", "/recruitments", "a", json=new_recruitment(opportunity_id="o-hidden")
+    )
+    assert (missing.status_code, hidden.status_code) == (400, 400)
+    # Missing and hidden are indistinguishable apart from the per-request id.
+    assert _without_request_id(missing) == _without_request_id(hidden)
+    assert len(recruitments.rows) == 1
+
+
+def test_opportunity_link_refused_without_provider():
+    recruitments = FakeRecruitments()
+    deps = CommunityDependencies(
+        actor=fake_actor,
+        recruitments=lambda: recruitments,
+        profiles=FakeProfiles,
+        clock=Clock(),
+    )
+    app = create_app(Settings(environment="test"))
+    app.include_router(create_community_router(deps), prefix=PREFIX)
+    with TestClient(app) as client:
+        linked = call(
+            client, "POST", "/recruitments", "a", json=new_recruitment(opportunity_id="o1")
+        )
+        plain = call(client, "POST", "/recruitments", "a", json=new_recruitment())
+    assert linked.status_code == 400
+    assert plain.status_code == 201 and plain.json()["data"]["opportunity_id"] is None
+    assert len(recruitments.rows) == 1

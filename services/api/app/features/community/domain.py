@@ -14,6 +14,7 @@ from app.schemas.common import ErrorCode
 ANONYMOUS_DISPLAY_NAME = "익명"
 TITLE_MIN, TITLE_MAX = 2, 120
 BODY_MIN, BODY_MAX = 1, 5000
+# Capacity counts the recruiter. 20 is a demo design default, not an approved policy value.
 CAPACITY_MIN, CAPACITY_MAX = 2, 20
 FIELD_MAX = 30
 ROLE_MAX, ROLES_MAX = 30, 10

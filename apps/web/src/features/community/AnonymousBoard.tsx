@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { communityApi, describeError, type IssueInfo } from "./api";
+import { communityApi, createKeyTracker, describeError, type IssueInfo } from "./api";
 import { EmptyPanel, InlineIssue, LoadingPanel, StatusPanel } from "./StatusPanel";
 import { LIMITS, type AnonymousPost } from "./types";
 import { useRemoteList } from "./useRemoteList";
@@ -23,6 +23,7 @@ export function AnonymousBoard() {
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [issue, setIssue] = useState<IssueInfo | null>(null);
+  const [keys] = useState(() => createKeyTracker());
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -32,7 +33,9 @@ export function AnonymousBoard() {
     if (invalid) return;
     setPending(true);
     try {
-      await communityApi.createPost({ title: title.trim(), body: body.trim() });
+      const input = { title: title.trim(), body: body.trim() };
+      await communityApi.createPost(input, keys.keyFor(input));
+      keys.reset();
       setTitle("");
       setBody("");
       await reload(); // Show the server's list, not an optimistic local copy.

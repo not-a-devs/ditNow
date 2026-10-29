@@ -23,8 +23,10 @@ from app.features.community.domain import (
     team_size,
     transition_recruitment,
 )
+from app.features.community.idempotency import is_replay, new_claim
 from app.features.community.repository import (
     AnonymousPostRepository,
+    OpportunityVisibility,
     PublicProfileReader,
     RecruitmentRepository,
 )
@@ -44,6 +46,10 @@ from app.schemas.common import ErrorCode, utc_now
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
+
+# Canonical idempotency targets; the root owner mounts this router under ``/api/v1``.
+POSTS_PATH = "/api/v1/anonymous-posts"
+RECRUITMENTS_PATH = "/api/v1/recruitments"
 
 
 def new_id() -> str:
@@ -123,8 +129,9 @@ class AnonymousPostService:
         return _to_public_post(row, row.id in mine)
 
     def create(
-        self, actor: CommunityActor | None, payload: AnonymousPostCreate
-    ) -> AnonymousPostPublic:
+        self, actor: CommunityActor | None, payload: AnonymousPostCreate, idempotency_key: str
+    ) -> tuple[AnonymousPostPublic, bool]:
+        """Return ``(post, replayed)``. A replay re-reads the post under current permissions."""
         actor = require_member(actor)
         now = self._clock()
         post = AnonymousPostPrivate(
@@ -137,8 +144,17 @@ class AnonymousPostService:
             created_at=now,
             updated_at=now,
         )
-        self._posts.create(post)
-        return _to_public_post(_public_row(post), is_mine=True)
+        claim = new_claim(
+            actor_id=actor.user_id,
+            canonical_path=POSTS_PATH,
+            key=idempotency_key,
+            payload=payload.model_dump(mode="json"),
+            resource_id=post.id,
+        )
+        stored = self._posts.create(post, claim)
+        if is_replay(stored, claim):
+            return self.get(actor, stored.resource_id), True
+        return _to_public_post(_public_row(post), is_mine=True), False
 
     def update(
         self, actor: CommunityActor | None, post_id: str, payload: AnonymousPostUpdate
@@ -180,11 +196,13 @@ class RecruitmentService:
         recruitments: RecruitmentRepository,
         profiles: PublicProfileReader,
         *,
+        opportunities: OpportunityVisibility | None = None,
         clock: Clock = utc_now,
         id_factory: IdFactory = new_id,
     ):
         self._recruitments = recruitments
         self._profiles = profiles
+        self._opportunities = opportunities
         self._clock = clock
         self._new_id = id_factory
 
@@ -211,11 +229,16 @@ class RecruitmentService:
             raise ApiError(ErrorCode.NOT_FOUND)
         return self._present(row, actor)
 
-    def create(self, actor: CommunityActor | None, payload: RecruitmentCreate) -> RecruitmentPublic:
+    def create(
+        self, actor: CommunityActor | None, payload: RecruitmentCreate, idempotency_key: str
+    ) -> tuple[RecruitmentPublic, bool]:
+        """Return ``(recruitment, replayed)``. A replay re-reads under current permissions."""
         actor = require_member(actor)
         now = self._clock()
         if payload.deadline_at <= now:
             raise ApiError(ErrorCode.VALIDATION)
+        if payload.opportunity_id is not None:
+            self._require_linkable(actor, payload.opportunity_id)
         row = Recruitment(
             id=self._new_id(),
             owner_id=actor.user_id,
@@ -232,8 +255,25 @@ class RecruitmentService:
             created_at=now,
             updated_at=now,
         )
-        self._recruitments.create(row)
-        return self._present(row, actor)
+        claim = new_claim(
+            actor_id=actor.user_id,
+            canonical_path=RECRUITMENTS_PATH,
+            key=idempotency_key,
+            payload=payload.model_dump(mode="json"),
+            resource_id=row.id,
+        )
+        stored = self._recruitments.create(row, claim)
+        if is_replay(stored, claim):
+            return self.get(actor, stored.resource_id), True
+        return self._present(row, actor), False
+
+    def _require_linkable(self, actor: CommunityActor, opportunity_id: str) -> None:
+        # No provider -> the link is refused; existence is never guessed. Missing and hidden
+        # opportunities get the same 400 so callers cannot probe for private opportunities.
+        if self._opportunities is None or not self._opportunities.is_linkable(
+            actor.user_id, opportunity_id
+        ):
+            raise ApiError(ErrorCode.VALIDATION)
 
     def update(
         self, actor: CommunityActor | None, recruitment_id: str, payload: RecruitmentUpdate

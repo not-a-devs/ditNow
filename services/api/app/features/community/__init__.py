@@ -5,8 +5,10 @@
 """
 
 from app.features.community.domain import CommunityActor
+from app.features.community.idempotency import IdempotencyClaim
 from app.features.community.repository import (
     AnonymousPostRepository,
+    OpportunityVisibility,
     PublicProfileReader,
     RecruitmentRepository,
 )
@@ -22,6 +24,8 @@ __all__ = [
     "AnonymousPostService",
     "CommunityActor",
     "CommunityDependencies",
+    "IdempotencyClaim",
+    "OpportunityVisibility",
     "PublicProfileReader",
     "RecruitmentRepository",
     "RecruitmentService",

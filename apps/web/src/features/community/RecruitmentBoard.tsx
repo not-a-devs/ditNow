@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { communityApi, describeError, type IssueInfo } from "./api";
+import { communityApi, createKeyTracker, describeError, type IssueInfo } from "./api";
 import { EmptyPanel, InlineIssue, LoadingPanel, StatusPanel } from "./StatusPanel";
-import { LIMITS, type Recruitment, type RecruitmentInput } from "./types";
+import { LIMITS, type Recruitment, type RecruitmentInput, type RecruitmentUpdate } from "./types";
 import { useRemoteList } from "./useRemoteList";
 
 // FR-COM-004. Real-name recruitment, shown with the allowed activity profile name only.
 // Capacity counts the recruiter. Applications (FR-COM-005, P1) are not offered here.
+// There is no delete: the deletion policy is undecided, so only close is offered.
 
 const STATUS_LABEL: Record<Recruitment["status"], string> = {
   open: "모집 중",
@@ -24,7 +25,11 @@ interface Draft {
 
 const EMPTY: Draft = { title: "", body: "", field: "", roles: "", capacity: "3", deadline: "" };
 
-export function parseRecruitment(draft: Draft, now = new Date()): RecruitmentInput | string {
+export function parseRecruitment(
+  draft: Draft,
+  now = new Date(),
+  checkDeadline = true,
+): RecruitmentInput | string {
   const title = draft.title.trim();
   const body = draft.body.trim();
   const field = draft.field.trim();
@@ -47,9 +52,48 @@ export function parseRecruitment(draft: Draft, now = new Date()): RecruitmentInp
     return "모집 역할이 중복되었습니다.";
   if (!Number.isInteger(capacity) || capacity < LIMITS.capacityMin || capacity > LIMITS.capacityMax)
     return `총 인원(모집자 포함)은 ${LIMITS.capacityMin}~${LIMITS.capacityMax}명입니다.`;
+  if (!checkDeadline) return { title, body, field, roles, capacity, deadline_at: "" };
   if (Number.isNaN(deadline.getTime()) || deadline <= now)
     return "마감 일시는 현재 이후여야 합니다.";
   return { title, body, field, roles, capacity, deadline_at: deadline.toISOString() };
+}
+
+// `datetime-local` value in the viewer's time zone.
+export function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function draftOf(item: Recruitment): Draft {
+  return {
+    title: item.title,
+    body: item.body,
+    field: item.field,
+    roles: item.roles.join(", "),
+    capacity: String(item.capacity),
+    deadline: toLocalInput(item.deadline_at),
+  };
+}
+
+// Sends only fields whose form value changed, so an untouched deadline is not re-validated.
+export function buildRecruitmentUpdate(
+  initial: Draft,
+  draft: Draft,
+  now = new Date(),
+): RecruitmentUpdate | string {
+  const changed = (Object.keys(draft) as (keyof Draft)[]).filter((k) => draft[k] !== initial[k]);
+  if (changed.length === 0) return "변경된 내용이 없습니다.";
+  const parsed = parseRecruitment(draft, now, changed.includes("deadline"));
+  if (typeof parsed === "string") return parsed;
+  const update: RecruitmentUpdate = {};
+  if (changed.includes("title")) update.title = parsed.title;
+  if (changed.includes("body")) update.body = parsed.body;
+  if (changed.includes("field")) update.field = parsed.field;
+  if (changed.includes("roles")) update.roles = parsed.roles;
+  if (changed.includes("capacity")) update.capacity = parsed.capacity;
+  if (changed.includes("deadline")) update.deadline_at = parsed.deadline_at;
+  return update;
 }
 
 export function RecruitmentBoard() {
@@ -58,6 +102,7 @@ export function RecruitmentBoard() {
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [issue, setIssue] = useState<IssueInfo | null>(null);
+  const [keys] = useState(() => createKeyTracker());
 
   const set = (key: keyof Draft) => (value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -72,7 +117,8 @@ export function RecruitmentBoard() {
     setFormError(null);
     setPending(true);
     try {
-      await communityApi.createRecruitment(parsed);
+      await communityApi.createRecruitment(parsed, keys.keyFor(parsed));
+      keys.reset();
       setDraft(EMPTY);
       await reload();
     } catch (error) {
@@ -182,13 +228,15 @@ function RecruitmentItem({
 }) {
   const [pending, setPending] = useState(false);
   const [issue, setIssue] = useState<IssueInfo | null>(null);
+  const [editing, setEditing] = useState<Draft | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function close() {
-    if (!window.confirm("모집을 마감할까요? 마감 후에는 다시 열 수 없습니다.")) return;
+  async function run(action: () => Promise<unknown>) {
     setPending(true);
     setIssue(null);
     try {
-      await communityApi.closeRecruitment(item.id, item.revision);
+      await action();
+      setEditing(null);
       await onChanged();
     } catch (error) {
       setIssue(describeError(error));
@@ -196,6 +244,76 @@ function RecruitmentItem({
       setPending(false);
     }
   }
+
+  function close() {
+    if (window.confirm("모집을 마감할까요? 마감 후에는 다시 열 수 없습니다."))
+      void run(() => communityApi.closeRecruitment(item.id, item.revision));
+  }
+
+  function save(event: FormEvent) {
+    event.preventDefault();
+    if (!editing) return;
+    const update = buildRecruitmentUpdate(draftOf(item), editing);
+    setFormError(typeof update === "string" ? update : null);
+    if (typeof update !== "string")
+      void run(() => communityApi.updateRecruitment(item.id, item.revision, update));
+  }
+
+  const set = (key: keyof Draft) => (value: string) =>
+    setEditing((d) => (d ? { ...d, [key]: value } : d));
+
+  if (editing)
+    return (
+      <li className="rounded-lg border border-slate-200 p-4">
+        <form
+          onSubmit={save}
+          aria-label="모집글 수정"
+          className="grid gap-2 sm:grid-cols-2"
+        >
+          <Field label="제목" value={editing.title} onChange={set("title")} max={LIMITS.titleMax} />
+          <Field label="분야" value={editing.field} onChange={set("field")} max={LIMITS.fieldMax} />
+          <Field label="모집 역할 (쉼표로 구분)" value={editing.roles} onChange={set("roles")} />
+          <Field
+            label="총 인원 (모집자 포함)"
+            type="number"
+            value={editing.capacity}
+            onChange={set("capacity")}
+          />
+          <Field
+            label="마감 일시"
+            type="datetime-local"
+            value={editing.deadline}
+            onChange={set("deadline")}
+          />
+          <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
+            설명
+            <textarea
+              value={editing.body}
+              onChange={(e) => set("body")(e.target.value)}
+              maxLength={LIMITS.bodyMax}
+              rows={3}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <div className="space-y-2 text-xs sm:col-span-2">
+            {formError && (
+              <p role="alert" className="text-sm text-red-700">
+                {formError}
+              </p>
+            )}
+            <InlineIssue issue={issue} />
+            <div className="flex gap-2">
+              <button type="submit" disabled={pending} className="underline">
+                {pending ? "서버에 요청 중…" : "수정 요청"}
+              </button>
+              <button type="button" onClick={() => setEditing(null)} className="underline">
+                취소
+              </button>
+            </div>
+          </div>
+        </form>
+      </li>
+    );
 
   return (
     <li className="rounded-lg border border-slate-200 p-4">
@@ -225,14 +343,27 @@ function RecruitmentItem({
       </dl>
       <InlineIssue issue={issue} />
       {item.is_mine && item.status === "open" && (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={close}
-          className="mt-3 text-xs text-red-700 underline"
-        >
-          모집 마감
-        </button>
+        <div className="mt-3 flex gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setIssue(null);
+              setEditing(draftOf(item));
+            }}
+            className="underline"
+          >
+            수정
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={close}
+            className="text-red-700 underline"
+          >
+            모집 마감
+          </button>
+        </div>
       )}
     </li>
   );

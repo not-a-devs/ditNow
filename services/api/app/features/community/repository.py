@@ -13,6 +13,7 @@ from app.features.community.domain import (
     AnonymousPostPublicRow,
     Recruitment,
 )
+from app.features.community.idempotency import IdempotencyClaim
 
 
 class AnonymousPostRepository(Protocol):
@@ -26,7 +27,14 @@ class AnonymousPostRepository(Protocol):
     - Rows whose status is not ``active`` are removed from (or hidden in) the public model.
     """
 
-    def create(self, post: AnonymousPostPrivate) -> None: ...
+    def create(self, post: AnonymousPostPrivate, claim: IdempotencyClaim) -> IdempotencyClaim:
+        """Insert the claim, private row and public projection in ONE transaction.
+
+        The claim table has a unique key on ``claim.namespace``. If that namespace already
+        exists, write nothing and return the stored claim (including under a concurrent race);
+        otherwise return ``claim``. Claims are server-internal and never exposed.
+        """
+        ...
 
     def get_private(self, post_id: str) -> AnonymousPostPrivate | None: ...
 
@@ -48,7 +56,9 @@ class RecruitmentRepository(Protocol):
     deadline/status and ``1 + accepted_count < capacity`` inside the same transaction.
     """
 
-    def create(self, recruitment: Recruitment) -> None: ...
+    def create(self, recruitment: Recruitment, claim: IdempotencyClaim) -> IdempotencyClaim:
+        """Same atomic claim-or-return-existing contract as ``AnonymousPostRepository.create``."""
+        ...
 
     def get(self, recruitment_id: str) -> Recruitment | None: ...
 
@@ -61,3 +71,13 @@ class PublicProfileReader(Protocol):
     """Batch read of allowed real-name activity profile fields (avoids N+1 per NFR-REL-005)."""
 
     def display_names(self, user_ids: Iterable[str]) -> dict[str, str]: ...
+
+
+class OpportunityVisibility(Protocol):
+    """Seam to the opportunity owner (FR-OPP) for linking a recruitment to an opportunity.
+
+    Return ``True`` only if the opportunity exists AND is currently visible to ``actor_id``.
+    Missing and hidden must be indistinguishable to the caller (no existence probing).
+    """
+
+    def is_linkable(self, actor_id: str, opportunity_id: str) -> bool: ...

@@ -57,6 +57,10 @@ export interface RecruitmentInput {
   deadline_at: string;
 }
 
+// PATCH body minus `revision`; at least one field. `opportunity_id` is fixed at creation.
+export type RecruitmentUpdate = Partial<RecruitmentInput>;
+
+// capacityMax 20 is a demo design default mirrored from the server, not an approved policy.
 export const LIMITS = {
   titleMin: 2,
   titleMax: 120,
