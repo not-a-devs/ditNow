@@ -91,7 +91,7 @@ const ok = (data: unknown): Reply => ({ status: 200, body: { data } });
 const fail = (status: number, code: string): Reply => ({ status, body: { code, message: 'x', request_id: REQUEST_ID } });
 
 function stub(handler: Handler) {
-  const fetch = vi.fn((url: string) => {
+  const fetch = vi.fn((url: string, _init?: RequestInit) => {
     const reply = handler(new URL(url));
     if (reply instanceof Promise) return reply;
     if (reply === 'network') return Promise.reject(new TypeError('offline'));
@@ -176,6 +176,43 @@ describe('OpportunityMatchingPage', () => {
     expect(url.searchParams.getAll('interest_kind')).toEqual(['contest']);
     expect(url.searchParams.getAll('interest_keyword')).toEqual(['AI', '데이터']);
     expect(url.searchParams.get('include_closed')).toBe('true');
+  });
+
+  it('shows a keyword validation message and sends nothing for an over-long or invisible keyword', async () => {
+    const fetch = stub(() => ok(page([])));
+    render(<OpportunityMatchingPage />);
+    await screen.findByText('현재 소속과 조건에 맞는 공고가 없습니다.');
+    const input = screen.getByLabelText('관심 키워드');
+    for (const [value, message] of [
+      ['😀'.repeat(21), '20자 이하'],
+      ['장학 금', '보이지 않는 문자'],
+    ]) {
+      fireEvent.change(input, { target: { value } });
+      fireEvent.click(screen.getByRole('button', { name: '맞춤 공고 보기' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(message);
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(input).toHaveValue(value);
+    }
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { value: '😀'.repeat(20) } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '맞춤 공고 보기' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(new URL(fetch.mock.calls[1][0]).searchParams.get('interest_keyword')).toBe('😀'.repeat(20));
+  });
+
+  it('aborts a superseded request and all requests on unmount', async () => {
+    const first = deferred();
+    let calls = 0;
+    const fetch = stub(() => (++calls === 1 ? first.promise : new Promise<Response>(() => {})));
+    const { unmount } = render(<OpportunityMatchingPage />);
+    fireEvent.click(screen.getByRole('button', { name: '맞춤 공고 보기' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(fetch.mock.calls[1][1]?.signal?.aborted).toBe(false);
+    unmount();
+    expect(fetch.mock.calls[1][1]?.signal?.aborted).toBe(true);
   });
 
   it('ignores a stale response that arrives after a newer request', async () => {

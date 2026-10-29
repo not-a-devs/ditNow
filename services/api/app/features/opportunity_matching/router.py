@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.errors import ApiError
 from app.features.collaboration.router import PrivateNoStoreRoute
+from app.features.community.domain import CommunityActor
 from app.features.opportunities.dependencies import (
     Principal,
     auth_not_configured,
@@ -46,12 +47,23 @@ def recruitment_not_connected() -> RecruitmentReferenceReader | None:
     return None
 
 
+def community_actor_not_connected() -> CommunityActor | None:
+    # Recruitment refs are auxiliary: without a verified community actor they are simply
+    # NOT_CONNECTED. Academic context must never be used to stand in for community access.
+    return None
+
+
 @dataclass(frozen=True)
 class MatchingDependencies:
+    """``community_actor`` is the community auth owner's per-request actor resolver (the same
+    server-side ``community_access`` evaluation the community routes use). It should return
+    None rather than raise, so a missing community grant only hides recruitment refs."""
+
     current_principal: Callable[..., Principal] = auth_not_configured
     academic_context: Callable[..., AcademicContextReader] = academic_context_not_configured
     catalog: Callable[..., OpportunityCatalog] = catalog_not_configured
     recruitments: Callable[..., RecruitmentReferenceReader | None] = recruitment_not_connected
+    community_actor: Callable[..., CommunityActor | None] = community_actor_not_connected
     clock: Callable[[], datetime] = utc_now
 
 
@@ -70,8 +82,11 @@ def create_router(deps: MatchingDependencies | None = None) -> APIRouter:
         contexts: Annotated[AcademicContextReader, Depends(deps.academic_context)],
         catalog: Annotated[OpportunityCatalog, Depends(deps.catalog)],
         recruitments: Annotated[RecruitmentReferenceReader | None, Depends(deps.recruitments)],
+        community_actor: Annotated[CommunityActor | None, Depends(deps.community_actor)],
     ) -> tuple[Principal, MatchingService]:
-        return principal, MatchingService(catalog, contexts, recruitments, clock=deps.clock)
+        return principal, MatchingService(
+            catalog, contexts, recruitments, clock=deps.clock, community_actor=community_actor
+        )
 
     Context = Annotated[tuple[Principal, MatchingService], Depends(context)]
 

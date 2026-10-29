@@ -10,8 +10,12 @@ never from token claims, query/body values or a new profile table. Expired/pendi
 must not be returned. It returns None when the actor is not a current active student context.
 
 `RecruitmentReferenceReader` is an optional seam to the community recruitment aggregate
-(FR-OPP-005). The adapter returns only recruitments linked to the given opportunity IDs that the
-public recruitment listing may already show. The service projects them to id/title/field/
+(FR-OPP-005). Recruitments are community data: the service asks for them only after the same
+`require_member` check the community routes use, on a `CommunityActor` resolved fresh for this
+request by the community auth owner and bound to the verified principal. Academic membership alone
+never grants community access. The adapter receives that actor and must apply its own
+actor-scoped visibility; it returns only recruitments linked to the given opportunity IDs that the
+community recruitment listing would show this actor. The service projects them to id/title/field/
 roles/deadline only; owner, body, applicants and counts never leave this module.
 """
 
@@ -21,7 +25,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.features.community.domain import Recruitment
+from app.features.community.domain import CommunityActor, Recruitment
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,5 +48,5 @@ class AcademicContextReader(Protocol):
 
 class RecruitmentReferenceReader(Protocol):
     def linked_recruitments(
-        self, opportunity_ids: Sequence[UUID], now: datetime
+        self, actor: CommunityActor, opportunity_ids: Sequence[UUID], now: datetime
     ) -> Sequence[Recruitment]: ...

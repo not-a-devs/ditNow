@@ -18,11 +18,12 @@ from test_opportunity_matching_support import (
     OversizedCatalog,
     make_opportunity,
     make_recruitment,
+    member,
     service,
 )
 
 from app.core.errors import ApiError
-from app.features.community.domain import RecruitmentStatus
+from app.features.community.domain import CommunityActor, RecruitmentStatus
 from app.features.opportunities.repository import OpportunityFile, TargetScope
 from app.features.opportunities.schemas import (
     OpportunityKind,
@@ -192,6 +193,20 @@ def test_freshness_and_safe_source_url():
     assert items[unverified.id].source_url is None
 
 
+@pytest.mark.parametrize(
+    "url", ["https://:secret@example.test/x", "https://user:secret@example.test/x"]
+)
+def test_credential_urls_never_reach_list_or_brief_json(url):
+    record = make_opportunity(id=uid(45), original_url=url, source_url=url)
+    svc = service(FakeCatalog([record]))
+    page = run(FakeCatalog([record]), svc=svc)
+    assert page.items[0].source_url is None
+    brief = svc.brief(USER_A, record.id, NONE)
+    assert brief.procedure[0].available is False and brief.procedure[0].evidence_url is None
+    dumped = page.model_dump_json() + brief.model_dump_json()
+    assert "secret" not in dumped
+
+
 def test_pagination_is_stable_and_cursor_bound_to_ranking_and_request():
     rows = [
         make_opportunity(id=uid(100 + n), deadline_at=NOW + timedelta(days=10 + n))
@@ -223,6 +238,26 @@ def test_pagination_is_stable_and_cursor_bound_to_ranking_and_request():
     with pytest.raises(ApiError) as exc:
         run(catalog, limit=21)
     assert exc.value.code is ErrorCode.VALIDATION
+
+
+def test_cursor_is_bound_to_actor_and_current_memberships():
+    # School-wide rows rank identically for everyone, so only the actor binding can differ.
+    catalog = FakeCatalog([make_opportunity(id=uid(150 + n)) for n in range(3)])
+    contexts = FakeContexts()
+    contexts.table[USER_B] = AcademicContext(USER_B, (AcademicMembership("CSE", 2),))
+    first = run(catalog, limit=1, svc=service(catalog, contexts))
+    assert first.next_cursor is not None
+    again = run(catalog, limit=1, cursor=first.next_cursor, svc=service(catalog, contexts))
+    assert len(again.items) == 1
+
+    with pytest.raises(ApiError) as exc:
+        run(catalog, USER_B, limit=1, cursor=first.next_cursor, svc=service(catalog, contexts))
+    assert exc.value.code is ErrorCode.CONFLICT
+
+    contexts.table[USER_A] = AcademicContext(USER_A, (AcademicMembership("ZZZ", 1),))
+    with pytest.raises(ApiError) as exc:
+        run(catalog, limit=1, cursor=first.next_cursor, svc=service(catalog, contexts))
+    assert exc.value.code is ErrorCode.CONFLICT
 
 
 def test_candidate_cap_and_complete_flag():
@@ -291,14 +326,32 @@ def test_duplicate_and_unpublished_rows_from_adapter_are_dropped():
     assert run(dup).omitted_count == 1
 
 
+def test_unpublished_rows_never_reach_counts_or_dedupe():
+    draft = make_opportunity(id=uid(510), status=PublicationStatus.DRAFT, title="초안")
+    clean = run(OversizedCatalog([SCHOOL]))
+    leaky = run(OversizedCatalog([SCHOOL, draft, draft, draft]))
+    # A misbehaving adapter leaking duplicated drafts must be indistinguishable from a clean one.
+    assert (leaky.omitted_count, leaky.candidates_scanned) == (0, 1)
+    assert (clean.omitted_count, clean.candidates_scanned) == (0, 1)
+    assert ids(leaky) == [SCHOOL.id]
+    # A draft sharing a public row's id cannot shadow it or count as a duplicate either.
+    shadow = make_opportunity(id=SCHOOL.id, status=PublicationStatus.DRAFT, title="초안")
+    page = run(OversizedCatalog([shadow, SCHOOL]))
+    assert ids(page) == [SCHOOL.id] and page.omitted_count == 0
+    assert page.items[0].opportunity.title == SCHOOL.title
+
+
 def test_interest_validation():
     with pytest.raises(ApiError):
         normalize_interests([], ["a"] * 6)
     with pytest.raises(ApiError):
         normalize_interests([OpportunityKind.CONTEST] * 6, [])
-    for bad in ("", "   ", "x" * 21, "탭\t문자"):
+    for bad in ("", "   ", "x" * 21, "탭\t문자", "장학 금", "👩‍💻", "😀" * 21):
         with pytest.raises(ApiError):
             normalize_interests([], [bad])
+    # The limit counts code points, matching the frontend; 20 emoji are 40 UTF-16 units.
+    assert normalize_interests([], ["😀" * 20]).keywords == ("😀" * 20,)
+    assert normalize_interests([], ["가" * 20]).keywords == ("가" * 20,)
     interests = normalize_interests(
         [OpportunityKind.CONTEST, OpportunityKind.CONTEST], [" AI ", "ai", "데이터"]
     )
@@ -318,9 +371,12 @@ def test_recruitment_reference_seam_projects_only_public_fields():
             make_recruitment(contest.id, id="rec-expired", deadline_at=NOW - timedelta(hours=1)),
             make_recruitment(contest.id, id="rec-naive", deadline_at=datetime(2026, 12, 1)),
             make_recruitment(uid(999), id="rec-other"),
+            # Recruiter + 3 accepted fill capacity 4: full teams are not shown as recruiting.
+            make_recruitment(contest.id, id="rec-full", capacity=4, accepted_count=3),
+            make_recruitment(contest.id, id="rec-over", capacity=2, accepted_count=2),
         ]
     )
-    svc = service(catalog, recruitments=reader)
+    svc = service(catalog, recruitments=reader, community=member(USER_A))
     page = run(catalog, interests=normalize_interests([], ["데이터"]), svc=svc)
     refs = page.items[0].recruitment
     assert refs.status == "AVAILABLE" and refs.open_count == 2
@@ -330,12 +386,43 @@ def test_recruitment_reference_seam_projects_only_public_fields():
     dumped = page.model_dump_json()
     assert OWNER_SECRET not in dumped and BODY_SECRET not in dumped
     assert "owner_id" not in dumped and "accepted_count" not in dumped
+    assert "rec-full" not in dumped and "rec-over" not in dumped
     assert reader.calls == [[contest.id]]
+    # The adapter receives the request's verified community actor so it can scope visibility.
+    assert reader.actors == [member(USER_A)]
 
-    failing = service(catalog, recruitments=FakeRecruitments(fail=True))
+    failing = service(catalog, recruitments=FakeRecruitments(fail=True), community=member(USER_A))
     page = run(catalog, svc=failing)
     assert page.items[0].recruitment.status == "UNAVAILABLE"
     assert "adapter detail" not in page.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "community",
+    [
+        None,  # no community actor resolved: academic membership alone grants nothing
+        member(USER_A, access=False),  # server says no community access
+        member(USER_B),  # someone else's community actor
+        CommunityActor(user_id="", community_access=True),
+        CommunityActor(user_id="not-a-uuid", community_access=True),
+    ],
+)
+def test_recruitment_refs_require_the_principals_community_access(community):
+    contest = make_opportunity(id=uid(610), kind=OpportunityKind.CONTEST)
+    catalog = FakeCatalog([contest])
+    reader = FakeRecruitments([make_recruitment(contest.id, id="rec-secret", title="비회원 금지")])
+    svc = service(catalog, recruitments=reader, community=community)
+    page = run(catalog, svc=svc)
+    # USER_A has a current academic context, so the match itself is still listed.
+    assert ids(page) == [contest.id]
+    refs = page.items[0].recruitment
+    assert refs.status == "NOT_CONNECTED" and refs.items == [] and refs.open_count == 0
+    brief = svc.brief(USER_A, contest.id, NONE)
+    assert brief.recruitment.status == "NOT_CONNECTED" and brief.recruitment.items == []
+    dumped = page.model_dump_json() + brief.model_dump_json()
+    assert "rec-secret" not in dumped and "비회원 금지" not in dumped
+    # Fail closed before any community read: the adapter is never asked.
+    assert reader.calls == [] and reader.actors == []
 
 
 def test_provenance_never_claims_ai_or_eligibility():

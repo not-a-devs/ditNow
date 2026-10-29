@@ -42,6 +42,13 @@ function describeError(error: unknown): Described {
   return { message: '서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.' };
 }
 
+/** Aborts the previous request held in `ref` and returns the signal for its replacement. */
+function restart(ref: { current: AbortController | null }): AbortSignal {
+  ref.current?.abort();
+  ref.current = new AbortController();
+  return ref.current.signal;
+}
+
 type ListState =
   | { state: 'loading' }
   | ({ state: 'error' } & Described)
@@ -97,7 +104,8 @@ function Reasons({ reasons }: { reasons: MatchReason[] }) {
 }
 
 function Recruitment({ refs }: { refs: RecruitmentRefs }) {
-  if (refs.status === 'NOT_CONNECTED') return <p className="text-xs text-slate-500">팀원 모집 연결은 아직 준비 중입니다.</p>;
+  if (refs.status === 'NOT_CONNECTED')
+    return <p className="text-xs text-slate-500">팀원 모집 정보는 커뮤니티 이용이 확인되고 연결된 경우에만 표시됩니다.</p>;
   if (refs.status === 'UNAVAILABLE') return <p className="text-xs text-slate-500">팀원 모집 정보를 불러오지 못했습니다.</p>;
   if (refs.open_count === 0) return <p className="text-xs text-slate-500">연결된 모집 중 팀원 모집 없음</p>;
   return (
@@ -206,18 +214,24 @@ export default function OpportunityMatchingPage() {
   const [moreError, setMoreError] = useState<Described | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [brief, setBrief] = useState<BriefState | null>(null);
+  const [keywordError, setKeywordError] = useState<string | null>(null);
   // Only the latest request may update state; late responses of older requests are ignored.
+  // Superseded requests are also aborted so they stop using the network.
   const listSeq = useRef(0);
   const briefSeq = useRef(0);
+  const listAbort = useRef<AbortController | null>(null);
+  const briefAbort = useRef<AbortController | null>(null);
 
   const load = useCallback((filter: MatchFilter) => {
     const id = ++listSeq.current;
     briefSeq.current += 1;
+    briefAbort.current?.abort();
+    const signal = restart(listAbort);
     setList({ state: 'loading' });
     setMoreError(null);
     setLoadingMore(false);
     setBrief(null);
-    api.listMatches({ ...filter, limit: PAGE_SIZE }).then(
+    api.listMatches({ ...filter, limit: PAGE_SIZE }, signal).then(
       (page) => { if (id === listSeq.current) setList({ state: 'ready', page, items: page.items }); },
       (error) => { if (id === listSeq.current) setList({ state: 'error', ...describeError(error) }); },
     );
@@ -225,15 +239,24 @@ export default function OpportunityMatchingPage() {
 
   useEffect(() => load(applied), [applied, load]);
 
+  // On unmount, end the epoch: no in-flight response may update state, and requests stop.
+  useEffect(() => () => {
+    listSeq.current += 1;
+    briefSeq.current += 1;
+    listAbort.current?.abort();
+    briefAbort.current?.abort();
+  }, []);
+
   const reload = () => load(applied);
 
   const loadMore = () => {
     if (list.state !== 'ready' || !list.page.next_cursor) return;
     const id = listSeq.current;
     const previous = list.items;
+    const signal = restart(listAbort);
     setLoadingMore(true);
     setMoreError(null);
-    api.listMatches({ ...applied, limit: PAGE_SIZE, cursor: list.page.next_cursor }).then(
+    api.listMatches({ ...applied, limit: PAGE_SIZE, cursor: list.page.next_cursor }, signal).then(
       (page) => {
         if (id !== listSeq.current) return;
         setList({ state: 'ready', page, items: [...previous, ...page.items] });
@@ -249,8 +272,9 @@ export default function OpportunityMatchingPage() {
 
   const openBrief = (opportunityId: string) => {
     const id = ++briefSeq.current;
+    const signal = restart(briefAbort);
     setBrief({ id: opportunityId, state: 'loading' });
-    api.getBrief(opportunityId, applied).then(
+    api.getBrief(opportunityId, applied, signal).then(
       (data) => { if (id === briefSeq.current) setBrief({ id: opportunityId, state: 'ready', data }); },
       (error) => { if (id === briefSeq.current) setBrief({ id: opportunityId, state: 'error', ...describeError(error) }); },
     );
@@ -258,7 +282,14 @@ export default function OpportunityMatchingPage() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    setApplied({ kinds, keywords: api.parseKeywords(keywordText), includeClosed });
+    const parsed = api.parseKeywords(keywordText);
+    // Invalid keywords are reported and nothing is sent; they are never silently altered.
+    if (!parsed.ok) {
+      setKeywordError(parsed.message);
+      return;
+    }
+    setKeywordError(null);
+    setApplied({ kinds, keywords: parsed.keywords, includeClosed });
   };
 
   const toggleKind = (kind: OpportunityKind, checked: boolean) =>
@@ -282,11 +313,18 @@ export default function OpportunityMatchingPage() {
           <input
             aria-label="관심 키워드"
             value={keywordText}
-            onChange={(e) => setKeywordText(e.target.value)}
-            placeholder="쉼표로 구분, 최대 5개"
-            maxLength={120}
+            onChange={(e) => {
+              setKeywordText(e.target.value);
+              setKeywordError(null);
+            }}
+            placeholder={`쉼표로 구분, 최대 ${api.MAX_INTERESTS}개, 각 ${api.MAX_KEYWORD_LENGTH}자 이하`}
+            aria-invalid={keywordError ? true : undefined}
+            aria-describedby={keywordError ? 'keyword-error' : undefined}
             className="w-full rounded border border-slate-300 px-2 py-1"
           />
+          {keywordError && (
+            <p id="keyword-error" role="alert" className="text-xs text-red-700">{keywordError}</p>
+          )}
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={includeClosed} onChange={(e) => setIncludeClosed(e.target.checked)} />
             마감된 공고 포함

@@ -1,10 +1,11 @@
 """HTTP contract for FR-OPP-002 matching routes (TC-V1-OPP-002 partial). Fakes only, no DB."""
 
 from datetime import timedelta
+from typing import Annotated
 from uuid import UUID
 
 import pytest
-from fastapi import Header
+from fastapi import Depends, Header
 from fastapi.testclient import TestClient
 from test_opportunity_matching_support import (
     NOW,
@@ -16,11 +17,13 @@ from test_opportunity_matching_support import (
     FakeRecruitments,
     make_opportunity,
     make_recruitment,
+    member,
 )
 
 from app.core.config import Settings
 from app.core.errors import ApiError
 from app.factory import create_app
+from app.features.community.domain import CommunityActor
 from app.features.opportunities.dependencies import Principal
 from app.features.opportunities.repository import TargetScope
 from app.features.opportunity_matching import MatchingDependencies, create_router, router
@@ -64,14 +67,29 @@ def contexts():
 
 
 @pytest.fixture
-def client(contexts):
+def recruitments():
+    return FakeRecruitments([make_recruitment(SCHOOL.id)])
+
+
+# Server-side community grants: USER_B has an academic context but no community access.
+COMMUNITY_GRANTS = {USER_A}
+
+
+def granted_community_actor(
+    principal: Annotated[Principal, Depends(header_principal)],
+) -> CommunityActor | None:
+    return member(principal.user_id, access=principal.user_id in COMMUNITY_GRANTS)
+
+
+@pytest.fixture
+def client(contexts, recruitments):
     catalog = FakeCatalog([SCHOOL, CSE, EE])
-    recruitments = FakeRecruitments([make_recruitment(SCHOOL.id)])
     deps = MatchingDependencies(
         current_principal=header_principal,
         academic_context=lambda: contexts,
         catalog=lambda: catalog,
         recruitments=lambda: recruitments,
+        community_actor=granted_community_actor,
         clock=lambda: NOW,
     )
     return mount(create_router(deps))
@@ -178,6 +196,8 @@ def test_interests_filters_and_provenance_round_trip(client):
         {"limit": "21"},
         {"cursor": "not-a-cursor"},
         {"interest_keyword": "x" * 21},
+        {"interest_keyword": "😀" * 21},
+        {"interest_keyword": "장학 금"},
         [("interest_keyword", str(n)) for n in range(6)],
     ],
 )
@@ -197,6 +217,35 @@ def test_brief_returns_structured_original_fields(client):
     assert data["cautions"][0]["code"] == "NOT_ELIGIBILITY_DECISION"
     other = client.get(f"{API}/{CSE.id}/brief", headers=as_user(USER_B))
     assert other.json()["data"]["match"]["in_scope"] is False
+
+
+def test_recruitment_refs_need_community_access_not_just_academic_context(client, recruitments):
+    # USER_B is a current student (academic context) without community access.
+    for path in (API, f"{API}/{SCHOOL.id}/brief"):
+        response = client.get(path, headers=as_user(USER_B))
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == NO_STORE
+        assert "rec-0001" not in response.text and "팀원 모집" not in response.text
+    assert recruitments.calls == []
+
+    granted = client.get(f"{API}/{SCHOOL.id}/brief", headers=as_user(USER_A))
+    assert granted.json()["data"]["recruitment"]["status"] == "AVAILABLE"
+    assert recruitments.actors == [member(USER_A)]
+
+
+def test_recruitments_without_community_actor_provider_stay_not_connected(contexts):
+    recruitments = FakeRecruitments([make_recruitment(SCHOOL.id)])
+    deps = MatchingDependencies(
+        current_principal=header_principal,
+        academic_context=lambda: contexts,
+        catalog=lambda: FakeCatalog([SCHOOL]),
+        recruitments=lambda: recruitments,
+        clock=lambda: NOW,
+    )
+    response = mount(create_router(deps)).get(API, headers=as_user(USER_A))
+    assert response.status_code == 200
+    assert response.json()["data"]["items"][0]["recruitment"]["status"] == "NOT_CONNECTED"
+    assert recruitments.calls == []
 
 
 def test_brief_unknown_and_invalid_ids(client):

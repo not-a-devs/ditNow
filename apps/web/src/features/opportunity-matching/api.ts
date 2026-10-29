@@ -17,19 +17,35 @@ function withQuery(path: string, params: URLSearchParams): string {
   return query ? `${path}?${query}` : path;
 }
 
-/** Splits free text into at most MAX_INTERESTS trimmed, de-duplicated keywords. */
-export function parseKeywords(text: string): string[] {
+// Mirrors the server's str.isprintable(): control, format (e.g. ZWJ), surrogate, private-use,
+// unassigned, line/paragraph separators and every space separator except ASCII space (e.g. NBSP).
+const NOT_PRINTABLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]|(?! )\p{Zs}/u;
+
+export type ParsedKeywords = { ok: true; keywords: string[] } | { ok: false; message: string };
+
+/**
+ * Splits free text on commas into trimmed, de-duplicated keywords. Nothing is silently cut:
+ * a keyword over MAX_KEYWORD_LENGTH code points (the server's unit, so an emoji counts as one),
+ * a non-printable character or more than MAX_INTERESTS keywords is rejected with a message.
+ */
+export function parseKeywords(text: string): ParsedKeywords {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const keywords: string[] = [];
   for (const raw of text.split(',')) {
-    const word = raw.trim().slice(0, MAX_KEYWORD_LENGTH);
+    const word = raw.trim();
+    if (!word) continue;
+    if (Array.from(word).length > MAX_KEYWORD_LENGTH)
+      return { ok: false, message: `키워드는 각각 ${MAX_KEYWORD_LENGTH}자 이하로 입력하세요.` };
+    if (NOT_PRINTABLE.test(word))
+      return { ok: false, message: '키워드에 보이지 않는 문자나 특수 공백·결합 문자는 쓸 수 없습니다.' };
     const key = word.toLocaleLowerCase('ko-KR');
-    if (!word || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
-    out.push(word);
-    if (out.length === MAX_INTERESTS) break;
+    keywords.push(word);
   }
-  return out;
+  if (keywords.length > MAX_INTERESTS)
+    return { ok: false, message: `관심 키워드는 최대 ${MAX_INTERESTS}개까지 입력할 수 있습니다.` };
+  return { ok: true, keywords };
 }
 
 export function listMatches(filter: MatchFilter, signal?: AbortSignal): Promise<MatchPage> {

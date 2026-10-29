@@ -52,10 +52,41 @@ describe('opportunity matching api', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('parses keywords: trims, dedupes case-insensitively, caps count and length', () => {
-    expect(parseKeywords(' AI, ai ,  ,데이터,x,y,z,w')).toEqual(['AI', '데이터', 'x', 'y', 'z']);
-    expect(parseKeywords('a'.repeat(30))).toEqual(['a'.repeat(20)]);
-    expect(parseKeywords('')).toEqual([]);
+  it('parses keywords: trims, skips empties and dedupes case-insensitively', () => {
+    expect(parseKeywords(' AI, ai ,  ,데이터,x,y')).toEqual({ ok: true, keywords: ['AI', '데이터', 'x', 'y'] });
+    expect(parseKeywords('')).toEqual({ ok: true, keywords: [] });
+  });
+
+  it('counts code points like the server and accepts exactly 20', () => {
+    for (const word of ['a'.repeat(20), '가'.repeat(20), '😀'.repeat(20), 'a' + '😀'.repeat(19)]) {
+      expect(parseKeywords(word)).toEqual({ ok: true, keywords: [word] });
+    }
+  });
+
+  it.each([
+    ['21 ASCII letters', 'a'.repeat(21), '20자 이하'],
+    ['21 emoji (42 UTF-16 units)', '😀'.repeat(21), '20자 이하'],
+    ['30 letters are not cut to 20', 'a'.repeat(30), '20자 이하'],
+    ['no-break space', '장학 금', '보이지 않는 문자'],
+    ['zero-width joiner emoji', '👩‍💻', '보이지 않는 문자'],
+    ['lone surrogate', 'a\ud83d', '보이지 않는 문자'],
+    ['tab', '탭\t문자', '보이지 않는 문자'],
+    ['six distinct keywords', 'a,b,c,d,e,f', '최대 5개'],
+  ])('rejects %s instead of silently changing it', (_name, text, message) => {
+    const parsed = parseKeywords(text);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.message).toContain(message);
+  });
+
+  it('sends emoji keywords intact without replacement characters', async () => {
+    const fetch = stubFetch();
+    const word = 'a' + '😀'.repeat(10);
+    const parsed = parseKeywords(word);
+    expect(parsed).toEqual({ ok: true, keywords: [word] });
+    await listMatches({ kinds: [], keywords: parsed.ok ? parsed.keywords : [] });
+    const url = new URL(fetch.mock.calls[0][0]);
+    expect(url.searchParams.get('interest_keyword')).toBe(word);
+    expect(url.search).not.toContain('%EF%BF%BD');
   });
 
   it('allows only absolute http(s) links without credentials', () => {

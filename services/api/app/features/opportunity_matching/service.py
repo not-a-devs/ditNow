@@ -16,7 +16,14 @@ from pydantic import ValidationError
 
 from app.core.errors import ApiError
 from app.features.campus.domain import MAX_GRADE, MIN_GRADE
-from app.features.community.domain import Recruitment, RecruitmentStatus, effective_status
+from app.features.community.domain import (
+    CommunityActor,
+    Recruitment,
+    RecruitmentStatus,
+    effective_status,
+    has_open_seat,
+    require_member,
+)
 from app.features.opportunities.repository import (
     OpportunityCatalog,
     OpportunityQuery,
@@ -333,10 +340,12 @@ class MatchingService:
         recruitments: RecruitmentReferenceReader | None,
         *,
         clock: Callable[[], datetime],
+        community_actor: CommunityActor | None = None,
     ):
         self._catalog = catalog
         self._contexts = contexts
         self._recruitments = recruitments
+        self._community_actor = community_actor
         self._now = clock()
 
     # ---- actor context ----
@@ -361,7 +370,7 @@ class MatchingService:
 
     # ---- candidate scan ----
 
-    def _scan(self, query: OpportunityQuery) -> tuple[list[OpportunityRecord], int, bool]:
+    def _scan(self, query: OpportunityQuery) -> tuple[list[OpportunityRecord], bool]:
         """Read at most MAX_CANDIDATES rows from the catalog; report whether the scan finished."""
         rows: list[OpportunityRecord] = []
         cursor: str | None = None
@@ -371,18 +380,18 @@ class MatchingService:
             items = list(page.items)
             for record in items[:CATALOG_PAGE_SIZE]:
                 if len(rows) >= MAX_CANDIDATES:
-                    return rows, len(rows), False
+                    return rows, False
                 rows.append(record)
             # An adapter that ignores the page size cannot prove the scan was complete.
             if len(items) > CATALOG_PAGE_SIZE:
-                return rows, len(rows), False
+                return rows, False
             if page.next_cursor is None:
-                return rows, len(rows), True
+                return rows, True
             if page.next_cursor in seen_cursors or len(rows) >= MAX_CANDIDATES:
-                return rows, len(rows), False
+                return rows, False
             seen_cursors.add(page.next_cursor)
             cursor = page.next_cursor
-        return rows, len(rows), False
+        return rows, False
 
     def _evaluate(
         self,
@@ -431,20 +440,25 @@ class MatchingService:
             raise ApiError(ErrorCode.VALIDATION)
         memberships = self._context(user_id)
         query = OpportunityQuery(kind=kind, open_only=not include_closed, limit=CATALOG_PAGE_SIZE)
-        rows, scanned, complete = self._scan(query)
+        rows, complete = self._scan(query)
 
         ranked: list[_Ranked] = []
         seen: set[UUID] = set()
+        scanned = 0
         omitted = 0
         for record in rows:
+            # Defense in depth: anything the adapter returned that is not public is dropped
+            # before any counting or dedupe, so no count can hint that a hidden row exists.
+            if getattr(record, "status", None) is not PublicationStatus.PUBLISHED:
+                continue
+            scanned += 1
             try:
+                if not matches(record, query, self._now):
+                    continue
                 if record.id in seen:
                     omitted += 1
                     continue
                 seen.add(record.id)
-                # Defense in depth: drop anything the adapter returned that is not public.
-                if not matches(record, query, self._now):
-                    continue
                 item = self._evaluate(record, memberships, interests)
             except (ValueError, TypeError, AttributeError, ValidationError):
                 omitted += 1
@@ -453,11 +467,11 @@ class MatchingService:
                 ranked.append(_Ranked(record, item))
         ranked.sort(key=_sort_key)
 
-        digest = self._digest(ranked, kind, include_closed, interests)
+        digest = self._digest(user_id, memberships, ranked, kind, include_closed, interests)
         offset = self._offset(cursor, digest, len(ranked))
         window = ranked[offset : offset + limit]
         end = offset + len(window)
-        items = self._attach_recruitment([entry.item for entry in window], interests)
+        items = self._attach_recruitment(user_id, [entry.item for entry in window], interests)
         return MatchPage(
             items=items,
             next_cursor=f"{end}.{digest}" if end < len(ranked) else None,
@@ -470,8 +484,14 @@ class MatchingService:
         )
 
     @staticmethod
-    def _digest(ranked, kind, include_closed, interests: Interests) -> str:
-        parts = [f"{kind or ''}|{include_closed}|{','.join(interests.kinds)}"]
+    def _digest(
+        user_id: UUID, memberships, ranked, kind, include_closed, interests: Interests
+    ) -> str:
+        # Bound to the actor, their canonical memberships, the request and the ranked snapshot:
+        # a cursor replayed by another actor or after a scope change gets 409, not a skip.
+        parts = [str(user_id)]
+        parts.append(",".join(f"{m.department_code}:{m.grade or ''}" for m in memberships))
+        parts.append(f"{kind or ''}|{include_closed}|{','.join(interests.kinds)}")
         parts.append("\x1f".join(word.casefold() for word in interests.keywords))
         parts.extend(f"{entry.record.id}:{entry.item.score}" for entry in ranked)
         return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
@@ -493,13 +513,29 @@ class MatchingService:
 
     # ---- recruitment reference seam (FR-OPP-005 link, FR-AI-003 relevance) ----
 
+    def _community_member(self, user_id: UUID) -> CommunityActor | None:
+        """This request's community actor, only if it passes the community routes' own check."""
+        try:
+            actor = require_member(self._community_actor)
+            # The community actor must be the verified principal, never someone else.
+            if UUID(actor.user_id) != user_id:
+                return None
+        except (ApiError, ValueError, TypeError, AttributeError):
+            return None
+        return actor
+
     def _recruitment_refs(
-        self, opportunity_ids: Sequence[UUID], interests: Interests
+        self, user_id: UUID, opportunity_ids: Sequence[UUID], interests: Interests
     ) -> dict[UUID, RecruitmentRefs]:
-        if self._recruitments is None:
+        actor = self._community_member(user_id)
+        # Without community access (academic membership alone is not enough) there is no
+        # recruitment metadata at all, and the adapter is never asked.
+        if self._recruitments is None or actor is None:
             return {oid: RecruitmentRefs(status="NOT_CONNECTED") for oid in opportunity_ids}
         try:
-            rows = list(self._recruitments.linked_recruitments(list(opportunity_ids), self._now))
+            rows = list(
+                self._recruitments.linked_recruitments(actor, list(opportunity_ids), self._now)
+            )
         except Exception:
             # Auxiliary data: the match list stays usable; no adapter detail is exposed.
             return {oid: RecruitmentRefs(status="UNAVAILABLE") for oid in opportunity_ids}
@@ -528,6 +564,9 @@ class MatchingService:
                 return None
             if effective_status(row, self._now) is not RecruitmentStatus.OPEN:
                 return None
+            # A full team is not recruiting, even before its owner closes it.
+            if not has_open_seat(row.capacity, row.accepted_count):
+                return None
             haystack = "\n".join((row.title, row.field, *row.roles)).casefold()
             return oid, RecruitmentRef(
                 id=row.id,
@@ -540,10 +579,12 @@ class MatchingService:
         except (ValueError, TypeError, AttributeError, ValidationError):
             return None
 
-    def _attach_recruitment(self, items: list[MatchItem], interests: Interests) -> list[MatchItem]:
+    def _attach_recruitment(
+        self, user_id: UUID, items: list[MatchItem], interests: Interests
+    ) -> list[MatchItem]:
         if not items:
             return items
-        refs = self._recruitment_refs([item.opportunity.id for item in items], interests)
+        refs = self._recruitment_refs(user_id, [item.opportunity.id for item in items], interests)
         return [
             item.model_copy(update={"recruitment": refs[item.opportunity.id]}) for item in items
         ]
@@ -567,7 +608,7 @@ class MatchingService:
             # Same response as a missing row: nothing about the malformed record leaks.
             raise ApiError(ErrorCode.NOT_FOUND) from None
         reasons = (scope or []) + interest_reasons(record, interests)
-        refs = self._recruitment_refs([record.id], interests)[record.id]
+        refs = self._recruitment_refs(user_id, [record.id], interests)[record.id]
         return OpportunityBrief(
             opportunity=detail,
             match=MatchSummary(

@@ -11,7 +11,7 @@ from uuid import UUID
 
 from test_opportunities_support import NOW, USER_A, USER_B, FakeCatalog, make_opportunity
 
-from app.features.community.domain import Recruitment, RecruitmentStatus
+from app.features.community.domain import CommunityActor, Recruitment, RecruitmentStatus
 from app.features.opportunities.repository import OpportunityPage, OpportunityQuery
 from app.features.opportunity_matching.ports import AcademicContext, AcademicMembership
 from app.features.opportunity_matching.service import MatchingService
@@ -44,13 +44,22 @@ class FakeContexts:
         return self.table.get(user_id)
 
 
+def member(user_id: UUID, *, access: bool = True) -> CommunityActor:
+    """Community actor as the community auth owner would resolve it server-side."""
+    return CommunityActor(user_id=str(user_id), community_access=access)
+
+
 @dataclass
 class FakeRecruitments:
     rows: list[Recruitment] = field(default_factory=list)
     fail: bool = False
     calls: list[list[UUID]] = field(default_factory=list)
+    actors: list[CommunityActor] = field(default_factory=list)
 
-    def linked_recruitments(self, opportunity_ids: Sequence[UUID], now: datetime):
+    def linked_recruitments(
+        self, actor: CommunityActor, opportunity_ids: Sequence[UUID], now: datetime
+    ):
+        self.actors.append(actor)
         self.calls.append(list(opportunity_ids))
         if self.fail:
             raise RuntimeError("adapter detail that must not leak")
@@ -99,5 +108,11 @@ class OversizedCatalog(LoopingCatalog):
         return OpportunityPage(self.records, None)
 
 
-def service(catalog, contexts=None, recruitments=None, now=NOW) -> MatchingService:
-    return MatchingService(catalog, contexts or FakeContexts(), recruitments, clock=lambda: now)
+def service(catalog, contexts=None, recruitments=None, now=NOW, community=None) -> MatchingService:
+    return MatchingService(
+        catalog,
+        contexts or FakeContexts(),
+        recruitments,
+        clock=lambda: now,
+        community_actor=community,
+    )
