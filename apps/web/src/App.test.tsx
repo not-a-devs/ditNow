@@ -48,4 +48,11 @@ describe('integrated campus shell', () => {
     expect(await screen.findByRole('alert')).not.toHaveTextContent('secret');
     expect(screen.getByRole('button', { name: '다시 확인' })).toBeEnabled();
   });
+  it.each([null, {}, { status: 'unknown', service: 'ditnow-api' }, { status: 'ok', service: 'other' }])('rejects invalid health data before showing success: %j', async data => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data }), { status: 200 })));
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText('공개 서버가 응답했습니다. 인증·DB 연결 상태는 확인하지 않습니다.')).not.toBeInTheDocument();
+  });
 });

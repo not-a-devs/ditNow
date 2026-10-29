@@ -19,6 +19,7 @@ function HealthStatus() {
     setState({ kind: 'loading' });
     try {
       const data = await requestData<Health>('/health', { signal: controller.signal });
+      if (!data || data.status !== 'ok' || data.service !== 'ditnow-api') throw new ApiError('INVALID_RESPONSE', 200);
       if (!controller.signal.aborted) setState({ kind: 'success', data });
     } catch (error) {
       if (!controller.signal.aborted) setState({ kind: 'error', error: error instanceof ApiError ? error : new ApiError('NETWORK', 0) });

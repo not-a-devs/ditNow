@@ -9,7 +9,7 @@ describe('public API transport', () => {
   it.each(['javascript:alert(1)', 'https://user:secret@api.example.test', '/remote', 'https://api.example.test?token=secret'])('rejects invalid base without echoing it: %s', base => {
     try { resolveApiUrl('/health', base); throw new Error('should fail'); } catch (error) { expect(error).toBeInstanceOf(ApiError); expect((error as Error).message).not.toContain('secret'); }
   });
-  it.each(['//evil.test/path', '/../session', 'https://evil.test', '/%2e%2e/session', '/path#token'])('rejects paths escaping the base: %s', path => {
+  it.each(['//evil.test/path', '/../session', 'https://evil.test', '/%2e%2e/session', '/%2e%2e%2fsession', '/%2E%2E%5Csession', '/path%2Fother', '/path#token'])('rejects paths escaping the base: %s', path => {
     expect(() => resolveApiUrl(path, 'https://api.example.test/api/v1')).toThrow(ApiError);
   });
   it('unwraps data and uses same-origin credentials by default', async () => {
