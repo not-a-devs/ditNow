@@ -1,0 +1,44 @@
+name: 신규 통합 웹 검증
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: 신규 웹 · 타입·테스트·빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: 잠금 의존성 설치
+        run: npm ci
+      - name: OpenAPI 타입 일치
+        run: npm run api:types:check
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 단위 테스트
+        run: npm test
+      - name: 빌드
+        run: npm run build
+      - name: 운영 의존성 보안 검사
+        run: npm audit --omit=dev --audit-level=high
