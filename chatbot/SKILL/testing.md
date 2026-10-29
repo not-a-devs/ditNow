@@ -11,6 +11,7 @@ tests/
 ├── test_data.py            # 스키마 검증, id 중복, 깨진 참조
 ├── test_retriever.py       # 별칭·오타·무관 질문
 ├── test_rag.py             # 파이프라인 (FakeLLMClient 사용)
+├── test_llm.py             # LLM 팩토리·FakeLLMClient
 ├── test_api.py             # FastAPI TestClient로 엔드포인트
 └── eval_questions.json     # 답변 품질 평가 세트
 ```
@@ -25,10 +26,10 @@ tests/
 
 ```json
 [
-  { "question": "정보관 어디 있어?",     "expect_ids": ["fac-info-hall"], "expect_found": true },
-  { "question": "컴소과 건물 위치",       "expect_ids": ["fac-info-hall"], "expect_found": true },
-  { "question": "학식 몇시까지 해요",     "expect_ids": ["sch-cafeteria"], "expect_found": true },
-  { "question": "학교 수영장 어디야?",    "expect_ids": [],                "expect_found": false }
+  { "question": "정보괸 어딨음",         "expect_ids": ["bld_jeongbo"],   "expect_found": true },
+  { "question": "컴소과 사무실 어디야",   "expect_ids": ["dept_cs"],       "expect_found": true },
+  { "question": "학식 몇시까지 해요",     "expect_ids": ["fac_cafeteria"], "expect_found": true },
+  { "question": "주차장 어디야",          "expect_ids": [],                "expect_found": false }
 ]
 ```
 
@@ -41,7 +42,9 @@ tests/
 - **답변 평가 (실제 LLM 사용, 수동 실행)**: `python scripts/eval.py --with-llm`
   - `expect_found=false` 질문에 "등록되어 있지 않아요"로 답했는지 (환각 체크)
   - `sources`에 `expect_ids`가 들어 있는지
-- 결과는 `reports/eval_YYYYMMDD.md`로 저장해 이전 결과와 비교합니다.
+- 결과는 `reports/eval_YYYYMMDD.md`(LLM 평가는 `_llm` 접미사)로 저장해 커밋하고, 이전 결과와 비교합니다.
+- `Recall@3` < 0.9 이거나 환각이 1건이라도 있으면 종료 코드 1을 반환합니다.
+- `expect_found=false`인데 검색은 되는 질문(예: "학식 오늘 메뉴 뭐야")은 LLM이 거절해야 하는 환각 체크용입니다.
 
 ## 5. 완료 기준
 
