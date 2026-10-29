@@ -55,6 +55,8 @@ class Report {
     if (this.#stages.length === 0) return 'NOT_RUN';
     if (this.#stages.some((s) => s.status === 'FAIL' || s.status === 'SKIPPED')) return 'FAIL';
     if (this.#cleanup && this.#cleanup.failed > 0) return 'FAIL';
+    if (Object.values(this.#observations).some(obs => obs.page_errors > 0 || obs.private_responses_without_no_store > 0 || obs.blocked_external_requests > 0 || obs.blocked_redirects > 0 || obs.blocked_requests > 0)) return 'FAIL';
+    if (!this.#cleanup || this.#cleanup.residual_closed > 0 || this.#cleanup.skipped_not_owned_marker > 0 || this.#cleanup.budget_exhausted) return 'INCOMPLETE';
     return 'PASS';
   }
 

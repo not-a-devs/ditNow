@@ -148,3 +148,52 @@ test('real scenario keeps close-vs-delete as an opt-in separate sample and logs 
   assert.equal(withClose[0], 'auth.login_a');
   assert.ok(withClose.indexOf('isolation.student_b') < withClose.indexOf('community.anonymous.delete'));
 });
+
+test('a non-DEMO opportunity is rejected before private preparation stages', async () => {
+  const fake = createFakeApi(); const { browser } = mockBrowser();
+  const fetchImpl = async (url, init) => {
+    if (new URL(url).pathname.endsWith(`/opportunities/${OPPORTUNITY_ID}`)) return { status: 200, json: async () => ({ data: { id: OPPORTUNITY_ID, title: 'not a demo', source_kind: 'OFFICIAL_PUBLIC' } }) };
+    return fake.fetchImpl(url, init);
+  };
+  const result = await runP0BrowserE2E({ env: baseEnv(), fetchImpl, launchBrowser: async () => browser, stagesFactory: () => [{ id: 'opportunity.check', deps: [], run: async () => assert.fail('must be skipped') }] });
+  assert.equal(result.report.toJSON().stages.find(stage => stage.id === 'preflight.opportunity').status, 'FAIL');
+  assert.equal(fake.calls.filter(call => call.method === 'DELETE').length, 0);
+});
+
+test('UI-issued tokens are revoked and confirmed 401 even after cleanup data is malformed', async () => {
+  const fake = createFakeApi(); const { browser, events } = mockBrowser();
+  let broken = false;
+  const fetchImpl = async (url, init) => {
+    if (broken && new URL(url).pathname.endsWith('/me/saved-opportunities')) return { status: 200, json: async () => ({ data: { items: {} } }) };
+    return fake.fetchImpl(url, init);
+  };
+  const result = await runP0BrowserE2E({ env: baseEnv(), fetchImpl, launchBrowser: async () => browser, stagesFactory: () => [{ id: 'auth.login_a', deps: [], run: async ctx => {
+    ctx.trackToken(`fixture.browser.token.${ctx.vp}`); ctx.registry.register('saved_opportunity', OPPORTUNITY_ID); broken = true;
+  } }] });
+  const json = result.report.toJSON();
+  assert.equal(json.status, 'FAIL'); assert.ok(json.cleanup.failed > 0);
+  assert.equal(json.cleanup.sessions_attempted, 4); assert.equal(json.cleanup.sessions_failed, 0);
+  assert.equal(fake.state.revoked.size, 4); assert.equal(events.closed, events.contexts); assert.equal(events.browserClosed, true);
+  assert.ok(!JSON.stringify(json).includes('fixture.browser.token'));
+});
+
+test('an unexpected cleanup exception still closes the browser and revokes all known sessions', async () => {
+  const fake = createFakeApi(); const { browser, events } = mockBrowser();
+  const result = await runP0BrowserE2E({ env: baseEnv(), fetchImpl: fake.fetchImpl, launchBrowser: async () => browser, stagesFactory: () => [{ id: 'auth.login_a', deps: [], run: async ctx => {
+    ctx.trackToken(`fixture.browser.token.${ctx.vp}`);
+    ctx.registry.pending = () => { throw new Error('fixture-private-cleanup-error'); };
+  } }] });
+  const json = result.report.toJSON();
+  assert.equal(json.status, 'FAIL'); assert.equal(json.cleanup.cleanup_exception, true);
+  assert.equal(json.cleanup.sessions_attempted, 4); assert.equal(json.cleanup.sessions_failed, 0);
+  assert.equal(events.closed, events.contexts); assert.equal(events.browserClosed, true);
+  assert.ok(!JSON.stringify(json).includes('fixture-private-cleanup-error'));
+});
+
+test('unconfirmed token revocation cannot be reported as successful cleanup', async () => {
+  const fake = createFakeApi(); const { browser } = mockBrowser();
+  const fetchImpl = async (url, init) => new URL(url).pathname.endsWith('/auth/logout')
+    ? { status: 503, json: async () => ({}) } : fake.fetchImpl(url, init);
+  const result = await runP0BrowserE2E({ env: baseEnv(), fetchImpl, launchBrowser: async () => browser, stagesFactory: () => [{ id: 'auth.login_a', deps: [], run: async () => {} }] });
+  assert.equal(result.report.status, 'FAIL'); assert.equal(result.report.toJSON().cleanup.sessions_failed, 2);
+});

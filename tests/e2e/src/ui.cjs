@@ -22,7 +22,7 @@ function apiPath(ctx, rawUrl) {
     return null;
   }
   const base = ctx.apiBase;
-  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
+  if (url.origin !== base.origin || !(url.pathname === base.pathname || url.pathname.startsWith(base.pathname + '/'))) return null;
   return url.pathname.slice(base.pathname.length) || '/';
 }
 
@@ -106,14 +106,23 @@ async function navTo(ctx, key, { expectList = true } = {}) {
 /** Fills the login form on the current page; requires POST /auth/login and GET /auth/me. */
 async function submitLogin(ctx, credential, identity) {
   const { page } = ctx;
+  assertLoginLocation(ctx);
   const meWait = responseWaiter(ctx, { method: 'GET', path: /^\/auth\/me$/, status: null });
   await step(`${S.QUESTIONS.LOGIN_ROUTE} login form`, async () => {
     await page.getByLabel(S.LOGIN.studentId).fill(credential.studentId, { timeout: ctx.timeoutMs });
+    assertLoginLocation(ctx);
     await page.getByLabel(S.LOGIN.password, { exact: true }).fill(credential.password, { timeout: ctx.timeoutMs });
   });
-  await withApiResponse(ctx, { label: 'UI POST /auth/login', method: 'POST', path: /^\/auth\/login$/, status: 200 }, () =>
-    page.getByRole('button', { name: S.LOGIN.submit }).click(),
+  const loginResponse = await withApiResponse(ctx, { label: 'UI POST /auth/login', method: 'POST', path: /^\/auth\/login$/, status: 200 }, () =>
+    { assertLoginLocation(ctx); return page.getByRole('button', { name: S.LOGIN.submit }).click(); },
   );
+  const login = await readData(loginResponse);
+  if (typeof login?.token === 'string' && /^[A-Za-z0-9._~+/-]{8,512}={0,2}$/.test(login.token)) ctx.trackToken(login.token);
+  if (!login || login.record_source !== 'DEMO' || login.token_type !== 'Bearer'
+    || login.student_id !== credential.studentId || typeof login.token !== 'string'
+    || !/^[A-Za-z0-9._~+/-]{8,512}={0,2}$/.test(login.token)) {
+    throw new E2EError('ASSERTION', 'UI LoginData contract mismatch');
+  }
   let me;
   try {
     me = await meWait;
@@ -121,9 +130,21 @@ async function submitLogin(ctx, credential, identity) {
     throw new E2EError('ASSERTION', `${S.QUESTIONS.SESSION_IDENTITY}: UI did not confirm session via GET /auth/me`);
   }
   if (me.status() !== 200) throw new E2EError('HTTP_STATUS', `UI GET /auth/me: expected 200 got ${me.status()}`);
+  const current = await readData(me);
+  if (current?.user_id !== identity.user_id || current?.display_name !== identity.display_name || current?.record_source !== 'DEMO') {
+    throw new E2EError('ASSERTION', 'UI current identity differs from approved account');
+  }
   await step(`${S.QUESTIONS.SESSION_IDENTITY} own session identity shown`, () =>
     page.getByText(identity.display_name, { exact: false }).first().waitFor({ state: 'visible', timeout: ctx.timeoutMs }),
   );
+}
+
+function assertLoginLocation(ctx) {
+  try {
+    const url = new URL(ctx.page.url());
+    if (url.origin === new URL(ctx.cfg.webUrl).origin && url.pathname === S.ROUTES.login && !url.search && !url.hash) return;
+  } catch { /* Static failure only; no URL or credentials are printed. */ }
+  throw new E2EError('PRECONDITION', 'exact local login location required before credential input');
 }
 
 async function loginFromStart(ctx, credential, identity) {
@@ -134,49 +155,26 @@ async function loginFromStart(ctx, credential, identity) {
   await submitLogin(ctx, credential, identity);
 }
 
-/**
- * Full browser reload, then resume on `key`. The session policy after reload is not fixed yet
- * (Q-F3), so both "restored" (list GET 200) and "login form shown" are accepted and reported.
- */
-async function reloadAndResume(ctx, key, credential, identity) {
-  const { page } = ctx;
-  const listOk = responseWaiter(ctx, { method: 'GET', path: S.LIST_API[key], status: 200 }).then(() => 'restored');
-  listOk.catch(() => {});
-  await step(`reload ${key}`, () => page.reload({ waitUntil: 'domcontentloaded', timeout: ctx.timeoutMs }));
-  const loginShown = page
-    .getByLabel(S.LOGIN.studentId)
-    .waitFor({ state: 'visible', timeout: ctx.timeoutMs })
-    .then(() => 'login');
-  loginShown.catch(() => {});
-  let outcome;
-  try {
-    outcome = await Promise.any([listOk, loginShown]);
-  } catch {
-    throw new E2EError('TIMEOUT', `${S.QUESTIONS.RELOAD_SESSION}: after reload neither list nor login form appeared`);
-  }
-  if (outcome === 'login') {
-    // Either the guard rendered the form on the protected route, or F redirected to /app/login.
-    const onRoute = currentPath(page) === S.ROUTES[key];
-    const refetch = onRoute ? responseWaiter(ctx, { method: 'GET', path: S.LIST_API[key], status: 200 }) : null;
-    await submitLogin(ctx, credential, identity);
-    if (!refetch) await navTo(ctx, key);
-    else {
-      try {
-        await refetch;
-      } catch {
-        throw new E2EError('TIMEOUT', `${S.QUESTIONS.RELOAD_SESSION}: ${key} list not refetched after re-login`);
-      }
-    }
-  }
-  await step(`${key} page after reload`, async () => {
-    await clickTabIfPresent(ctx, key);
-    await heading(ctx, key).waitFor({ state: 'visible', timeout: ctx.timeoutMs });
+/** Current PR60 contract: reload clears memory; the protected page offers an explicit login button. */
+async function openLoginFromGuard(ctx) {
+  await step(`${S.QUESTIONS.SIGNED_OUT_GUARD} protected login boundary`, async () => {
+    await ctx.page.getByText(S.LOGIN.required, { exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs });
+    await ctx.page.getByRole('button', { name: S.LOGIN.open, exact: true }).click();
+    await ctx.page.waitForURL(url => url.pathname === S.ROUTES.login, { timeout: ctx.timeoutMs });
+    await ctx.page.getByLabel(S.LOGIN.studentId).waitFor({ state: 'visible', timeout: ctx.timeoutMs });
   });
-  ctx.recordReload(outcome === 'login' ? 'relogin_required' : 'restored');
+}
+
+async function reloadAndResume(ctx, key, credential, identity) {
+  await step(`reload ${key}`, () => ctx.page.reload({ waitUntil: 'domcontentloaded', timeout: ctx.timeoutMs }));
+  await openLoginFromGuard(ctx);
+  await submitLogin(ctx, credential, identity);
+  await navTo(ctx, key);
+  ctx.recordReload('relogin_required');
 }
 
 function currentPath(page) {
   return new URL(page.url()).pathname.replace(/\/$/, '');
 }
 
-module.exports = { step, apiPath, responseWaiter, withApiResponse, readData, navTo, submitLogin, loginFromStart, reloadAndResume };
+module.exports = { step, apiPath, responseWaiter, withApiResponse, readData, navTo, submitLogin, loginFromStart, reloadAndResume, openLoginFromGuard };

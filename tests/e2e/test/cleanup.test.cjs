@@ -36,7 +36,7 @@ test('cleanup deletes only own marker resources and leaves closed recruitments a
       { id: 'r-open', title: `${MARKER} 모집`, is_mine: true, revision: 3, status: 'open' },
       { id: 'r-closed', title: `${MARKER} 마감표본`, is_mine: true, revision: 2, status: 'closed' },
     ],
-    saved: [{ opportunity_id: OPPORTUNITY_ID, revision: 4, checks: [] }],
+    saved: [{ opportunity_id: OPPORTUNITY_ID, revision: 4, checks: [{ text: `${MARKER} 준비` }] }],
   });
   const registry = new ResourceRegistry();
   registry.register('anonymous_post', 'p-mine');
@@ -85,4 +85,19 @@ test('without a token cleanup makes no requests and counts pending as failed', a
   const summary = await cleanupResources({ api: api(fake), token: null, registry, marker: MARKER });
   assert.equal(fake.calls.length, 0);
   assert.equal(summary.failed, 1);
+});
+
+test('same-account replacement saved row without this run marker is never deleted', async () => {
+  const fake = createFakeApi({ saved: [{ opportunity_id: OPPORTUNITY_ID, memo: 'new user preparation', revision: 1, checks: [{ text: 'new task' }] }] });
+  const registry = new ResourceRegistry(); registry.register('saved_opportunity', OPPORTUNITY_ID);
+  const summary = await cleanupResources({ api: api(fake), token: 'tok', registry, marker: MARKER });
+  assert.equal(summary.skipped_not_owned_marker, 1); assert.equal(fake.state.saved.length, 1);
+  assert.equal(fake.calls.filter(call => call.method === 'DELETE').length, 0);
+});
+
+test('malformed cleanup list is a reported failure without destructive requests', async () => {
+  const registry = new ResourceRegistry(); registry.register('saved_opportunity', OPPORTUNITY_ID);
+  let deletes = 0;
+  const summary = await cleanupResources({ api: { request: async (_, method) => { if (method === 'DELETE') deletes++; return { status: 200, data: { items: {} } }; } }, token: 'tok', registry, marker: MARKER });
+  assert.ok(summary.failed > 0); assert.equal(deletes, 0);
 });

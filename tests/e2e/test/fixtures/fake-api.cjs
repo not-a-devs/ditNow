@@ -31,7 +31,7 @@ function json(status, data) {
 /** In-memory fetch replacement. `posts`/`recruitments` rows: {id,title,is_mine,revision,status}. */
 function createFakeApi({ recordSource = 'DEMO', posts = [], recruitments = [], saved = [], failDeletes = false } = {}) {
   const calls = [];
-  const state = { posts: new Map(posts.map((p) => [p.id, { ...p }])), recruitments: new Map(recruitments.map((r) => [r.id, { ...r }])), saved: [...saved] };
+  const state = { posts: new Map(posts.map((p) => [p.id, { ...p }])), recruitments: new Map(recruitments.map((r) => [r.id, { ...r }])), saved: [...saved], revoked: new Set() };
   async function fetchImpl(url, init = {}) {
     const u = new URL(url);
     const p = u.pathname.replace(/^\/api\/v1/, '');
@@ -43,11 +43,12 @@ function createFakeApi({ recordSource = 'DEMO', posts = [], recruitments = [], s
       return json(200, { token: `${FIXTURE_TOKEN}${who}`, token_type: 'Bearer', student_id: body.student_id, name: `가상학생${who}`, record_source: recordSource });
     }
     if (p === '/auth/me') {
+      if (state.revoked.has(init.headers.Authorization)) return json(401);
       const who = init.headers.Authorization.endsWith('A') ? 'A' : 'B';
-      return json(200, { user_id: `user-${who}-0001`, display_name: `가상학생${who}`, record_source: recordSource, department_id: 'd1', department_code: 'CS', academic_year: 2, community_access: true });
+      return json(200, { user_id: `10000000-0000-4000-8000-00000000000${who === 'A' ? '1' : '2'}`, display_name: `가상학생${who}`, record_source: recordSource, department_id: '20000000-0000-4000-8000-000000000001', department_code: 'CS', academic_year: 2, community_access: true });
     }
-    if (p === '/auth/logout') return json(200, { status: 'logged_out' });
-    if (p === `/opportunities/${OPPORTUNITY_ID}`) return json(200, { id: OPPORTUNITY_ID, title: '가상 장학 공고' });
+    if (p === '/auth/logout') { state.revoked.add(init.headers.Authorization); return json(200, { status: 'ok' }); }
+    if (p === `/opportunities/${OPPORTUNITY_ID}`) return json(200, { id: OPPORTUNITY_ID, title: '가상 장학 공고', source_kind: 'DEMO' });
     if (p === '/me/saved-opportunities' && method === 'GET') return json(200, { items: state.saved });
     if (p.startsWith('/me/saved-opportunities/') && method === 'DELETE') {
       if (failDeletes) return json(409);

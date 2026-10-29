@@ -2,7 +2,7 @@
 
 const { E2EError } = require('./errors.cjs');
 const S = require('./selectors.cjs');
-const { step, withApiResponse, readData, navTo, loginFromStart, reloadAndResume } = require('./ui.cjs');
+const { step, withApiResponse, readData, navTo, loginFromStart, reloadAndResume, openLoginFromGuard } = require('./ui.cjs');
 
 const DENIED = [403, 404];
 
@@ -334,9 +334,7 @@ async function logoutA(ctx) {
   });
   await withApiResponse(ctx, { label: 'UI POST /auth/logout', method: 'POST', path: /^\/auth\/logout$/, status: 200 }, () => button.first().click());
   await navTo(ctx, 'community', { expectList: false });
-  await step(`${S.QUESTIONS.SIGNED_OUT_GUARD} login required after logout`, () =>
-    page.getByLabel(S.LOGIN.studentId).waitFor({ state: 'visible', timeout: ctx.timeoutMs }),
-  );
+  await openLoginFromGuard(ctx);
 }
 
 /** Ordered per-viewport stages. `deps` are same-viewport stage IDs that must PASS first. */

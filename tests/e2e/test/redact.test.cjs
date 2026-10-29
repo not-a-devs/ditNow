@@ -42,6 +42,8 @@ test('report never claims VERIFIED and requires every stage to PASS', () => {
   const report = new Report({ redactor: r });
   assert.equal(report.status, 'NOT_RUN');
   report.addStage({ id: 'a', status: 'PASS' });
+  assert.equal(report.status, 'INCOMPLETE');
+  report.setCleanup({ failed: 0 });
   assert.equal(report.status, 'PASS');
   report.addStage({ id: 'b', viewport: 390, status: 'SKIPPED', code: 'DEPENDENCY_FAILED' });
   assert.equal(report.status, 'FAIL');
@@ -57,4 +59,18 @@ test('report never claims VERIFIED and requires every stage to PASS', () => {
   cleanupFail.addStage({ id: 'a', status: 'PASS' });
   cleanupFail.setCleanup({ failed: 1 });
   assert.equal(cleanupFail.status, 'FAIL');
+});
+
+test('cleanup residue, skipped markers and budget limits cannot report PASS', () => {
+  for (const failure of [{ residual_closed: 1 }, { skipped_not_owned_marker: 1 }, { budget_exhausted: true }]) {
+    const report = new Report({ redactor: new Redactor() }); report.addStage({ id: 'ui', status: 'PASS' }); report.setCleanup({ failed: 0, ...failure });
+    assert.equal(report.status, 'INCOMPLETE'); assert.equal(report.toJSON().verified_claim, false);
+  }
+});
+
+test('page errors and missing private cache protection prevent an overall PASS', () => {
+  for (const key of ['page_errors', 'private_responses_without_no_store', 'blocked_redirects', 'blocked_requests', 'blocked_external_requests']) {
+    const report = new Report({ redactor: new Redactor() }); report.addStage({ id: 'ui', status: 'PASS' }); report.setCleanup({ failed: 0 }); report.observe(390, key, 1);
+    assert.equal(report.status, 'FAIL');
+  }
 });

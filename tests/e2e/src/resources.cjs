@@ -100,7 +100,8 @@ async function cleanupResources({ api, token, registry, marker }) {
   // Discover marker items whose create succeeded but whose ID was never captured.
   for (const [kind, path] of [['anonymous_post', '/anonymous-posts'], ['recruitment', '/recruitments']]) {
     const list = await call(`cleanup list ${kind}`, 'GET', `${path}?limit=${LIST_LIMIT}`);
-    for (const item of list?.data?.items ?? []) {
+    if (!list || list.status !== 200 || !Array.isArray(list.data?.items)) { summary.failed += 1; continue; }
+    for (const item of list.data.items) {
       if (item && item.is_mine === true && typeof item.title === 'string' && item.title.includes(marker)) {
         try {
           registry.register(kind, item.id, { revision: item.revision });
@@ -126,12 +127,19 @@ async function cleanupOne(item, { call, registry, marker, summary }) {
   const ref = encodeURIComponent(item.id);
   if (item.kind === 'saved_opportunity') {
     const list = await call('cleanup saved list', 'GET', '/me/saved-opportunities');
-    if (!list || list.status !== 200) return false;
+    if (!list || list.status !== 200 || !Array.isArray(list.data?.items)) return false;
     const saved = (list.data?.items ?? []).find((s) => s.opportunity_id === item.id);
     if (!saved) {
       registry.mark(item.kind, item.id, 'gone');
       summary.already_gone += 1;
       return true;
+    }
+    const marked = (typeof saved.memo === 'string' && saved.memo.includes(marker))
+      || (Array.isArray(saved.checks) && saved.checks.some(check => typeof check.text === 'string' && check.text.includes(marker)));
+    if (!marked) {
+      registry.mark(item.kind, item.id, 'skipped');
+      summary.skipped_not_owned_marker += 1;
+      return true; // A later same-account save must not be mistaken for this run's record.
     }
     const res = await call('cleanup saved delete', 'DELETE', `/me/saved-opportunities/${ref}`, {
       headers: { 'If-Match': String(saved.revision) },

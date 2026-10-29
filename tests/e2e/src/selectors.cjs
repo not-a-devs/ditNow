@@ -21,7 +21,7 @@ const QUESTIONS = Object.freeze({
 module.exports = Object.freeze({
   QUESTIONS,
   ROUTES: Object.freeze({
-    login: '/app/login', // PROPOSED Q-F1
+    login: '/app/login', // PR60: explicit login route
     community: '/app/community', // EXISTING navigation.ts
     recruitments: '/app/recruitments', // EXISTING navigation.ts
     opportunities: '/app/opportunities', // EXISTING navigation.ts
@@ -46,6 +46,8 @@ module.exports = Object.freeze({
     password: '비밀번호',
     submit: '가상 계정으로 로그인',
     logout: '로그아웃', // PROPOSED placement Q-F5
+    required: '로그인이 필요한 화면입니다',
+    open: '로그인 화면으로',
   }),
   ANON: Object.freeze({
     section: 'section[aria-labelledby="anon-heading"]',
@@ -72,7 +74,7 @@ module.exports = Object.freeze({
     editForm: '모집글 수정',
     save: '수정 요청',
     close: '모집 마감',
-    remove: '삭제', // PROPOSED Q-F4
+    remove: '모집글 취소 · 목록에서 제거', // open -> cancelled (logical deletion), PR60
   }),
   OPP: Object.freeze({
     listSection: 'section[aria-labelledby="opp-list"]',

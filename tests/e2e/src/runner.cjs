@@ -12,7 +12,7 @@ const { buildStages } = require('./scenario.cjs');
 const { apiPath } = require('./ui.cjs');
 
 const ARTIFACTS = path.join(__dirname, '..', '.artifacts');
-const PRIVATE_PATH = /^\/(auth\/me|anonymous-posts|recruitments|me\/)/;
+const PRIVATE_PATH = /^\/(?:auth(?:\/|$)|anonymous-posts(?:\/|$)|recruitments(?:\/|$)|me\/)/;
 const GLOBAL_DEPS = ['preflight.demo_accounts', 'browser.launch'];
 
 // Playwright is loaded only on the live path so NOT_RUN and unit tests never need it installed.
@@ -59,18 +59,33 @@ async function openInstrumentedPage(browser, cfg, viewport, obs) {
     serviceWorkers: 'block',
     acceptDownloads: false,
   });
-  // No tracing, video or HAR is ever started. Only the local web/API origins are reachable.
+  // HTTP resources never follow redirects: route.continue alone cannot police redirect hops.
   const allowed = new Set([new URL(cfg.webUrl).origin, new URL(cfg.apiUrl).origin]);
-  await context.route('**/*', (route) => {
+  await context.route('**/*', async (route) => {
     let origin = null;
     try {
       origin = new URL(route.request().url()).origin;
     } catch {
       origin = null;
     }
-    if (allowed.has(origin)) return route.continue();
-    obs.blocked_external_requests += 1;
-    return route.abort('blockedbyclient');
+    if (!allowed.has(origin)) {
+      obs.blocked_external_requests += 1;
+      return route.abort('blockedbyclient');
+    }
+    let response;
+    try {
+      response = await route.fetch({ maxRedirects: 0, maxRetries: 0, timeout: cfg.timeoutMs });
+      if (response.status() >= 300 && response.status() < 400) {
+        obs.blocked_redirects += 1;
+        return await route.abort('blockedbyclient');
+      }
+      return await route.fulfill({ response });
+    } catch {
+      obs.blocked_requests += 1;
+      await route.abort('failed').catch(() => {});
+    } finally {
+      if (response) await response.dispose().catch(() => {});
+    }
   });
   const page = await context.newPage();
   page.setDefaultTimeout(cfg.timeoutMs);
@@ -103,12 +118,12 @@ async function maybeScreenshot(cfg, page, viewport, stageId) {
   }
 }
 
-async function preflightAccounts(api, accounts, redactor) {
+async function preflightAccounts(api, accounts, redactor, trackToken) {
   for (const label of ['A', 'B']) {
     const account = accounts[label];
     const login = await api.login(account.credential, `student ${label}`);
     account.token = login.token;
-    redactor.add(login.token);
+    trackToken(login.token);
     account.identity = await api.me(login.token, `student ${label}`);
     redactor.add(account.identity.user_id);
     redactor.add(account.identity.display_name);
@@ -121,7 +136,7 @@ async function preflightAccounts(api, accounts, redactor) {
 async function preflightOpportunity(api, accounts, opportunityId, opportunity) {
   const ref = encodeURIComponent(opportunityId);
   const { data } = await api.expect('DEMO opportunity public GET', 'GET', `/opportunities/${ref}`, 200);
-  if (!data || data.id !== opportunityId || typeof data.title !== 'string' || !data.title.trim()) {
+  if (!data || data.source_kind !== 'DEMO' || data.id !== opportunityId || typeof data.title !== 'string' || !data.title.trim()) {
     throw new E2EError('ASSERTION', 'DEMO opportunity detail shape mismatch');
   }
   opportunity.id = opportunityId;
@@ -166,16 +181,21 @@ async function runP0BrowserE2E({ env = process.env, fetchImpl = globalThis.fetch
     screenshots: cfg.screenshots,
   });
 
+  const tokens = new Set();
+  const trackToken = token => {
+    if (tokens.size >= 100) throw new E2EError('PRECONDITION', 'session cleanup budget exceeded');
+    tokens.add(token); redactor.add(token);
+  };
   const marker = newRunMarker();
   const registry = new ResourceRegistry({ onSecret: (id) => redactor.add(id) });
-  const api = createApiClient({ apiUrl: cfg.apiUrl, fetchImpl, timeoutMs: cfg.timeoutMs });
+  const api = createApiClient({ apiUrl: cfg.apiUrl, fetchImpl, timeoutMs: cfg.timeoutMs, onToken: trackToken });
   const accounts = { A: { credential: cfg.studentA, token: null, identity: null }, B: { credential: cfg.studentB, token: null, identity: null, hadOpportunitySaved: true } };
   const opportunity = { id: null, title: null };
   let browser = null;
   const contexts = [];
 
   try {
-    await runStage(report, redactor, { id: 'preflight.demo_accounts' }, () => preflightAccounts(api, accounts, redactor));
+    await runStage(report, redactor, { id: 'preflight.demo_accounts' }, () => preflightAccounts(api, accounts, redactor, trackToken));
     await runStage(report, redactor, { id: 'preflight.opportunity', deps: ['preflight.demo_accounts'] }, () =>
       preflightOpportunity(api, accounts, cfg.opportunityId, opportunity),
     );
@@ -186,7 +206,7 @@ async function runP0BrowserE2E({ env = process.env, fetchImpl = globalThis.fetch
     const stages = stagesFactory({ includeClose: cfg.includeClose });
     for (const viewport of cfg.viewports) {
       const vp = viewport.width;
-      const obs = { console_errors: 0, page_errors: 0, blocked_external_requests: 0, private_responses_without_no_store: 0, session_after_reload: [] };
+      const obs = { console_errors: 0, page_errors: 0, blocked_external_requests: 0, blocked_redirects: 0, blocked_requests: 0, private_responses_without_no_store: 0, session_after_reload: [] };
       let main = null;
       if (browser) {
         try {
@@ -196,7 +216,7 @@ async function runP0BrowserE2E({ env = process.env, fetchImpl = globalThis.fetch
           main = null;
         }
       }
-      const base = { cfg, apiBase: new URL(cfg.apiUrl), timeoutMs: cfg.timeoutMs, recordReload: (outcome) => obs.session_after_reload.push(outcome) };
+      const base = { cfg, trackToken, apiBase: new URL(cfg.apiUrl), timeoutMs: cfg.timeoutMs, recordReload: (outcome) => obs.session_after_reload.push(outcome) };
       const ctx = {
         ...base,
         page: main?.page ?? null,
@@ -225,17 +245,23 @@ async function runP0BrowserE2E({ env = process.env, fetchImpl = globalThis.fetch
       report.observe(vp, 'console_errors', obs.console_errors);
       report.observe(vp, 'page_errors', obs.page_errors);
       report.observe(vp, 'blocked_external_requests', obs.blocked_external_requests);
+      report.observe(vp, 'blocked_redirects', obs.blocked_redirects);
+      report.observe(vp, 'blocked_requests', obs.blocked_requests);
       report.observe(vp, 'private_responses_without_no_store', obs.private_responses_without_no_store);
       report.observe(vp, 'session_after_reload', [...new Set(obs.session_after_reload)]);
     }
   } finally {
-    const summary = await cleanupResources({ api, token: accounts.A.token, registry, marker });
-    report.setCleanup({ ...summary, registry: registry.counts() });
-    for (const context of contexts) await context.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
-    for (const account of [accounts.A, accounts.B]) if (account.token) await api.logout(account.token);
+    let summary = { failed: 1, cleanup_exception: true };
+    try { summary = await cleanupResources({ api, token: accounts.A.token, registry, marker }); }
+    catch { /* Keep a static failure and still close every context and revoke every token. */ }
+    let closingFailed = 0;
+    for (const context of contexts) { try { await context.close(); } catch { closingFailed += 1; } }
+    if (browser) { try { await browser.close(); } catch { closingFailed += 1; } }
+    let sessionsFailed = 0;
+    for (const token of tokens) { try { if (!(await api.logout(token))) sessionsFailed += 1; } catch { sessionsFailed += 1; } }
+    report.setCleanup({ ...summary, failed: summary.failed + sessionsFailed + closingFailed, sessions_attempted: tokens.size, sessions_failed: sessionsFailed, closing_failed: closingFailed, registry: registry.counts() });
   }
   return { exitCode: report.status === 'PASS' ? 0 : 1, report };
 }
 
-module.exports = { runP0BrowserE2E, runStage, defaultLaunch };
+module.exports = { runP0BrowserE2E, runStage, defaultLaunch, openInstrumentedPage };
