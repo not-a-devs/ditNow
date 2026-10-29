@@ -311,7 +311,9 @@ class SQLRecruitments:
         self.access.require(student=True)
         row = self.session.scalar(
             select(RecruitmentRow)
-            .where(RecruitmentRow.id == as_uuid(recruitment_id))
+            .where(
+                RecruitmentRow.id == as_uuid(recruitment_id), RecruitmentRow.status != "cancelled"
+            )
             .with_for_update()
             .execution_options(populate_existing=True)
         )
@@ -365,6 +367,7 @@ class SQLRecruitments:
             recruitment(row)
             for row in self.session.scalars(
                 select(RecruitmentRow)
+                .where(RecruitmentRow.status != "cancelled")
                 .order_by(RecruitmentRow.created_at, RecruitmentRow.id)
                 .limit(limit)
                 .offset(offset)

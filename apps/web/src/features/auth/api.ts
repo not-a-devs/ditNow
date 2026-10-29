@@ -1,4 +1,4 @@
-import { ApiError, requestData, resolveApiUrl } from '../../lib/api';
+import { ApiError, requestData, requestSessionLogout, resolveApiUrl } from '../../lib/api';
 
 export interface LoginCredentials { student_id: string; password: string }
 export interface DemoLoginSession {
@@ -59,10 +59,7 @@ export async function logout(token: string, signal?: AbortSignal): Promise<void>
     throw new ApiError('INVALID_RESPONSE', 0);
   }
   requireSecureTransport('/auth/logout');
-  const value = await requestData<unknown>('/auth/logout', {
-    method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal,
-    cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
-  });
+  const value = await requestSessionLogout<unknown>(token, signal);
   if (!object(value) || Object.keys(value).length !== 1 || value.status !== 'ok') {
     throw new ApiError('INVALID_RESPONSE', 200);
   }

@@ -1,3 +1,4 @@
+import { useRequestLifetime } from '../../lib/useRequestLifetime';
 import { useState, type FormEvent } from "react";
 import { communityApi, createKeyTracker, describeError, type IssueInfo } from "./api";
 import { EmptyPanel, InlineIssue, LoadingPanel, StatusPanel } from "./StatusPanel";
@@ -21,6 +22,7 @@ export function AnonymousBoard() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+  const lifetime = useRequestLifetime();
   const [formError, setFormError] = useState<string | null>(null);
   const [issue, setIssue] = useState<IssueInfo | null>(null);
   const [keys] = useState(() => createKeyTracker());
@@ -31,18 +33,21 @@ export function AnonymousBoard() {
     setFormError(invalid);
     setIssue(null);
     if (invalid) return;
+    const request = lifetime.begin(); if (!request) return;
     setPending(true);
     try {
       const input = { title: title.trim(), body: body.trim() };
       await communityApi.createPost(input, keys.keyFor(input));
+      if (!request.current()) return;
       keys.reset();
       setTitle("");
       setBody("");
       await reload(); // Show the server's list, not an optimistic local copy.
     } catch (error) {
-      setIssue(describeError(error));
+      if (request.current()) setIssue(describeError(error));
     } finally {
-      setPending(false);
+      if (request.current()) setPending(false);
+      request.finish();
     }
   }
 
@@ -111,20 +116,24 @@ function PostItem({ post, onChanged }: { post: AnonymousPost; onChanged: () => P
   const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body);
   const [pending, setPending] = useState(false);
+  const lifetime = useRequestLifetime();
   const [issue, setIssue] = useState<IssueInfo | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function run(action: () => Promise<unknown>) {
+    const request = lifetime.begin(); if (!request) return;
     setPending(true);
     setIssue(null);
     try {
       await action();
+      if (!request.current()) return;
       setEditing(false);
       await onChanged();
     } catch (error) {
-      setIssue(describeError(error));
+      if (request.current()) setIssue(describeError(error));
     } finally {
-      setPending(false);
+      if (request.current()) setPending(false);
+      request.finish();
     }
   }
 

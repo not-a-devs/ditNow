@@ -55,10 +55,15 @@ async def authenticate(db: AsyncSession, student_id: str, password: str) -> Stud
     return row if row and ok else None
 
 
-async def issue_token(db: AsyncSession, student_id: str) -> str:
+async def issue_token(
+    db: AsyncSession, student_id: str, *, cleanup_student_only: bool = False
+) -> str:
     """새 토큰을 발급해 DB에 저장한다. 카카오 로그인도 학생을 찾은 뒤 이 함수를 쓴다."""
     token = secrets.token_urlsafe(32)
-    await db.execute(delete(AuthSessionRow).where(AuthSessionRow.expires_at < now_utc()))
+    expired = delete(AuthSessionRow).where(AuthSessionRow.expires_at < now_utc())
+    if cleanup_student_only:
+        expired = expired.where(AuthSessionRow.student_id == student_id)
+    await db.execute(expired)
     db.add(
         AuthSessionRow(
             token_hash=_token_hash(token),
