@@ -1,0 +1,48 @@
+name: P0 브라우저 하네스 오프라인 검사
+
+# 하네스 자체의 설정 게이트·비밀값 마스킹·정리 경계만 검사한다.
+# 브라우저를 설치·실행하지 않으며 실제 browser E2E PASS 근거가 아니다.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/e2e/**'
+      - '.github/workflows/p0-browser-harness-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/**'
+      - '.github/workflows/p0-browser-harness-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: 하네스 · 단위 테스트·NOT_RUN 기본값
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: tests/e2e
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+      - name: 잠금 의존성 설치 (브라우저 다운로드 없음)
+        run: npm ci --ignore-scripts
+      - name: 하네스 단위 테스트
+        run: npm test
+      - name: opt-in 없는 기본 실행은 NOT_RUN·종료 코드 0
+        run: |
+          node run.cjs > report.json
+          node -e "const r=require('./report.json'); if (r.status!=='NOT_RUN'||r.reason!=='OPT_IN_MISSING'||r.verified_claim!==false||r.stages.length) process.exit(1)"

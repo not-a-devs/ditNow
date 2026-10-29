@@ -1,0 +1,3 @@
+node_modules/
+# Opt-in screenshots and local reports may show DEMO account names; never commit them.
+.artifacts/
