@@ -20,6 +20,7 @@ from app.features.channels.schemas import (
     CreatedChannelOut,
     CreatedRequestOut,
     FreeChannelOut,
+    LeaveOut,
     MembershipOut,
     OfficialRequestCreate,
     OfficialRequestOut,
@@ -147,9 +148,10 @@ def join_channel(channel_id: UUID, actor: Actor, service: Service):
     return _membership(service.join(actor, channel_id))
 
 
-@router.post("/free-channels/{channel_id}/leave", response_model=SuccessResponse[MembershipOut])
+@router.post("/free-channels/{channel_id}/leave", response_model=SuccessResponse[LeaveOut])
 def leave_channel(channel_id: UUID, actor: Actor, service: Service):
-    return _membership(service.leave(actor, channel_id))
+    result = service.leave(actor, channel_id)
+    return SuccessResponse(data=LeaveOut(channel_id=result.channel_id, changed=result.changed))
 
 
 @router.post(

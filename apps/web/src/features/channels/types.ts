@@ -31,6 +31,12 @@ export interface MembershipResult {
   changed: boolean;
 }
 
+export interface LeaveReceipt {
+  channel_id: string;
+  changed: boolean;
+  membership: "ABSENT";
+}
+
 export interface CreatedChannel {
   channel: FreeChannel;
   replayed: boolean;

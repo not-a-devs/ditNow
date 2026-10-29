@@ -61,6 +61,13 @@ class MembershipResult:
 
 
 @dataclass(frozen=True, slots=True)
+class LeaveResult:
+    # Cleanup after scope revocation must not disclose current channel metadata.
+    channel_id: UUID
+    changed: bool
+
+
+@dataclass(frozen=True, slots=True)
 class RequestPage:
     items: list[OfficialChannelRequest]
     next_before: int | None
@@ -330,7 +337,7 @@ class ChannelsService:
             joined = replace(channel, member_count=channel.member_count + 1)
             return MembershipResult(ChannelView(joined, MemberRole.MEMBER), True)
 
-    def leave(self, actor: ChannelsActor, channel_id: UUID) -> MembershipResult:
+    def leave(self, actor: ChannelsActor, channel_id: UUID) -> LeaveResult:
         # Leaving only removes the actor's own row, so it needs no current eligibility: a user
         # whose department changed can still clean up. It reveals nothing beyond 404/own state.
         with self.store.unit_of_work(actor.user_id) as uow:
@@ -339,13 +346,12 @@ class ChannelsService:
             if mine is None:
                 if not self._eligible(uow, channel):
                     raise _forbidden()
-                return MembershipResult(ChannelView(channel, None), False)
+                return LeaveResult(channel_id, False)
             if mine.role is MemberRole.OWNER:
                 # Owners archive instead; ownership transfer is not in this pass.
                 raise _conflict()
             uow.delete_my_membership(channel.id)
-            left = replace(channel, member_count=max(channel.member_count - 1, 0))
-            return MembershipResult(ChannelView(left, None), True)
+            return LeaveResult(channel_id, True)
 
     # ---- official channel requests (submission + own status only) ------------------------
 

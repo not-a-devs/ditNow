@@ -89,6 +89,14 @@ class MembershipOut(ApiModel):
     changed: bool
 
 
+class LeaveOut(ApiModel):
+    """Own cleanup receipt only, including when former scope access was revoked."""
+
+    channel_id: UUID
+    changed: bool
+    membership: Literal["ABSENT"] = "ABSENT"
+
+
 class CreatedChannelOut(ApiModel):
     channel: FreeChannelOut
     replayed: bool

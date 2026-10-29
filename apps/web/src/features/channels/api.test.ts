@@ -74,6 +74,19 @@ describe("channels api paths", () => {
     stub("UNAVAILABLE", 503);
     await expect(channelsApi.listMine()).rejects.toMatchObject({ code: "UNAVAILABLE", status: 503 });
   });
+
+  it("accepts only a minimal own leave receipt and rejects metadata or another ID", async () => {
+    const controller = new AbortController();
+    let fetch = stub({ channel_id: CID, changed: true, membership: "ABSENT" });
+    expect(await channelsApi.leave(CID, controller.signal)).toEqual({ channel_id: CID, changed: true, membership: "ABSENT" });
+    // Shared transport owns its timeout controller and forwards caller cancellation to it.
+    expect(lastInit(fetch).signal).toBeInstanceOf(AbortSignal);
+    expect(lastUrl(fetch).pathname).toBe(`/api/v1/free-channels/${CID}/leave`);
+    stub({ channel_id: CID, changed: true, membership: "ABSENT", channel: channel() });
+    await expect(channelsApi.leave(CID)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+    fetch = stub({ channel_id: DEPT, changed: true, membership: "ABSENT" });
+    await expect(channelsApi.leave(CID)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
 });
 
 describe("channels validation mirrors server", () => {

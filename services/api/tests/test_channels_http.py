@@ -4,14 +4,16 @@ Fail-closed 503, 401, private no-store on success and error, validation without 
 no approval/badge endpoints. Not a global-app, MariaDB or E2E result.
 """
 
+from dataclasses import replace
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from test_channels_support import ALICE, BOB, DAVE, DEFAULT_CHANNEL, DEPT, KEY, make
+from test_channels_support import ALICE, BOB, DAVE, DEFAULT_CHANNEL, DEPT, KEY, OTHER_DEPT, make
 
 from app.core.config import Settings
 from app.factory import create_app
+from app.features.campus.domain import Membership
 from app.features.channels import get_channels_actor, get_channels_service, router
 
 HEADERS = {"Idempotency-Key": KEY}
@@ -66,6 +68,31 @@ def test_global_app_does_not_mount_channels():
     app = create_app(Settings(environment="test"))
     assert not any("free-channel" in path for path in app.openapi()["paths"])
     assert not any("official-channel" in path for path in app.openapi()["paths"])
+
+
+@pytest.mark.parametrize("membership", [Membership(OTHER_DEPT, 2), Membership(DEPT, 3)])
+def test_revoked_leave_returns_only_own_cleanup_receipt_not_updated_channel(membership):
+    service, store = make()
+    channel = service.create(ALICE, DEPT, 2, "before", "before", KEY).value.channel
+    service.join(BOB, channel.id)
+    store.memberships[BOB.user_id] = (membership,)
+    # The owner changes private material AFTER BOB's current scope is revoked.
+    store.channels[channel.id] = replace(
+        store.channels[channel.id], name="NEW-PRIVATE-NAME", description="NEW-PRIVATE-DESCRIPTION"
+    )
+    with TestClient(build(BOB, service, wire_actor=True, wire_service=True)) as client:
+        response = call(client, "post", f"/free-channels/{channel.id}/leave")
+        assert response.status_code == 200
+        assert response.json()["data"] == {
+            "channel_id": str(channel.id),
+            "changed": True,
+            "membership": "ABSENT",
+        }
+        assert "NEW-PRIVATE" not in response.text
+        assert "department_id" not in response.text and "member_count" not in response.text
+        assert str(ALICE.user_id) not in response.text
+    assert (channel.id, BOB.user_id) not in store.members
+    assert (channel.id, ALICE.user_id) in store.members
 
 
 @pytest.mark.parametrize("method,path,body", ROUTES)

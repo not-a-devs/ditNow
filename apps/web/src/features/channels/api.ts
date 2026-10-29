@@ -7,6 +7,7 @@ import type {
   CreatedChannel,
   CreatedRequest,
   FreeChannel,
+  LeaveReceipt,
   MembershipResult,
   OfficialRequest,
   RequestPage,
@@ -65,6 +66,8 @@ const isChannelPage = (v: unknown) =>
 const isRequestPage = (v: unknown) =>
   isRecord(v) && Array.isArray(v.items) && v.items.every(isOfficialRequest) && isCursor(v.next_before);
 const isMembership = (v: unknown) => isRecord(v) && isFreeChannel(v.channel) && typeof v.changed === "boolean";
+const isLeaveReceipt = (v: unknown) => isRecord(v) && Object.keys(v).length === 3
+  && isUuid(v.channel_id) && typeof v.changed === "boolean" && v.membership === "ABSENT";
 const isCreatedChannel = (v: unknown) => isRecord(v) && isFreeChannel(v.channel) && typeof v.replayed === "boolean";
 const isCreatedRequest = (v: unknown) =>
   isRecord(v) && isOfficialRequest(v.request) && typeof v.replayed === "boolean";
@@ -101,27 +104,31 @@ export const channelsApi = {
     ),
   listMine: (before?: number | null, signal?: AbortSignal) =>
     call<ChannelPage>(() => `/me/free-channels?${cursor(before, PAGE_SIZE)}`, isChannelPage, signal ? { signal } : {}),
-  create: (input: ChannelInput, key: string) =>
-    call<CreatedChannel>(() => "/free-channels", isCreatedChannel, json("POST", input, { "Idempotency-Key": key })),
-  update: (id: string, name: string, description: string, expectedRevision: number) =>
+  create: (input: ChannelInput, key: string, signal?: AbortSignal) =>
+    call<CreatedChannel>(() => "/free-channels", isCreatedChannel, { ...json("POST", input, { "Idempotency-Key": key }), signal }),
+  update: (id: string, name: string, description: string, expectedRevision: number, signal?: AbortSignal) =>
     call<FreeChannel>(
       () => `/free-channels/${seg(id)}`,
       isFreeChannel,
-      json("PATCH", { name, description, expected_revision: expectedRevision }),
+      { ...json("PATCH", { name, description, expected_revision: expectedRevision }), signal },
     ),
-  archive: (id: string, expectedRevision: number) =>
+  archive: (id: string, expectedRevision: number, signal?: AbortSignal) =>
     call<FreeChannel>(
       () => `/free-channels/${seg(id)}/archive`,
       isFreeChannel,
-      json("POST", { expected_revision: expectedRevision }),
+      { ...json("POST", { expected_revision: expectedRevision }), signal },
     ),
-  join: (id: string) => call<MembershipResult>(() => `/free-channels/${seg(id)}/join`, isMembership, { method: "POST" }),
-  leave: (id: string) => call<MembershipResult>(() => `/free-channels/${seg(id)}/leave`, isMembership, { method: "POST" }),
-  requestOfficial: (id: string, reason: string, key: string) =>
+  join: (id: string, signal?: AbortSignal) => call<MembershipResult>(() => `/free-channels/${seg(id)}/join`, isMembership, { method: "POST", signal }),
+  leave: async (id: string, signal?: AbortSignal) => {
+    const receipt = await call<LeaveReceipt>(() => `/free-channels/${seg(id)}/leave`, isLeaveReceipt, { method: "POST", signal });
+    if (receipt.channel_id !== id) throw new ApiError("INVALID_RESPONSE", 200);
+    return receipt;
+  },
+  requestOfficial: (id: string, reason: string, key: string, signal?: AbortSignal) =>
     call<CreatedRequest>(
       () => `/free-channels/${seg(id)}/official-requests`,
       isCreatedRequest,
-      json("POST", { reason }, { "Idempotency-Key": key }),
+      { ...json("POST", { reason }, { "Idempotency-Key": key }), signal },
     ),
   myRequests: (signal?: AbortSignal) =>
     call<RequestPage>(() => `/me/official-channel-requests?${cursor(null, PAGE_SIZE)}`, isRequestPage, signal ? { signal } : {}),

@@ -36,7 +36,7 @@
 | PATCH `/free-channels/{id}` `{name,description,expected_revision}` | 개설자 + 현재 범위 | revision+1 | 403, 409(CAS·보관됨·이름 중복) |
 | POST `/free-channels/{id}/archive` `{expected_revision}` | 개설자 + 현재 범위 | 보관, 대기 신청 자동 CANCELLED, 같은 개정 재호출 멱등 | 403, 409 |
 | POST `/free-channels/{id}/join` | 범위 소속 | 이미 참여면 `changed=false` | 403, 404, 409(보관·정원) |
-| POST `/free-channels/{id}/leave` | 본인 멤버십 | 없으면 `changed=false`, 소속 변경 후에도 본인 정리 허용 | 409(개설자), 403(비멤버·범위 밖) |
+| POST `/free-channels/{id}/leave` | 본인 멤버십 | 최소 `{channel_id,changed,membership:'ABSENT'}`만 반환. 현재 범위 안 비멤버면 `changed=false`, 소속 변경 후에도 본인 정리 허용 | 409(개설자), 403(비멤버·범위 밖) |
 | POST `/free-channels/{id}/official-requests` `{reason}` + 키 | 개설자 + 현재 범위, ACTIVE | 201 `PENDING`, `review_state=BLOCKED_APPROVER_POLICY` | 400, 403, 409(대기 중 신청 존재·보관) |
 | GET `/me/official-channel-requests`, `/me/official-channel-requests/{id}` | 본인 | 본인 신청만 | 404(타인 신청과 부재를 구분하지 않음) |
 
@@ -89,3 +89,18 @@
 1. root: auth 브리지·MariaDB UOW 연결 후 라우터 장착, 스냅샷·타입 재생성, 공통 no-store route class 정리.
 2. DB 담당: §7 테이블·제약·scope 잠금 행 마이그레이션과 실DB 동시성 검사.
 3. 사람 승인: 공식 채널 승인자 역할·배지 표시 정책(DEC-007 세부) — 승인 전 BLOCKED 유지.
+
+## 9. 독립 보안 리뷰와 P1 보완
+
+Codex B가 원본 `c82ec8c`를 읽기 전용으로 검토하고 전용 BE97/FE15를 직접 통과했다. 별도 오프라인 반례에서 다음 두 P1을 발견했으며, 원 작성 세션 종료 후 root가 이 모듈과 전용 테스트·본 문서만 수정하도록 소유권을 이전했다.
+
+1. 학과 변경된 학생의 자기 멤버십 정리 응답이 전체 `FreeChannelOut`을 반환하여, 권한 회수 **이후** 개설자가 수정한 새 이름·설명까지 노출했다. 나가기의 서비스 결과/DTO/client 타입을 `LeaveResult`/`LeaveOut`/`LeaveReceipt`로 분리했다. 항상 요청에서 이미 아는 channel ID·본인 삭제 여부·`ABSENT`만 반환하며 채널 이름/설명/소유자/학과/인원/개정은 없다. 참여(join)의 기존 `MembershipOut`은 유지한다. 이 경로는 아직 미장착인 새 모듈의 명시적 계약 수정이며 공통 OpenAPI·기존 공개 API를 바꾸지 않는다. client는 내용이 포함된 과거 응답과 다른 ID의 receipt를 거부하고, 성공 후 현재 권한으로 목록을 재조회한다.
+2. 기존 목록 `then`에 취소/세대 검사가 없어 이전 학과 요청이 취소된 뒤에도 새 학과 화면을 덮었다. 학년만 변경해도 재조회하지 않았다. 화면을 `(sessionGeneration, departmentId, grade)`로 구분한 workspace로 만들고 **모든** 초기 조회/더 보기/생성/수정/보관/참여/나가기/신청에 AbortSignal과 수명·요청 세대 검사를 적용했다. 계정/세션이 바뀌면 공통 auth 소유자가 `sessionGeneration`을 변경하거나 컴포넌트를 remount해야 한다. 현재 401/403은 workspace 전체(목록·신청·폼·초안)를 폐기한다. 이전 세대의 늦은 성공/401/403은 새 화면에 반영하지 않는다. 같은 tick의 중복 쓰기는 ref로 막으며, 전송 중 입력을 비활성화해 새 초안을 성공 콜백이 지우지 않는다. 수명은 commit 시점 layout effect로 설정/정리하여 새로 표시된 행의 passive effect 이전 클릭도 처리한다.
+
+추가 회귀: 학과/학년 회수 후 새 비공개 내용 없는 HTTP receipt 2개, 멤버십 삭제 commit 실패 rollback 1개, FE의 최소 receipt·종류별 6개 쓰기 취소/늦은 응답·현재 권한 실패 폐기·이전 페이지/학과 응답·학년/세션 변경·StrictMode·동기 중복·정리 후 재조회. 원본 단위 검사와 보완 HEAD의 실제 CI는 구분해서 기록한다.
+
+보완 후 로컬 결과: 전용 BE **100 PASS**, 전체 Python **779 PASS**(기존 Starlette/httpx 경고 1건), Ruff check/format **137개 PASS**, OpenAPI 기존 snapshot 일치. 전용 FE **36 PASS**, 전체 웹 **336 PASS**, typecheck/build/API 타입 일치·운영 의존성 audit **0건**, Git diff 검사 PASS. 이 결과는 미활성 source/fake/브라우저 DOM 테스트 범위다. 기존 §6의 776/315 기록은 원본 커밋 기준이며 수정 HEAD의 실제 CI와 독립 보완 재검토는 PR 처리 시 따로 확인한다.
+
+Abort는 **클라이언트 결과 반영 취소**이며 서버에 이미 적용된 쓰기를 되돌린다고 주장하지 않는다. 불명확한 요청은 기존 멱등 키 계약과 해당 계정의 현재 원장 조회로 확인해야 한다. 다른 계정/소속으로 이전 초안이나 키를 이어 보내지 않는다.
+
+현재도 runtime auth/DB adapter는 없다. 향후 store UOW 시작 시 공통 원장의 현재 active DEMO 신원·profile·승인된 학생 자격을 검증해야 하며, UUID 또는 소속 tuple만을 완전한 인증으로 삼으면 안 된다. 실제 MariaDB 잠금/승인된 역할·세션 폐기 경쟁/원격 브라우저·두 계정은 NOT_RUN이다. 공식 채널 승인·배지·기본 채널 수정·원격 DB 실행은 추가하지 않았다. 변경 후 root 또는 별도 리뷰어의 보완 재검토와 같은 HEAD CI를 거치고 PR은 OPEN으로 전달한다.

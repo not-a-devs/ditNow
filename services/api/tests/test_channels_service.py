@@ -235,7 +235,8 @@ def test_join_leave_are_idempotent_and_own_only():
     assert joined.channel.channel.member_count == 2
     assert not service.join(BOB, channel.id).changed
     left = service.leave(BOB, channel.id)
-    assert left.changed and left.channel.my_role is None and left.channel.channel.member_count == 1
+    assert left.changed and left.channel_id == channel.id
+    assert store.count(channel.id) == 1
     assert not service.leave(BOB, channel.id).changed
     assert (channel.id, ALICE.user_id) in store.members
 
@@ -258,6 +259,17 @@ def test_revoked_member_loses_access_but_can_leave():
     assert code(service.join, BOB, channel.id) is ErrorCode.FORBIDDEN
     assert service.my_channels(BOB, None, 20).items == []
     assert service.leave(BOB, channel.id).changed
+
+
+def test_cleanup_receipt_is_not_returned_when_commit_fails_and_membership_rolls_back():
+    service, store = make()
+    channel = new_channel(service).channel
+    service.join(BOB, channel.id)
+    store.memberships[BOB.user_id] = (Membership(OTHER_DEPT, 2),)
+    store.fail_after_write = True
+    with pytest.raises(RuntimeError):
+        service.leave(BOB, channel.id)
+    assert (channel.id, BOB.user_id) in store.members
 
 
 def test_member_limit_enforced_under_channel_lock():
