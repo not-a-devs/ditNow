@@ -67,7 +67,9 @@ class KeywordRetriever(Retriever):
         compact = "".join(tokens)
         if not compact:
             return []
-        compact_jamo = _jamo(compact)
+        # 퍼지 비교 대상: 각 단어 + 붙여 쓸 수 있는 인접 두 단어 ('도서관 열람싫' → '도서관열람싫')
+        pairs = [a + b for a, b in zip(tokens, tokens[1:], strict=False)]
+        candidates = [_jamo(c) for c in [*tokens, *pairs]]
 
         scored: list[tuple[float, int, SearchHit]] = []
         for e in self.entries:
@@ -75,7 +77,8 @@ class KeywordRetriever(Retriever):
             if exact:
                 name_score, matched_by = 1.0, "alias"
             else:
-                ratio = max((fuzz.partial_ratio(n, compact_jamo) for n in e.names_jamo), default=0)
+                # 이름 전체 대 단어 전체로 비교해야 '유학생'이 '학생시당'에 부분 일치하지 않는다
+                ratio = max((fuzz.ratio(n, c) for n in e.names_jamo for c in candidates), default=0)
                 if ratio < FUZZY_THRESHOLD:
                     continue
                 name_score, matched_by = ratio / 100, "fuzzy"

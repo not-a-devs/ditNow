@@ -1,7 +1,7 @@
 import pytest
 
 from app.retriever.keyword import KeywordRetriever, tokenize
-from app.schemas import CampusData
+from app.schemas import CampusData, Facility
 
 
 @pytest.fixture
@@ -60,3 +60,12 @@ def test_unrelated_returns_empty(retriever: KeywordRetriever, q: str) -> None:
 def test_two_char_alias_does_not_cross_words(retriever: KeywordRetriever) -> None:
     """'간호학 사무실'을 붙여 쓴 '학사'로 다른 문서가 잡히지 않는다."""
     assert retriever.search("간호학가 사무실") == []  # 픽스처엔 간호학과가 없다
+
+
+def test_fuzzy_compares_whole_words(retriever: KeywordRetriever) -> None:
+    """'유학생'처럼 질문 단어의 일부와만 비슷한 이름은 오타로 보지 않는다."""
+    intl = Facility(
+        id="admin_intl", category="행정부서", name="국제협력부", aliases=["유학생"], text="t"
+    )
+    r = KeywordRetriever([*(h.doc for h in retriever.search("학식")), intl])
+    assert [h.doc.id for h in r.search("학생시당 몇시까지 해요?")] == ["fac_cafeteria"]
