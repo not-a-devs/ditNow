@@ -26,6 +26,11 @@ RULES: list[tuple[str, str]] = [
     ("시험기간", CAMPUS),  # 시험기간 도서관 운영
     ("버스", CAMPUS),  # 셔틀버스 시간표
     ("셔틀", CAMPUS),
+    ("연구실", CAMPUS),  # 교수님 연구실 위치
+    ("교수님+전화", CAMPUS),  # 학과 교수님 전화번호·연락처
+    ("교수님+연락처", CAMPUS),
+    ("토익", CAMPUS),  # 토익·자격증 시험 접수
+    ("자격증", CAMPUS),
     # 성적·평점
     ("평점", "grades"),
     ("평균학점", "grades"),
@@ -133,9 +138,10 @@ async def classify_with_llm(question: str, llm: LLMClient) -> Intent | None:
     # LLM이 고른 값은 정해진 목록 안에서만 받는다 (학번 같은 다른 값은 쓰지 않는다)
     name = data.get("intent")
     day = data.get("day")
+    # isinstance 먼저: 리스트 같은 해시 불가 값이 오면 `in` 검사가 TypeError로 500을 낸다
     return Intent(
-        name=name if name in PERSONAL_INTENTS else CAMPUS,
-        day=day if day in VALID_DAYS else None,
+        name=name if isinstance(name, str) and name in PERSONAL_INTENTS else CAMPUS,
+        day=day if isinstance(day, str) and day in VALID_DAYS else None,
         by="llm",
     )
 

@@ -79,9 +79,9 @@ def test_response_is_allowlisted_and_never_returns_legacy_identity(client: TestC
 
 
 def test_legacy_login_admin_and_personal_routes_are_not_mounted(client: TestClient) -> None:
+    # 학번 로그인·AI 답변은 /api/v1 아래에만 있다 (test_ai_ask.py). 챗봇 단독 경로는 없다
     for path in ["/auth/login", "/auth/logout", "/admin/questions", "/admin/reload", "/ask"]:
         assert client.post(path, json={}).status_code == 404
-    assert client.post("/api/v1/ai/ask", json={"question": "내 성적"}).status_code == 404
 
 
 def test_import_and_retrieval_do_not_initialize_legacy_runtime() -> None:
