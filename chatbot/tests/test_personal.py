@@ -38,6 +38,7 @@ def test_every_intent_has_handler() -> None:
         ("졸업까지 얼마나 남았지", "remaining_credits"),
         ("이따 수업 몇 시야?", "next_class"),  # '수업'은 교무부 별칭이라 campus로 새던 표현
         ("학점 얼마나 더 따야 졸업해?", "remaining_credits"),
+        ("내 학점 몇학점이야?", "remaining_credits"),  # /docs 수동 테스트에서 campus로 새던 표현
         ("오늘 수업 몇시에 끝나", "today_classes"),  # 정확한 표현이 조합 규칙보다 우선
         ("수강신청 언제야", CAMPUS),
         ("졸업식 언제야", CAMPUS),
