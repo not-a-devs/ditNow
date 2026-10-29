@@ -96,6 +96,13 @@ def test_every_intent_has_handler() -> None:
         ("데이터베이스 시험 어디서 봐", "exams"),
         ("이번 학기 듣는 과목 뭐야", "my_courses"),
         ("웹프로그래밍 교수님 누구야", "my_courses"),
+        (
+            "컴소과 교수님 연구실 어디예요",
+            CAMPUS,
+        ),  # 리뷰에서 발견: '교수님'·'시험'에 끌려가던 교내 질문
+        ("간호학과 교수님 전화번호", CAMPUS),
+        ("토익 시험 접수 어디서 해", CAMPUS),
+        ("자격증 시험 정보 어디서 봐", CAMPUS),
     ],
 )
 def test_classify(q: str, intent: str) -> None:
