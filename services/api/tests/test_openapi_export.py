@@ -7,7 +7,7 @@ def test_export_has_only_implemented_routes_and_is_deterministic():
     first = schema_text()
     assert first == schema_text()
     schema = json.loads(first)
-    assert set(schema["paths"]) == {"/health", "/api/v1/health"}
+    assert set(schema["paths"]) == {"/health", "/api/v1/health", "/api/v1/ai/campus/search"}
     assert "author_id" not in first
     assert "securitySchemes" not in schema["components"]
 

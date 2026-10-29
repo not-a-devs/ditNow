@@ -1,6 +1,153 @@
 {
   "components": {
     "schemas": {
+      "CampusSearchData": {
+        "additionalProperties": false,
+        "properties": {
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "generated": {
+            "const": false,
+            "default": false,
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/CampusSearchHit"
+            },
+            "title": "Hits",
+            "type": "array"
+          },
+          "mode": {
+            "const": "retrieval_only",
+            "default": "retrieval_only",
+            "title": "Mode",
+            "type": "string"
+          },
+          "personal_data_access": {
+            "const": false,
+            "default": false,
+            "title": "Personal Data Access",
+            "type": "boolean"
+          },
+          "source": {
+            "const": "chatbot/data/facilities.json",
+            "default": "chatbot/data/facilities.json",
+            "title": "Source",
+            "type": "string"
+          },
+          "source_notice": {
+            "default": "기존 챗봇 시설 스냅샷이며 공식 출처와 최신성은 검증되지 않았습니다.",
+            "title": "Source Notice",
+            "type": "string"
+          },
+          "verification": {
+            "const": "UNKNOWN",
+            "default": "UNKNOWN",
+            "title": "Verification",
+            "type": "string"
+          }
+        },
+        "required": [
+          "found",
+          "hits"
+        ],
+        "title": "CampusSearchData",
+        "type": "object"
+      },
+      "CampusSearchHit": {
+        "additionalProperties": false,
+        "properties": {
+          "building": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Building"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "floor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "matched_by": {
+            "enum": [
+              "alias",
+              "fuzzy",
+              "keyword"
+            ],
+            "title": "Matched By",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room"
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "category",
+          "text",
+          "score",
+          "matched_by"
+        ],
+        "title": "CampusSearchHit",
+        "type": "object"
+      },
       "ErrorCode": {
         "enum": [
           "VALIDATION",
@@ -58,6 +205,19 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthData": {
         "additionalProperties": false,
         "properties": {
@@ -77,6 +237,36 @@
           "service"
         ],
         "title": "HealthData",
+        "type": "object"
+      },
+      "SuccessResponse_CampusSearchData_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CampusSearchData"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[CampusSearchData]",
         "type": "object"
       },
       "SuccessResponse_HealthData_": {
@@ -108,6 +298,46 @@
         ],
         "title": "SuccessResponse[HealthData]",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -118,6 +348,83 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/ai/campus/search": {
+      "get": {
+        "description": "공개 시설 스냅샷 검색. LLM 생성·개인정보 질의·별도 로그인은 제공하지 않는다.",
+        "operationId": "search_campus_api_v1_ai_campus_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_CampusSearchData_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Search Campus",
+        "tags": [
+          "campus-search"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Process liveness only. Does not assert database/authentication readiness.",

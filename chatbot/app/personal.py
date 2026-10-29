@@ -7,8 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from app.retriever.keyword import normalize, tokenize
-from app.schemas import (
+from .retriever.keyword import normalize, tokenize
+from .schemas import (
     WEEKDAYS,
     CampusData,
     ClassSession,

@@ -3,10 +3,10 @@ import re
 import time
 from datetime import datetime
 
-from app.intents import CAMPUS, Intent, route
-from app.llm import ChatMessage, LLMClient, LLMError
-from app.personal import HANDLERS, KST, PersonalQuery
-from app.prompt import (
+from .intents import CAMPUS, Intent, route
+from .llm import ChatMessage, LLMClient, LLMError
+from .personal import HANDLERS, KST, PersonalQuery
+from .prompt import (
     LLM_FAILURE_ANSWER,
     LOGIN_REQUIRED_ANSWER,
     NOT_FOUND_ANSWER,
@@ -14,8 +14,8 @@ from app.prompt import (
     SYSTEM_PROMPT,
     build_user_message,
 )
-from app.retriever.base import Retriever
-from app.schemas import AskResponse, CampusData, LocationOut, Student, StudentData
+from .retriever.base import Retriever
+from .schemas import AskResponse, CampusData, LocationOut, Student, StudentData
 
 logger = logging.getLogger(__name__)
 
