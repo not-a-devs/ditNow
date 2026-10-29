@@ -5,6 +5,8 @@ description = "DIT NOW FastAPI foundation"
 requires-python = ">=3.13,<3.14"
 dependencies = [
   "ditnow-chatbot",
+  "sqlalchemy[asyncio]>=2.0.36,<2.1",
+  "aiomysql==0.3.2",
   "fastapi>=0.115,<1",
   "pydantic-settings>=2.6,<3",
   "uvicorn>=0.34,<1",
