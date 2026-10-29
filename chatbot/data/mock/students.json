@@ -1,0 +1,26 @@
+[
+  {
+    "student_id": "20231001",
+    "name": "김동의",
+    "dept_id": "dept_cs",
+    "grade": 2,
+    "password_hash": "pbkdf2_sha256$100000$8042809c665638d40aa46541dda64f6b$ebe8ee047f65df66b76daafeaaa74cd6d7965edb57cd51aef7e9c496266661aa",
+    "kakao_id": null
+  },
+  {
+    "student_id": "20241002",
+    "name": "이과학",
+    "dept_id": "dept_nursing",
+    "grade": 1,
+    "password_hash": "pbkdf2_sha256$100000$9991f6350ad0d123b481c2aa4f9fdb83$bf217d8b89fc146c926e395f1cb1b5401b441c13c7fdd605967c7c764f4a48da",
+    "kakao_id": null
+  },
+  {
+    "student_id": "20221003",
+    "name": "박졸업",
+    "dept_id": "dept_cs",
+    "grade": 2,
+    "password_hash": "pbkdf2_sha256$100000$8b79b091f4d4c4a3a889a60972a58e7f$b1fcc37110ebc3270105704926e63c1487bf6521b5b984934b9f525c238a85b1",
+    "kakao_id": null
+  }
+]
