@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
 
-from app.schemas import Facility
+from ..schemas import Facility
 
 
 class SearchHit(BaseModel):

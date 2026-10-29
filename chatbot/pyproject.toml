@@ -1,3 +1,29 @@
+[build-system]
+requires = ["setuptools>=77,<82"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ditnow-chatbot"
+version = "0.1.0"
+description = "Reusable DIT NOW campus retrieval components"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2,<3", "rapidfuzz>=3,<4"]
+
+[project.optional-dependencies]
+standalone = [
+  "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pydantic-settings>=2.6,<3",
+  "sqlalchemy[asyncio]>=2,<3", "aiomysql>=0.2,<1",
+  "openai>=1,<3", "anthropic>=0.40,<1",
+]
+test = ["httpx>=0.28,<1", "pytest>=8,<10", "pytest-asyncio>=0.24,<2", "aiosqlite>=0.20,<1", "ruff>=0.11,<1"]
+
+[tool.setuptools]
+packages = ["chatbot", "chatbot.app", "chatbot.app.retriever", "chatbot.app.llm", "chatbot.data"]
+package-dir = {chatbot = "."}
+
+[tool.setuptools.package-data]
+"chatbot.data" = ["buildings.json", "facilities.json"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
@@ -8,6 +34,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
