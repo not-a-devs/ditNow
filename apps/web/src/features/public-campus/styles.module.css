@@ -1,0 +1,23 @@
+.page { max-width: 62rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: .4rem 0; }
+.page h2 { font-size: 1.25rem; margin: .5rem 0; }
+.page h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+.page p { line-height: 1.8; overflow-wrap: anywhere; }
+.eyebrow { color: #365b47; font-size: .85rem; font-weight: 700; }
+.notice, .meta, .tags { color: #485c4e; font-size: .9rem; }
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: .8rem; }
+.filters label { display: grid; gap: .35rem; flex: 1; min-width: 9rem; font-weight: 650; }
+.filters label:first-child { flex: 2; min-width: 12rem; }
+.filters input, .filters select { width: 100%; min-height: 2.9rem; padding: .6rem .8rem; border: 1px solid #71817a; border-radius: .6rem; background: white; color: #18352a; }
+.page button { min-height: 2.9rem; border: 0; border-radius: .6rem; padding: .6rem 1rem; color: white; background: #195641; font-weight: 700; cursor: pointer; }
+.page button:disabled { opacity: .6; cursor: default; }
+.page button:focus-visible, .page input:focus-visible, .page select:focus-visible, .page a:focus-visible { outline: 3px solid #b4811e; outline-offset: 3px; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.card, .detail { background: white; border: 1px solid #c8d2ca; border-radius: 1rem; padding: 1.3rem; min-width: 0; }
+.card p { margin: .6rem 0; }
+.card button { margin-top: .7rem; }
+.detail section p { margin: .7rem 0; }
+.evidence { background: #edf2e9; padding: 1rem; margin-top: 1rem; border-radius: .7rem; }
+.evidence a { color: #195641; display: inline-block; padding: .6rem 0; text-decoration: underline; }
+.pagination { display: flex; justify-content: end; gap: .7rem; margin-top: 1rem; }
+@media (max-width: 40rem) { .cards { grid-template-columns: 1fr; } .filters label, .filters label:first-child { min-width: 100%; } .filters button { width: 100%; } }
