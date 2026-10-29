@@ -7,7 +7,9 @@
 - 전체 서비스 목표: 실제 학교 시스템을 참조하되 외부 내부 API에 의존하지 않는 **신규 통합 캠퍼스 플랫폼**. 학생·교수·조교·학과 대표·운영자 역할 포함.
 - 현재 `README.md`의 AI 지도/길찾기 중심 설명과 `docs/01_PRD.md` 및 `mvp/` 구현 범위가 불일치한다. README를 단일 진실로 간주하지 말고 **`docs/11_DECISION_LOG.md`에서 확정 사항을 검증**한다.
 - 문서 진입: `docs/00_START_HERE.md`; 제품: `docs/01_PRD.md`; 기능: `docs/02_FRD.md`; 비기능: `docs/03_NFR.md`; 권한: `docs/04_POLICY_RBAC.md`; 데이터: `docs/05_DATA_MODEL.md`; 아키텍처: `docs/06_ARCHITECTURE.md`; UX: `docs/07_IA_UX.md`; 테스트: `docs/08_TEST_QA.md`; 단계: `docs/09_RELEASE_SCOPE.md`; AI 워크플로: `docs/10_AI_RUNBOOK.md`; 결정: `docs/11_DECISION_LOG.md`; 심사: `docs/12_HACKATHON_GATE.md`; 학교 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`; 전체 기준: `docs/15_PLATFORM_BASELINE.md`.
-- 조사 산출물은 `docs/research/`에 작성; 외부 조사 사실과 제안을 구분하고 출처 URL/확인 날짜 기록. AI 환경 점검과 이전 제안은 `docs/research/09_AI_DEVELOPMENT_ENVIRONMENT.md` 참조.
+- 공식 조사 근거는 `docs/research/`의 조사 산출물 11개(기능 CSV 포함)를 본다. AI 환경 점검은 별도 `docs/research/09_AI_DEVELOPMENT_ENVIRONMENT.md`를 본다.
+- 통합 설계 초안은 `docs/v1-draft/`의 PRD→FRD→NFR→RBAC→DB/API→아키텍처→IA/UX→QA 순으로 읽고, 92개 ID의 기능별 연결은 `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`에서 확인한다. 미확정 정책은 `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`를 따른다. 이 초안은 기존 확정 결정을 대체하지 않는다.
+- AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점
 | 영역 | 현재 경로 | 확인할 내용 |
@@ -35,11 +37,11 @@
 
 ## 4. 작업 유형별 먼저 읽을 자료
 - 대학 사이트 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`, `docs/15_PLATFORM_BASELINE.md`, `docs/research/`.
-- 기능 기획/정합성: `docs/01_PRD.md`, `docs/02_FRD.md`, `docs/04_POLICY_RBAC.md`, `docs/11_DECISION_LOG.md`.
-- 프런트 UI: 해당 기능의 `mvp/src/features/`, 공통 `mvp/src/shared/ui/`, `docs/07_IA_UX.md`.
-- 인증/권한/익명/공식 채널: `docs/04_POLICY_RBAC.md`, `docs/03_NFR.md`, `mvp/src/shared/data/api/core.ts`.
-- DB/API 신규 구현: `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md`, `docs/02_FRD.md`; 기존 mock과 서버를 혼동하지 않는다.
-- 릴리스/QA: `docs/08_TEST_QA.md`, `docs/09_RELEASE_SCOPE.md`, `docs/12_HACKATHON_GATE.md`.
+- 기능 기획/정합성: `docs/11_DECISION_LOG.md`, `docs/v1-draft/02_FRD.md`, `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`, `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`.
+- 프런트 UI: 해당 기능의 `mvp/src/features/`, 공통 `mvp/src/shared/ui/`, `docs/v1-draft/07_IA_UX.md`.
+- 인증/권한/익명/공식 채널: `docs/v1-draft/04_RBAC.md`, `docs/v1-draft/03_NFR.md`, `mvp/src/shared/data/api/core.ts`.
+- DB/API 신규 구현: `docs/v1-draft/05_DB_API.md`, `docs/v1-draft/06_ARCHITECTURE.md`, `docs/v1-draft/04_RBAC.md`; 기존 mock과 서버를 혼동하지 않는다.
+- 릴리스/QA: `docs/v1-draft/08_TEST_QA.md`, `docs/09_RELEASE_SCOPE.md`, `docs/12_HACKATHON_GATE.md`.
 
 ## 5. 현재 확인된 검증 명령
 - `cd mvp && npm ci`
