@@ -3,6 +3,21 @@
 2026-10-30 KST · TASK-ORCH-92 · 초기 기준 main `a86ec597`; 아래 후속 PR 상태는 2026-10-30 갱신.
 fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NFR-SEC/PRIV/REL/UX/OPS 및 각 TC-V1은 [기능 추적표](../v1-draft/09_FEATURE_TRACEABILITY.csv)에서 연결한다.
 
+## 최신 우선순위 — 실제 두 계정 통합 검증
+
+사용자 지시로 신규 기능 추가보다 신규 앱 → FastAPI → 원격 MariaDB의 실제 E2E를 우선한다. 기준 main은 `f8705eac26dc12960b2689e894497e9893371ca5`이며 다음 독립 작업을 완료했다. 아래 과거 기능/병렬 세션 기록과 현재 실검증 상태를 혼동하지 않는다.
+
+| 작업 | 실제 결과·병합 |
+|---|---|
+| root DB 재검증·호환 보완 | [PR #69](https://github.com/not-a-devs/ditNow/pull/69), `e97157e6ef37a6fa40fae37da013c7e9311082df`. 엄격 TLSv1.3·두 DB 계정·25개 InnoDB·기존 집계·트리거0 확인. 신원 해시 조회의 드라이버 bytes 오류를 재현·보완 후 실제 읽기 왕복/충돌 검사 성공, 전체 API1442·독립15·최종HEAD CI5 성공. 데이터 쓰기0 |
+| A 계정 승인 절차 | [PR #66](https://github.com/not-a-devs/ditNow/pull/66), `82b76e52a0583f6c6036416c7aa3ca9fd618192a`. 신규16행·충돌·auditUUID2개 pin·commit불명확 처리·정리 한계 문서와 독립리뷰·CI5. 실제생성 승인과 구분 |
+| B 배포 준비 | [PR #67](https://github.com/not-a-devs/ditNow/pull/67), `d42fdca73fcdee047e3a22ccdbc1c6d1ef44f231`. HTTPS·도메인·CORS·단일worker·Tailscale·비밀주입·운영rollback 절차, 독립리뷰·CI5. 실제호스팅/운영배포0 |
+| F 로컬 사전 점검 | [PR #68](https://github.com/not-a-devs/ditNow/pull/68), `c5ce5182419e136bd77a1efb3dba6da81b3d2c0b`. 실제 미인증 HTTP11·Chromium390/1280·preview 화면 검사와 하네스37 성공, 독립리뷰·CI5. 자기서버 종료, 실계정/DB업무0 |
+
+**현재 필수 승인 대기:** 신규 가상 학생 A/B와 지원 원장 총16행 생성, 성공 결과의 auditUUID2개를 검토한 로컬 업무 활성화, 격리된 로컬 검사 quota 및 HTTP/브라우저 CRUD·제한 정리 범위. 사용자에게 구체 실행 승인을 별도 요청했다. 승인 전에는 실제 계정 생성·승인 pin 주입·업무 쓰기를 실행하지 않는다.
+
+**실제 두 계정 로그인·익명·실명 모집·개인 기회 CRUD·재로그인·소유권 격리:** 모두 NOT_RUN이다. 공개/미인증 사전 점검과 단위·SQLite·모의 HTTP·하네스 성공을 대체 증거로 사용하지 않는다. 운영 배포·외부 공개는 별도 승인 대기다. 자세한 현재 상태는 [DB 재검증](TASK_MARIADB_LIVE_REVALIDATION.md), [계정 승인](TASK_DEMO_ACCOUNT_APPROVAL.md), [로컬 사전 점검](TASK_LOCAL_E2E_PREFLIGHT.md), [배포 준비](TASK_DEPLOYMENT_PREPARATION.md)를 따른다.
+
 ## 최신 병합 상태 — 사용자 승인 반영
 
 2026-10-30 사용자의 “다 머지해” 지시를 현재 PR의 사람 병합 승인으로 기록했다. [병합 실행 증거](TASK_PR_BATCH_MERGE_20261030.md)를 최신 기준으로 사용한다. 아래 2차 작업자 표와 승인 대기 서술은 해당 시점의 실행 이력이며 현재 실행 중 세션 수가 아니다.
