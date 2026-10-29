@@ -2,6 +2,11 @@
 
 The caller supplies an identity derived from a trusted session and rechecks current role/scope.
 No helper creates users, grants roles, or opens an external connection.
+
+Legacy PR #19 compatibility proposal only. New runtime must use p0_runtime.P0Executor
+and community_sql/opportunities_sql; AnonymousPostRepository below reads the private
+table for projection and is not approved as the student public-read adapter. Keep it
+unmounted until separately replaced/retired; its tests do not establish runtime access.
 """
 
 from datetime import datetime

@@ -20,6 +20,8 @@
 
 가상 identity 및 역할의 관리자 변경 경로는 없다. 향후 발급·폐기 경로는 identity→membership/role 및 업무 row의 일관된 잠금 순서를 따르고 현재 권한의 재검증·deadlock 실패 처리를 별도 검토해야 한다. 실패 시 자동으로 write를 반복하지 않는다.
 
+기존 `repositories/p0.py`는 PR #19의 호환 검토안으로 보존한다. 그 파일의 `AnonymousPostRepository.get_public`은 private 원장에서 projection하므로 학생 공개 조회 adapter로 사용하지 않는다. 신규 runtime은 별도 public 테이블을 읽는 `community_sql.SQLAnonymousPosts`만 사용한다. 모든 업무의 일반 감사 로그·운영 접근 감사는 아직 구현하지 않았으며 현재 상태 이벤트 원장의 테스트로 대신 완료 표시하지 않는다.
+
 ## 파일 및 테스트
 
 | 경로 | 책임 |
