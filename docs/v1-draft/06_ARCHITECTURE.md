@@ -25,3 +25,6 @@ P0는 기존 [릴리스 범위](../09_RELEASE_SCOPE.md)의 핵심 3 CRUD·공지
 
 ## 전체 1차 구현과 RAG
 DEC-017의 chatbot은 공통 사용자·학적 원장과 세션을 쓰는 한 기능이다. standalone demoauth와 분리된 개인 원장을 통합앱에 mount하지 않는다. 공개 검색 adapter부터 연결하고 개인조회는 공통 인증 승인 후 연다. DEC-018에 따라 92개 전체를 1차 구현 대상으로 두며 P0 이후 P1/P2 독립 작업을 계속한다. [병렬 보드](../dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md)가 파일 소유자와 의존성을 관리한다.
+
+## DB 운영 확정 보완
+DEC-019: 팀원 Proxmox VM MariaDB11.4, Tailscale 사설망 전용3307. 플랫폼 ditnow와 챗봇 자료 ditnow_chatbot을 구분하되 신원/학적은 플랫폼 단일 권위다. 앱 DML·migration DDL 계정은 분리한다. 네트워크/GRANT/스키마 검증은 [운영 검사](../dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. 프로젝트 내부 MariaDB 컨테이너를 중복 생성하지 않는다.

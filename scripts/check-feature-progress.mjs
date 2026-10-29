@@ -39,6 +39,10 @@ for (const r of progress) {
   require(states.has(r.status), `Invalid status ${id}`);
   require(['P0', 'P1', 'P2'].includes(r.priority), `Priority missing ${id}`);
   require(['A', 'B', 'C', 'D', 'E', 'F'].includes(r.owner_area), `Owner missing ${id}`);
+  require(['QUEUED', 'IN_PROGRESS', 'BLOCKED_APPROVAL', 'PARTIAL_MERGED'].includes(r.work_status), `Invalid work state ${id}`);
+  require(Boolean(r.work_scope), `Work scope missing ${id}`);
+  if (r.work_status !== 'QUEUED') require(Boolean(r.work_branch), `Work branch missing ${id}`);
+  if (r.work_status === 'BLOCKED_APPROVAL') require(/^https:\/\/github\.com\/not-a-devs\/ditNow\/pull\/\d+$/.test(r.work_pr), `Approval PR missing ${id}`);
   for (const key of ['frontend', 'fastapi', 'mariadb', 'tests'])
     require(layers.has(r[key]), `Invalid ${key} ${id}`);
   for (const key of ['documentation', 'evidence', 'blocker', 'next_task', 'checked_date'])
