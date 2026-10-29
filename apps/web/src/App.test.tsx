@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 describe('integrated campus shell', () => {
+  it('connects the AI menu to the campus search feature', () => {
+    window.history.replaceState(null, '', '/app/ai');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: '어디를 찾고 있나요?' })).toBeInTheDocument();
+    expect(screen.getByLabelText('시설 이름 또는 질문')).toBeInTheDocument();
+    expect(screen.getByText(/개인 시간표·성적 안내/)).toBeInTheDocument();
+  });
   it('shows public status and all platform navigation without claiming authentication', () => {
     render(<App />);
     expect(screen.getByText('로그인되지 않음')).toBeInTheDocument();

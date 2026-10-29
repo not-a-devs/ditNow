@@ -25,13 +25,23 @@ npm run dev -- --port 5181
 | 공개 health 요청 | IMPLEMENTED / TESTED | `/api/v1/health` 실제 서버 계약을 호출. 서버 실행·CORS 설정이 필요하며 DB 준비 상태를 판단하지 않음 |
 | API 전송 계층 | IMPLEMENTED / TESTED | 성공 응답 `data` 반환, 오류 코드/HTTP 상태/요청 ID, 10초 중단, 안전한 오류, 기본 same-origin credentials |
 | OpenAPI 타입 | IMPLEMENTED / TESTED | `services/api/openapi.json`의 현재 공개 경로만 생성·변경 검사 |
-| 학사·강의실·학과·커뮤니티·모집·기회·학생지원·AI 업무 | DOCUMENTED / NOT_RUN | 현재는 별도 기능 모듈이 합류하기 전 안내 화면. 실제 CRUD나 학적·인증을 구현했다고 표시하지 않음 |
+| AI 메뉴의 공개 시설 검색 | IMPLEMENTED / TESTED | `/app/ai`에서 FastAPI 공개 검색 API를 호출. 기존 RAG 검색기 재사용, 출처 UNKNOWN·개인 질문 미연결 표시. LLM 생성·학적 조회·로그인은 미구현 |
+| 학사·강의실·학과·커뮤니티·모집·기회·학생지원 업무 | DOCUMENTED / NOT_RUN | 현재는 별도 기능 모듈이 합류하기 전 안내 화면. 실제 CRUD나 학적·인증을 구현했다고 표시하지 않음 |
 
 이 앱은 로그인·세션·학적·관리자 권한을 생성하지 않는다. 가상 로그인 버튼이나 학교 공식 인증 표시도 없다. 홈의 개인 일정/알림은 빈 안내이며 가짜 개인 학사 기록을 넣지 않는다. 화면이 존재한다는 이유로 기존 92개 FR을 완료 처리하지 않는다. 관련 기준은 FR-HOME-001, FR-HOME-002, FR-HOME-003 및 NFR-UX-001~005, NFR-PERF-002, NFR-SEC-004, NFR-OPS-002다. TC-WEB-SHELL-001(내비), 002(실제 연결 상태), 003(안전 오류), 004(경로 제한)를 단위 테스트에서 확인한다. 실제 390px/1280px 시각 검증은 별도 실행 전까지 NOT_RUN이다.
 
 ## 병렬 모듈 계약
 
-`src/features/{community,opportunities,campus,ai}/index.tsx`에서 기본 React component를 export하는 독립 모듈을 통합할 수 있다. 현재 없는 파일을 import하지 않는다. 모듈 구현·합류 후 셸의 안내 화면을 실제 모듈로 교체하고 각 업무 흐름을 별도로 검증한다.
+`src/features/{community,opportunities,campus,ai}/index.tsx`에서 기본 React component를 export하는 독립 모듈을 통합할 수 있다. `ai`는 공개 시설 검색으로 연결했다. 현재 없는 다른 파일을 import하지 않는다. 모듈 구현·합류 후 셸의 안내 화면을 실제 모듈로 교체하고 각 업무 흐름을 별도로 검증한다.
+
+### 공개 시설 검색 검증 (TASK-F-WEB)
+
+관련 범위는 FR-CAMP-001/003의 시설 검색 부분, TC-V1-CAMP-001/003, NFR-UX-001/003/005, NFR-AI-002/003, NFR-PRIV-002/003이다. 예약·지도·개인 AI 브리핑 전체의 완료를 뜻하지 않는다.
+
+- 시설 검색은 실제 FastAPI 응답을 사용한다. API가 꺼지거나 잘못된 응답을 반환하면 안전한 오류를 표시하며 가상 성공 결과를 만들지 않는다.
+- 검색 결과의 `retrieval_only`, `generated=false`, `personal_data_access=false`, `verification=UNKNOWN`과 필수 필드를 런타임 검증한 후 렌더링한다. 요청 취소·길이 제한·출처 표시를 검사한다.
+- 2026-10-30 로컬 실제 Chromium 390px/1280px에서 신규 Vite→FastAPI 한글 검색·빈 결과·API 404 안전 오류·재검색 성공을 확인했다. 명시한 CORS origin의 GET 허용과 허용되지 않은 origin의 CORS 헤더 부재를 확인했다. 가로 넘침 없음, 페이지 오류 없음, 두 화면 스크린샷을 직접 검토했다.
+- 외부 LLM·실사용자·학적 원장·MariaDB·운영 배포는 이 검증에서 사용하지 않았다. 로그인·실DB CRUD·배포와 전체 92개 완성은 아직 차단/미검증 범위를 유지한다.
 
 공통 클라이언트는 `src/lib/api.ts`에서 `requestData<T>(path, init?)`, `ApiError(code,status,requestId?)`를 제공한다. 경로는 `/anonymous-posts`처럼 기본 주소 이후 경로다. 전체 URL·`//`·기본 경로를 벗어나는 요청은 거부한다. 서버가 반환한 비밀값 가능 오류 원문과 네트워크 예외 원문은 사용자에게 출력하거나 기록하지 않는다. 요청 body와 response data는 아직 런타임 도메인 검증을 하지 않으며 각 실제 기능의 입력/출력 모델에서 검증해야 한다.
 
