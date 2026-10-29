@@ -42,6 +42,8 @@
 
 - `POST /auth/login` `{ "student_id": 학번, "password": 초기 비밀번호(주민등록번호 뒷자리) }` → `{ token, student_id, name }`
 - 이후 요청에 `Authorization: Bearer <token>`. 로그아웃은 `POST /auth/logout`.
+- `/docs`에서 테스트할 때: `/auth/login` 실행 → 응답의 `token` 복사 → 오른쪽 위 **Authorize** 버튼에 토큰만 붙여넣기(`Bearer ` 없이).
+- 토큰은 반드시 `HTTPBearer` 보안 스킴(`main.py`의 `Credentials`)으로 받습니다. `Header()`로 받으면 Swagger가 `Authorization` 헤더를 보내지 않습니다.
 - 토큰은 서버 메모리에 12시간 보관합니다. **서버를 재시작하면 모두 로그아웃됩니다**(단일 워커 전제).
 
 ### 시연용 목업 계정 (`data/mock/students.json`)

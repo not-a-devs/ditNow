@@ -4,9 +4,11 @@ import time
 from collections import defaultdict, deque
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth import SessionStore, authenticate
 from app.config import Settings, get_settings
@@ -20,6 +22,11 @@ from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginRe
 
 logger = logging.getLogger(__name__)
 CACHE_TTL_SEC = 600
+
+# Authorization을 일반 Header로 받으면 /docs(Swagger)가 보내지 않는다.
+# 보안 스킴으로 받아야 /docs에 Authorize 버튼이 생긴다. auto_error=False: 비로그인 교내 질문 허용
+bearer = HTTPBearer(auto_error=False, description="/auth/login에서 받은 token")
+Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 
 
 def _load_state(app: FastAPI, settings: Settings) -> None:
@@ -75,9 +82,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return LoginResponse(token=token, student_id=student.student_id, name=student.name)
 
     @app.post("/auth/logout")
-    def logout(authorization: str = Header(default="")) -> dict[str, str]:
+    def logout(creds: Credentials) -> dict[str, str]:
         """토큰을 폐기한다."""
-        app.state.sessions.revoke(authorization.removeprefix("Bearer ").strip())
+        if creds:
+            app.state.sessions.revoke(creds.credentials)
         return {"status": "ok"}
 
     @app.get("/health")
@@ -85,23 +93,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """서버·데이터 로드 상태."""
         return {"status": "ok", "facilities": len(app.state.data.facilities)}
 
-    def current_student(authorization: str) -> Student | None:
-        """Authorization 헤더의 토큰으로 학생을 찾는다. 헤더가 없으면 비로그인."""
-        if not authorization:
+    def current_student(creds: HTTPAuthorizationCredentials | None) -> Student | None:
+        """Bearer 토큰으로 학생을 찾는다. 토큰이 없으면 비로그인."""
+        if creds is None:
             return None
-        scheme, _, token = authorization.partition(" ")
-        student_id = app.state.sessions.resolve(token) if scheme.lower() == "bearer" else None
+        student_id = app.state.sessions.resolve(creds.credentials)
         student = app.state.student_data.students.get(student_id) if student_id else None
         if student is None:
             raise HTTPException(401, "로그인이 만료됐어요. 다시 로그인해 주세요.")
         return student
 
     @app.post("/ask")
-    async def ask(
-        body: AskRequest, request: Request, authorization: str = Header(default="")
-    ) -> AskResponse:
+    async def ask(body: AskRequest, request: Request, creds: Credentials) -> AskResponse:
         """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다."""
-        student = current_student(authorization)
+        student = current_student(creds)
         key = " ".join(normalize(body.question).split())
         if not key:
             raise HTTPException(422, "질문을 입력해 주세요.")

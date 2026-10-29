@@ -74,3 +74,10 @@ def test_cors(client: TestClient) -> None:
         headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST"},
     )
     assert res.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_docs_can_send_token(client: TestClient) -> None:
+    """/docs(Swagger)가 토큰을 보내려면 헤더 파라미터가 아닌 보안 스킴으로 선언돼야 한다."""
+    spec = client.get("/openapi.json").json()
+    assert spec["components"]["securitySchemes"]["HTTPBearer"]["scheme"] == "bearer"
+    assert {"HTTPBearer": []} in spec["paths"]["/ask"]["post"]["security"]
