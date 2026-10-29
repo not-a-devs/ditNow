@@ -20,7 +20,30 @@ WEEK = "week"
 # (띄어쓰기 뺀 표현, 의도). 위에서부터 처음 맞는 규칙을 쓴다. 'A+B'는 A와 B가 모두 있으면 일치
 RULES: list[tuple[str, str]] = [
     # 개인 키워드와 겹치지만 교내 정보인 표현
-    ("증명서", CAMPUS),  # 졸업증명서
+    ("증명서", CAMPUS),  # 성적증명서·졸업증명서
+    ("장학", CAMPUS),  # 성적장학금
+    # 성적·평점
+    ("평점", "grades"),
+    ("평균학점", "grades"),
+    ("학점평균", "grades"),
+    ("gpa", "grades"),
+    ("성적", "grades"),
+    # 시험
+    ("중간고사", "exams"),
+    ("기말고사", "exams"),
+    ("기말", "exams"),
+    ("시험", "exams"),
+    # 이번 학기 수강 과목·교수
+    ("수강과목", "my_courses"),
+    ("수강중", "my_courses"),
+    ("수강신청한", "my_courses"),
+    ("듣는과목", "my_courses"),
+    ("듣는수업", "my_courses"),
+    ("듣는강의", "my_courses"),
+    ("교수님", "my_courses"),
+    ("교수+누구", "my_courses"),
+    ("몇학점짜리", "my_courses"),
+    ("과목+뭐", "my_courses"),
     # 다음 수업 (분명한 표현)
     ("다음수업", "next_class"),
     ("다음강의", "next_class"),

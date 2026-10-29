@@ -4,8 +4,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import CourseRow, EnrollmentRow, GraduationRuleRow, StudentRow
-from app.schemas import ClassSession, Course, GraduationRule, Student, StudentData
+from app.models import CourseRow, EnrollmentRow, ExamRow, GraduationRuleRow, StudentRow
+from app.schemas import (
+    ClassSession,
+    Course,
+    Exam,
+    GradeRecord,
+    GraduationRule,
+    Student,
+    StudentData,
+)
 
 FAIL_GRADE = "F"
 
@@ -38,6 +46,13 @@ async def load_student(
         if e.grade is not None and e.grade != FAIL_GRADE:
             earned[e.category] = earned.get(e.category, 0) + e.course.credits
     current = [e.course for e in enrollments if e.semester == semester]
+    exams = (
+        await db.scalars(
+            select(ExamRow)
+            .where(ExamRow.course_id.in_([c.course_id for c in current]))
+            .order_by(ExamRow.date, ExamRow.start)
+        )
+    ).all()
 
     student = Student(
         student_id=row.student_id,
@@ -46,6 +61,17 @@ async def load_student(
         grade=row.grade,
         earned_credits=earned,
         enrollments=[c.course_id for c in current],
+        records=[
+            GradeRecord(
+                semester=e.semester,
+                course_id=e.course_id,
+                course_name=e.course.name,
+                credits=e.course.credits,
+                category=e.category,
+                grade=e.grade,
+            )
+            for e in enrollments
+        ],
     )
     data = StudentData(
         courses={c.course_id: _course(c) for c in current},
@@ -56,6 +82,18 @@ async def load_student(
                 by_category={c.category: c.min_credits for c in rule.categories},
             )
         },
+        exams=[
+            Exam(
+                course_id=x.course_id,
+                kind=x.kind,
+                date=x.date,
+                start=x.start,
+                end=x.end,
+                building_id=x.building_id,
+                room=x.room,
+            )
+            for x in exams
+        ],
     )
     return student, data
 

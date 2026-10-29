@@ -9,6 +9,7 @@ from app.models import (
     CourseRow,
     CourseSessionRow,
     EnrollmentRow,
+    ExamRow,
     GraduationCategoryRow,
     GraduationRuleRow,
     StudentRow,
@@ -59,5 +60,6 @@ async def init_db(engine: AsyncEngine, mock: MockData, *, reset: bool = False) -
         )
         await db.flush()  # 학생·강의가 먼저 들어가야 수강 이력의 외래키가 맞는다
         db.add_all(EnrollmentRow(**e.model_dump()) for e in mock.enrollments)
+        db.add_all(ExamRow(**x.model_dump()) for x in mock.exams)
         await db.commit()
     return True

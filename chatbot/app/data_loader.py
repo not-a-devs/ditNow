@@ -9,6 +9,7 @@ from app.schemas import (
     CampusData,
     Course,
     Enrollment,
+    Exam,
     Facility,
     GraduationRule,
     MockData,
@@ -61,12 +62,8 @@ def load_mock_data(mock_dir: Path, campus: CampusData) -> MockData:
     courses = _load_list(mock_dir / "courses.json", Course, "course_id")
     rules = _load_list(mock_dir / "graduation.json", GraduationRule, "dept_id")
     students = _load_list(mock_dir / "students.json", StudentRecord, "student_id")
-    path = mock_dir / "enrollments.json"
-    try:
-        raw: Any = json.loads(path.read_text(encoding="utf-8"))
-        enrollments = [Enrollment.model_validate(r) for r in raw]
-    except (OSError, ValueError) as e:  # ValidationError도 ValueError의 하위 클래스
-        raise DataError(f"{path.name}: {e}") from e
+    enrollments = _load_rows(mock_dir / "enrollments.json", Enrollment)
+    exams = _load_rows(mock_dir / "exams.json", Exam)
 
     for c in courses.values():
         for s in c.sessions:
@@ -83,4 +80,21 @@ def load_mock_data(mock_dir: Path, campus: CampusData) -> MockData:
         if e.student_id not in students or e.course_id not in courses or key in seen:
             raise DataError(f"enrollments.json {key}: 없는 학생·강의이거나 중복입니다")
         seen.add(key)
-    return MockData(students=students, courses=courses, rules=rules, enrollments=enrollments)
+    seen_exams: set[tuple[str, str]] = set()
+    for x in exams:
+        key = (x.course_id, x.kind)
+        if x.course_id not in courses or x.building_id not in campus.buildings or key in seen_exams:
+            raise DataError(f"exams.json {key}: 없는 강의·건물이거나 중복입니다")
+        seen_exams.add(key)
+    return MockData(
+        students=students, courses=courses, rules=rules, enrollments=enrollments, exams=exams
+    )
+
+
+def _load_rows(path: Path, model: type[M]) -> list[M]:
+    """id가 없는 JSON 배열(수강 이력·시험)을 읽는다."""
+    try:
+        raw: Any = json.loads(path.read_text(encoding="utf-8"))
+        return [model.model_validate(r) for r in raw]
+    except (OSError, ValueError) as e:  # ValidationError도 ValueError의 하위 클래스
+        raise DataError(f"{path.name}: {e}") from e

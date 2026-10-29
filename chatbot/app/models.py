@@ -1,8 +1,8 @@
 """MariaDB 테이블 (SQLAlchemy ORM). 테스트에서는 같은 모델을 SQLite에 만든다."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -66,6 +66,22 @@ class EnrollmentRow(Base):
     category: Mapped[str] = mapped_column(String(10))  # 이수 구분: 전공·교양·일반
     grade: Mapped[str | None] = mapped_column(String(2), default=None)  # None이면 수강 중
     course: Mapped[CourseRow] = relationship()
+
+
+class ExamRow(Base):
+    """시험 일정 (중간·기말)."""
+
+    __tablename__ = "exams"
+    __table_args__ = (UniqueConstraint("course_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.course_id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(2))  # 중간 | 기말
+    date: Mapped[date] = mapped_column(Date)
+    start: Mapped[str] = mapped_column(String(5))
+    end: Mapped[str] = mapped_column(String(5))
+    building_id: Mapped[str] = mapped_column(String(50))
+    room: Mapped[str] = mapped_column(String(20))
 
 
 class GraduationRuleRow(Base):

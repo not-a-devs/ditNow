@@ -1,0 +1,65 @@
+[
+  {
+    "course_id": "CS201",
+    "kind": "중간",
+    "date": "2026-10-21",
+    "start": "10:00",
+    "end": "11:00",
+    "building_id": "mirae",
+    "room": "504호"
+  },
+  {
+    "course_id": "CS201",
+    "kind": "기말",
+    "date": "2026-12-14",
+    "start": "10:00",
+    "end": "11:00",
+    "building_id": "mirae",
+    "room": "504호"
+  },
+  {
+    "course_id": "CS205",
+    "kind": "중간",
+    "date": "2026-10-20",
+    "start": "13:00",
+    "end": "14:00",
+    "building_id": "mirae",
+    "room": "401호"
+  },
+  {
+    "course_id": "CS205",
+    "kind": "기말",
+    "date": "2026-12-15",
+    "start": "13:00",
+    "end": "14:00",
+    "building_id": "mirae",
+    "room": "401호"
+  },
+  {
+    "course_id": "CS210",
+    "kind": "중간",
+    "date": "2026-10-22",
+    "start": "09:00",
+    "end": "10:30",
+    "building_id": "jeongbo",
+    "room": "702호"
+  },
+  {
+    "course_id": "CS210",
+    "kind": "기말",
+    "date": "2026-12-17",
+    "start": "09:00",
+    "end": "10:30",
+    "building_id": "jeongbo",
+    "room": "702호"
+  },
+  {
+    "course_id": "GE101",
+    "kind": "기말",
+    "date": "2026-12-18",
+    "start": "14:00",
+    "end": "15:00",
+    "building_id": "bonkwan",
+    "room": "301호"
+  }
+]

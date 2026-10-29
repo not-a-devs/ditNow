@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -119,6 +119,29 @@ class Enrollment(BaseModel):
     grade: str | None = None  # 성적. None이면 수강 중
 
 
+class Exam(BaseModel):
+    """시험 일정 (exams.json → DB exams 테이블)."""
+
+    course_id: str
+    kind: Literal["중간", "기말"]
+    date: date
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")
+    building_id: str
+    room: str
+
+
+class GradeRecord(BaseModel):
+    """처리기가 보는 수강 이력 한 줄."""
+
+    semester: str
+    course_id: str
+    course_name: str
+    credits: int
+    category: str
+    grade: str | None  # None이면 수강 중
+
+
 class MockData(BaseModel):
     """DB에 넣을 목업 전체 (data/mock/*.json, 검증 완료)."""
 
@@ -126,6 +149,7 @@ class MockData(BaseModel):
     courses: dict[str, Course]
     rules: dict[str, GraduationRule]
     enrollments: list[Enrollment]
+    exams: list[Exam]
 
 
 class Student(BaseModel):
@@ -137,6 +161,7 @@ class Student(BaseModel):
     grade: int
     earned_credits: dict[str, int]  # 이수 구분 → 취득 학점 (F 제외)
     enrollments: list[str]  # 이번 학기 수강 course_id
+    records: list[GradeRecord] = Field(default_factory=list)  # 지난 학기 포함 전체 수강 이력
 
 
 class StudentData(BaseModel):
@@ -144,6 +169,7 @@ class StudentData(BaseModel):
 
     courses: dict[str, Course]
     rules: dict[str, GraduationRule]
+    exams: list[Exam] = Field(default_factory=list)  # 이번 학기 수강 과목의 시험
 
 
 # ── API 모델 ──────────────────────────────────────────────

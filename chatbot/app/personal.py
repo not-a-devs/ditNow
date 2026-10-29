@@ -13,6 +13,7 @@ from app.schemas import (
     CampusData,
     ClassSession,
     Course,
+    GradeRecord,
     LocationOut,
     Student,
     StudentData,
@@ -41,16 +42,16 @@ def _courses(student: Student, sd: StudentData) -> list[Course]:
     return [sd.courses[i] for i in student.enrollments]
 
 
-def match_courses(question: str, courses: list[Course]) -> list[Course]:
-    """질문에 이름이 나온 과목. '자료구조 강의실'·'진로 수업'처럼 과목명 일부만 써도 찾는다."""
+def _mentions(question: str, name: str) -> bool:
+    """질문에 과목명이 나왔는지. '자료구조 강의실'·'진로 수업'처럼 과목명 일부만 써도 된다."""
     compact = normalize(question).replace(" ", "")
-    words = [w for w in tokenize(question) if len(w) >= 2]
-    out = []
-    for c in courses:
-        name = normalize(c.name).replace(" ", "")
-        if name in compact or any(w in name for w in words):
-            out.append(c)
-    return out
+    name = normalize(name).replace(" ", "")
+    return name in compact or any(w in name for w in tokenize(question) if len(w) >= 2)
+
+
+def match_courses(question: str, courses: list[Course]) -> list[Course]:
+    """질문에 이름이 나온 과목."""
+    return [c for c in courses if _mentions(question, c.name)]
 
 
 def _classes(courses: list[Course]) -> list[tuple[Course, ClassSession]]:
@@ -161,7 +162,95 @@ def remaining_credits(
     return ["\n".join(lines)], []
 
 
+def my_courses(student: Student, sd: StudentData, campus: CampusData, q: PersonalQuery) -> Result:
+    """이번 학기 수강 과목 (과목을 말하면 그 과목만): 이수 구분·학점·담당 교수·시간."""
+    courses = _courses(student, sd)
+    if not courses:
+        return [f"[my_courses] {student.name} 학생은 이번 학기 수강 과목이 없습니다."], []
+    category = {r.course_id: r.category for r in student.records}
+    total = sum(c.credits for c in courses)
+    blocks = [f"[my_courses] 이번 학기 수강: {len(courses)}과목 {total}학점"]
+    for c in match_courses(q.question, courses) or courses:
+        times = ", ".join(
+            f"{s.day} {s.start}~{s.end} {campus.buildings[s.building_id].name} {s.room}"
+            for s in c.sessions
+        )
+        blocks.append(
+            f"[{c.course_id}] {c.name} ({category.get(c.course_id, '')}, {c.credits}학점, "
+            f"담당 {c.professor})\n- 시간·강의실: {times}"
+        )
+    return blocks, []
+
+
+# 4.5 만점 (P/NP 과목은 목업에 없음)
+GRADE_POINTS = {
+    "A+": 4.5, "A0": 4.0, "B+": 3.5, "B0": 3.0, "C+": 2.5,
+    "C0": 2.0, "D+": 1.5, "D0": 1.0, "F": 0.0,
+}  # fmt: skip
+
+
+def _gpa(records: list[GradeRecord]) -> tuple[float, int]:
+    """학점 가중 평점과 평점에 들어간 학점 수. F도 0점으로 포함한다."""
+    graded = [r for r in records if r.grade in GRADE_POINTS]
+    credits = sum(r.credits for r in graded)
+    points = sum(GRADE_POINTS[r.grade or "F"] * r.credits for r in graded)
+    return (points / credits if credits else 0.0), credits
+
+
+def grades(student: Student, sd: StudentData, campus: CampusData, q: PersonalQuery) -> Result:
+    """전체·학기별 평점, 최근 학기 과목별 성적. 과목을 말하면 그 과목 성적."""
+    graded = [r for r in student.records if r.grade is not None]
+    if not graded:
+        return [f"[my_grades] {student.name} 학생은 아직 나온 성적이 없습니다."], []
+    gpa, credits = _gpa(graded)
+    semesters = sorted({r.semester for r in graded})
+    lines = [
+        f"[my_grades] {student.name} 학생 성적 (4.5 만점)",
+        f"- 전체 평점: {gpa:.2f} ({credits}학점 기준, F 포함)",
+    ]
+    for sem in semesters:
+        sem_gpa, sem_credits = _gpa([r for r in graded if r.semester == sem])
+        lines.append(f"- {sem}학기 평점: {sem_gpa:.2f} ({sem_credits}학점)")
+    named = [r for r in student.records if _mentions(q.question, r.course_name)]
+    shown = named or [r for r in graded if r.semester == semesters[-1]]
+    title = "질문한 과목 성적" if named else f"최근 학기({semesters[-1]}) 과목별 성적"
+    lines.append(f"- {title}:")
+    for r in shown:
+        grade = r.grade or "아직 성적 없음(수강 중)"
+        lines.append(f"  - {r.course_name} ({r.semester}, {r.category} {r.credits}학점): {grade}")
+    return ["\n".join(lines)], []
+
+
+def exams(student: Student, sd: StudentData, campus: CampusData, q: PersonalQuery) -> Result:
+    """이번 학기 시험 일정. 기본은 남은 시험, '중간'·'기말'을 말하면 그 시험 전체."""
+    today = q.now.date()
+    kind = "중간" if "중간" in q.question else "기말" if "기말" in q.question else None
+    named = {c.course_id for c in match_courses(q.question, _courses(student, sd))}
+    picked = [
+        x
+        for x in sd.exams
+        if (not named or x.course_id in named) and (x.kind == kind if kind else x.date >= today)
+    ]
+    if not picked:
+        what = f"{kind}고사" if kind else "남은 시험"
+        return [f"[my_exams] {student.name} 학생의 이번 학기 {what} 일정이 없습니다."], []
+    blocks = []
+    for x in picked:
+        days_left = (x.date - today).days
+        when = f"D-{days_left}" if days_left > 0 else "오늘" if days_left == 0 else "이미 지난 시험"
+        blocks.append(
+            f"[{x.course_id}] {x.kind}고사: {sd.courses[x.course_id].name}\n"
+            f"- 날짜: {x.date} ({WEEKDAYS[x.date.weekday()]}요일) {x.start}~{x.end} ({when}, "
+            f"오늘 {today} 기준)\n"
+            f"- 장소: {campus.buildings[x.building_id].name} {x.room}"
+        )
+    return blocks, []
+
+
 HANDLERS: dict[str, Handler] = {
+    "my_courses": my_courses,
+    "grades": grades,
+    "exams": exams,
     "next_class": next_class,
     "day_classes": day_classes,
     "remaining_credits": remaining_credits,

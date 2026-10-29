@@ -18,6 +18,9 @@ from app.personal import (
     KST,
     PersonalQuery,
     day_classes,
+    exams,
+    grades,
+    my_courses,
     next_class,
     remaining_credits,
 )
@@ -76,6 +79,15 @@ def test_every_intent_has_handler() -> None:
         ("내 학점 몇학점이야?", "remaining_credits"),  # /docs 수동 테스트에서 campus로 새던 표현
         ("오늘 수업 몇시에 끝나", "day_classes"),  # 정확한 표현이 조합 규칙보다 우선
         ("졸업증명서 어디서 뽑아", CAMPUS),  # 규칙 맨 위에서 교내 정보로 고정
+        ("성적증명서 어디서 뽑아", CAMPUS),
+        ("성적장학금 기준이 뭐야", CAMPUS),
+        ("내 평점 몇이야", "grades"),
+        ("지난 학기 성적 알려줘", "grades"),
+        ("시험 성적 언제 나와", "grades"),  # 성적이 시험보다 우선
+        ("기말고사 언제야", "exams"),
+        ("데이터베이스 시험 어디서 봐", "exams"),
+        ("이번 학기 듣는 과목 뭐야", "my_courses"),
+        ("웹프로그래밍 교수님 누구야", "my_courses"),
     ],
 )
 def test_classify(q: str, intent: str) -> None:
@@ -247,3 +259,52 @@ def test_earned_credits_from_enrollments(students: Bundles) -> None:
     assert kim.earned_credits == {"전공": 30, "교양": 8, "일반": 4}
     assert kim.enrollments == ["CS201", "CS205", "CS210", "GE101"]
     assert set(data.courses) == set(kim.enrollments)
+
+
+def test_my_courses(students: Bundles, campus_data: CampusData) -> None:
+    """이번 학기 4과목 11학점, 과목을 말하면 그 과목만."""
+    blocks, _ = my_courses(*students["20231001"], campus_data, _q())
+    assert blocks[0] == "[my_courses] 이번 학기 수강: 4과목 11학점"
+    assert _ids(blocks)[1:] == ["CS201", "CS205", "CS210", "GE101"]
+    named, _ = my_courses(*students["20231001"], campus_data, _q(question="웹프로그래밍 교수님"))
+    assert _ids(named) == ["my_courses", "CS205"] and "담당 최교수" in named[1]
+    [none], _ = my_courses(*students["20221003"], campus_data, _q())
+    assert "수강 과목이 없습니다" in none
+
+
+def test_grades(students: Bundles, campus_data: CampusData) -> None:
+    """평점은 학점 가중, F 포함 (원본 JSON에서 따로 계산한 값과 비교)."""
+    [block], _ = grades(*students["20231001"], campus_data, _q())
+    assert "- 전체 평점: 3.51 (45학점 기준, F 포함)" in block
+    assert "- 2025-2학기 평점: 4.12 (13학점)" in block
+    assert "최근 학기(2026-1) 과목별 성적" in block and "알고리즘 (2026-1, 전공 3학점): F" in block
+
+
+def test_grades_named_course(students: Bundles, campus_data: CampusData) -> None:
+    """수강 중인 과목은 아직 성적 없음, 지난 과목은 그 성적."""
+    [now], _ = grades(*students["20231001"], campus_data, _q(question="자료구조 성적"))
+    assert "자료구조 (2026-2, 전공 3학점): 아직 성적 없음(수강 중)" in now
+    [past], _ = grades(*students["20231001"], campus_data, _q(question="알고리즘 성적 몇이야"))
+    assert "알고리즘 (2026-1, 전공 3학점): F" in past
+
+
+def test_exams(students: Bundles, campus_data: CampusData) -> None:
+    """기본은 남은 시험(월 10/26 기준 기말 4개), '중간'을 말하면 지난 중간고사도."""
+    blocks, _ = exams(*students["20231001"], campus_data, _q())
+    assert _ids(blocks) == ["CS201", "CS205", "CS210", "GE101"]
+    assert "2026-12-14 (월요일) 10:00~11:00 (D-49" in blocks[0]
+    mid, _ = exams(*students["20231001"], campus_data, _q(question="중간고사 언제였어"))
+    assert all("중간고사" in b and "이미 지난 시험" in b for b in mid) and len(mid) == 3
+    [db_exam], _ = exams(*students["20231001"], campus_data, _q(question="데이터베이스 시험 어디"))
+    assert db_exam.startswith("[CS210] 기말고사") and "정보관 702호" in db_exam
+
+
+def test_new_intents_via_api(client: TestClient) -> None:  # noqa: F811
+    """새 질문 종류가 로그인 후 /ask에서 근거와 함께 답한다."""
+    headers = _login(client)
+    for q, intent, source in [
+        ("내 평점 몇이야", "grades", "my_grades"),
+        ("이번 학기 듣는 과목 뭐야", "my_courses", "my_courses"),
+    ]:
+        body = client.post("/ask", json={"question": q}, headers=headers).json()
+        assert (body["intent"], source in body["sources"]) == (intent, True)
