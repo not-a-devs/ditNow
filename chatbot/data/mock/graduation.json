@@ -1,0 +1,4 @@
+[
+  { "dept_id": "dept_cs", "total": 80, "by_category": { "전공": 54, "교양": 12 } },
+  { "dept_id": "dept_nursing", "total": 140, "by_category": { "전공": 100, "교양": 20 } }
+]

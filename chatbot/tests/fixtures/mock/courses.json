@@ -1,0 +1,69 @@
+[
+  {
+    "course_id": "CS201",
+    "name": "자료구조",
+    "credits": 3,
+    "professor": "정교수",
+    "sessions": [
+      {
+        "day": "월",
+        "start": "10:00",
+        "end": "11:50",
+        "building_id": "mirae",
+        "room": "504호"
+      },
+      {
+        "day": "수",
+        "start": "10:00",
+        "end": "10:50",
+        "building_id": "mirae",
+        "room": "504호"
+      }
+    ]
+  },
+  {
+    "course_id": "CS205",
+    "name": "웹프로그래밍",
+    "credits": 3,
+    "professor": "최교수",
+    "sessions": [
+      {
+        "day": "화",
+        "start": "13:00",
+        "end": "15:50",
+        "building_id": "mirae",
+        "room": "401호"
+      }
+    ]
+  },
+  {
+    "course_id": "CS210",
+    "name": "데이터베이스",
+    "credits": 3,
+    "professor": "한교수",
+    "sessions": [
+      {
+        "day": "목",
+        "start": "09:00",
+        "end": "11:50",
+        "building_id": "jeongbo",
+        "room": "702호"
+      }
+    ]
+  },
+  {
+    "course_id": "GE101",
+    "name": "대학생활과 진로",
+    "credits": 2,
+    "professor": "윤교수",
+    "sessions": [
+      {
+        "day": "금",
+        "start": "14:00",
+        "end": "15:50",
+        "building_id": "bonkwan",
+        "room": "301호"
+      }
+    ]
+  }
+]

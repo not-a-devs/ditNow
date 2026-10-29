@@ -8,13 +8,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth import SessionStore, authenticate
 from app.config import Settings, get_settings
-from app.data_loader import DataError, load_data
+from app.data_loader import DataError, load_data, load_student_data
 from app.llm import get_llm_client
 from app.prompt import LLM_FAILURE_ANSWER
 from app.rag import answer_question
 from app.retriever.keyword import KeywordRetriever, normalize
-from app.schemas import AskRequest, AskResponse, Facility
+from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse
 
 logger = logging.getLogger(__name__)
 CACHE_TTL_SEC = 600
@@ -23,6 +24,8 @@ CACHE_TTL_SEC = 600
 def _load_state(app: FastAPI, settings: Settings) -> None:
     """데이터를 읽고 검색기를 만들어 app.state에 보관한다. 데이터가 틀리면 DataError."""
     data = load_data(settings.data_dir)
+    # 둘 다 검증을 통과한 뒤에 바꿔야 reload 실패 시 기존 데이터가 반쯤 바뀌지 않는다
+    app.state.student_data = load_student_data(settings.mock_dir, data)
     app.state.data = data
     app.state.retriever = KeywordRetriever(list(data.facilities.values()), settings.min_score)
     app.state.cache = {}
@@ -37,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _load_state(app, settings)
         app.state.llm = get_llm_client(settings)
         app.state.hits = defaultdict(deque)
+        app.state.sessions = SessionStore()
         yield
 
     app = FastAPI(title="DIT NOW RAG", lifespan=lifespan)
@@ -58,6 +62,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if len(q) >= settings.rate_limit_per_min:
             raise HTTPException(429, "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.")
         q.append(now)
+
+    @app.post("/auth/login")
+    def login(body: LoginRequest, request: Request) -> LoginResponse:
+        """학번·초기 비밀번호(주민등록번호 뒷자리)로 로그인하고 토큰을 발급한다."""
+        check_rate_limit(request)  # 비밀번호 대입 공격 완화
+        student = authenticate(app.state.student_data, body.student_id, body.password)
+        if student is None:
+            raise HTTPException(401, "학번 또는 비밀번호가 올바르지 않아요.")
+        token = app.state.sessions.issue(student.student_id)
+        return LoginResponse(token=token, student_id=student.student_id, name=student.name)
+
+    @app.post("/auth/logout")
+    def logout(authorization: str = Header(default="")) -> dict[str, str]:
+        """토큰을 폐기한다."""
+        app.state.sessions.revoke(authorization.removeprefix("Bearer ").strip())
+        return {"status": "ok"}
 
     @app.get("/health")
     def health() -> dict[str, object]:

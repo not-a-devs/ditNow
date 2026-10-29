@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
     data_dir: Path = ROOT_DIR / "data"
+    mock_dir: Path = ROOT_DIR / "data" / "mock"  # 학생 개인 데이터 (시연용 목업)
 
     llm_provider: str = "openai"
     llm_model: str = ""

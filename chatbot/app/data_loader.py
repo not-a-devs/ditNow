@@ -4,7 +4,15 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from app.schemas import Building, CampusData, Facility
+from app.schemas import (
+    Building,
+    CampusData,
+    Course,
+    Facility,
+    GraduationRule,
+    Student,
+    StudentData,
+)
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -45,3 +53,23 @@ def load_data(data_dir: Path) -> CampusData:
                 f"facilities.json [{fac.id}]: 없는 building_id '{fac.building_id}'를 가리킵니다"
             )
     return CampusData(facilities=facilities, buildings=buildings)
+
+
+def load_student_data(mock_dir: Path, campus: CampusData) -> StudentData:
+    """학생 목업 데이터를 읽고 학과·강의·건물 참조를 검증한다."""
+    courses = _load_list(mock_dir / "courses.json", Course, "course_id")
+    rules = _load_list(mock_dir / "graduation.json", GraduationRule, "dept_id")
+    students = _load_list(mock_dir / "students.json", Student, "student_id")
+    for c in courses.values():
+        for s in c.sessions:
+            if s.building_id not in campus.buildings:
+                raise DataError(f"courses.json [{c.course_id}]: 없는 building_id '{s.building_id}'")
+    for st in students.values():
+        if st.dept_id not in rules or st.dept_id not in campus.facilities:
+            raise DataError(
+                f"students.json [{st.student_id}]: 졸업 기준·학과가 없는 '{st.dept_id}'"
+            )
+        missing = [c for c in st.enrollments if c not in courses]
+        if missing:
+            raise DataError(f"students.json [{st.student_id}]: 없는 강의 {missing}")
+    return StudentData(students=students, courses=courses, rules=rules)

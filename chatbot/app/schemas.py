@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 # ── 데이터 모델 (data/*.json) ──────────────────────────────
@@ -60,6 +62,62 @@ class CampusData(BaseModel):
     buildings: dict[str, Building]
 
 
+# ── 학생 개인 데이터 (data/mock/*.json, 시연용 목업) ─────────
+
+
+Weekday = Literal["월", "화", "수", "목", "금", "토", "일"]
+WEEKDAYS: list[str] = ["월", "화", "수", "목", "금", "토", "일"]  # datetime.weekday() 순서
+
+
+class ClassSession(BaseModel):
+    """강의 1회차의 요일·시간·강의실."""
+
+    day: Weekday
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")
+    building_id: str
+    room: str
+
+
+class Course(BaseModel):
+    """개설 강의 (courses.json)."""
+
+    course_id: str
+    name: str
+    credits: int
+    professor: str
+    sessions: list[ClassSession]
+
+
+class GraduationRule(BaseModel):
+    """학과별 졸업 기준 학점 (graduation.json)."""
+
+    dept_id: str
+    total: int
+    by_category: dict[str, int]  # 이수 구분(전공·교양) → 최소 학점
+
+
+class Student(BaseModel):
+    """학생 학적·수강 정보 (students.json)."""
+
+    student_id: str  # 학번 = 로그인 아이디
+    name: str
+    dept_id: str  # facilities.json의 학과 id
+    grade: int
+    password_hash: str  # 초기 비밀번호(주민등록번호 뒷자리)의 해시
+    kakao_id: str | None = None  # 카카오 로그인 연동 시 채운다
+    earned_credits: dict[str, int]  # 이수 구분 → 지금까지 취득 학점
+    enrollments: list[str]  # 이번 학기 수강 course_id
+
+
+class StudentData(BaseModel):
+    """로드·검증이 끝난 학생 개인 데이터."""
+
+    students: dict[str, Student]
+    courses: dict[str, Course]
+    rules: dict[str, GraduationRule]
+
+
 # ── API 모델 ──────────────────────────────────────────────
 
 
@@ -95,3 +153,18 @@ class AskResponse(BaseModel):
     locations: list[LocationOut] = Field(default_factory=list)
     found: bool
     latency_ms: int = 0
+
+
+class LoginRequest(BaseModel):
+    """/auth/login 요청. 비밀번호 초기값은 주민등록번호 뒷자리."""
+
+    student_id: str = Field(min_length=1, max_length=20)
+    password: str = Field(min_length=1, max_length=64)
+
+
+class LoginResponse(BaseModel):
+    """/auth/login 응답. 이후 요청에 `Authorization: Bearer <token>`으로 보낸다."""
+
+    token: str
+    student_id: str
+    name: str

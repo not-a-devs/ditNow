@@ -15,6 +15,7 @@ def client() -> Iterator[TestClient]:
         _env_file=None,
         llm_provider="fake",
         data_dir=FIXTURES,
+        mock_dir=FIXTURES / "mock",
         admin_token="secret",
         rate_limit_per_min=3,
     )
