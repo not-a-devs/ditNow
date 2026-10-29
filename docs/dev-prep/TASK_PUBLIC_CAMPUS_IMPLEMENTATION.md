@@ -53,4 +53,4 @@ FR-WEB-001~004, FR-DEPT-007/008, API-PUBLIC, RBAC-WEB/DEPT, TC-V1-WEB-001~004, T
 - TC-I-004: 중복 ID·확인일 모순·출처 사이트 불일치·유해/비허용 URL을 거부한다.
 - TC-I-005: FE 카드/검색/필터/자체 상세·텍스트 렌더링·출처 한계·원문 링크·빈/오류·취소·응답 오염을 검사한다.
 
-현재 Python 신규22개 및 전체71개 PASS, Ruff40개 포맷/정적 검사 PASS. 신규 웹 npm ci(취약점0), 타입 검사·전체49개 Vitest(이 모듈7개)·빌드·OpenAPI 타입 드리프트 검사 PASS. 에이전트 설정·92개 진행표 검사·git diff 검사 PASS. 독립 리뷰·PR HEAD CI는 완료 후 갱신한다. 실제 내비/API 연결·390/1280 브라우저·운영 DB·배포는 통합 전까지 NOT_RUN이다.
+2026-10-30 최신 main `3c0a0bd`를 반영한 Python 신규22개 및 전체419개 PASS, Ruff70개 포맷/정적 검사 PASS. 신규 웹 npm ci(취약점0), 타입 검사·전체147개 Vitest(이 모듈7개)·빌드·OpenAPI 타입 드리프트 검사 PASS. 에이전트 설정·92개 진행표 검사·git diff 검사 PASS. 독립 리뷰·PR HEAD CI는 완료 후 갱신한다. 실제 내비/API 연결·390/1280 브라우저·운영 DB·배포는 통합 전까지 NOT_RUN이다.
