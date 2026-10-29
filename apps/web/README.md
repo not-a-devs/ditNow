@@ -20,12 +20,13 @@ npm run dev -- --port 5181
 
 | 영역 | 상태 | 실제 동작 / 검증 범위 |
 | --- | --- | --- |
-| 통합 홈·9개 영역 내비게이션 | IMPLEMENTED / TESTED | History API 이동, 뒤로가기, 잘못된 경로, 모바일 전체 메뉴 |
+| 통합 홈을 포함한 10개 메뉴 내비게이션 | IMPLEMENTED / TESTED | History API 이동, 뒤로가기, 잘못된 경로, 모바일 전체 메뉴 |
 | 디자인·공통 상태 | IMPLEMENTED / TESTED | 공개 탐색·미인증·미구현 안내, 키보드 포커스·본문 건너뛰기, 로딩·실패·재시도 |
 | 공개 health 요청 | IMPLEMENTED / TESTED | `/api/v1/health` 실제 서버 계약을 호출. 서버 실행·CORS 설정이 필요하며 DB 준비 상태를 판단하지 않음 |
 | API 전송 계층 | IMPLEMENTED / TESTED | 성공 응답 `data` 반환, 오류 코드/HTTP 상태/요청 ID, 10초 중단, 안전한 오류, 기본 same-origin credentials |
 | OpenAPI 타입 | IMPLEMENTED / TESTED | `services/api/openapi.json`의 현재 공개 경로만 생성·변경 검사 |
 | AI 메뉴의 공개 시설 검색 | IMPLEMENTED / TESTED | `/app/ai`에서 FastAPI 공개 검색 API를 호출. 기존 RAG 검색기 재사용, 출처 UNKNOWN·개인 질문 미연결 표시. LLM 생성·학적 조회·로그인은 미구현 |
+| 공개 대학·학과 안내 | IMPLEMENTED / TESTED (공개 읽기 범위) | `/app/information`에서 실제 FastAPI의 7개 자체 편집 요약을 검색·분류·페이지 이동·상세로 조회. 출처 존재 VERIFIED/규칙 PARTIAL/최신성 UNKNOWN. 콘텐츠 운영 업무와 전체 6개 FR은 PARTIAL |
 | 학사·강의실·학과·커뮤니티·모집·기회·학생지원 업무 | DOCUMENTED / NOT_RUN | 현재는 별도 기능 모듈이 합류하기 전 안내 화면. 실제 CRUD나 학적·인증을 구현했다고 표시하지 않음 |
 
 이 앱은 로그인·세션·학적·관리자 권한을 생성하지 않는다. 가상 로그인 버튼이나 학교 공식 인증 표시도 없다. 홈의 개인 일정/알림은 빈 안내이며 가짜 개인 학사 기록을 넣지 않는다. 화면이 존재한다는 이유로 기존 92개 FR을 완료 처리하지 않는다. 관련 기준은 FR-HOME-001, FR-HOME-002, FR-HOME-003 및 NFR-UX-001~005, NFR-PERF-002, NFR-SEC-004, NFR-OPS-002다. TC-WEB-SHELL-001(내비), 002(연결 상태), 003(안전 오류), 004(경로 제한)를 단위 테스트 27개에서 확인한다.
@@ -34,7 +35,7 @@ npm run dev -- --port 5181
 
 ## 병렬 모듈 계약
 
-`src/features/{community,opportunities,campus,ai}/index.tsx`에서 기본 React component를 export하는 독립 모듈을 통합할 수 있다. `ai`는 공개 시설 검색으로 연결했다. 현재 없는 다른 파일을 import하지 않는다. 모듈 구현·합류 후 셸의 안내 화면을 실제 모듈로 교체하고 각 업무 흐름을 별도로 검증한다.
+`src/features/*/index.tsx`에서 기본 React component를 export하는 독립 모듈을 통합할 수 있다. `ai` 공개 시설 검색과 `public-campus` 공개 대학·학과 안내는 연결했다. 나머지 기능 모듈이 존재해도 공통 인증·DB·권한과 실제 화면 연결을 검증하기 전에는 전역 업무를 완료 처리하지 않는다.
 
 ### 공개 시설 검색 검증 (TASK-F-WEB)
 
@@ -48,6 +49,8 @@ npm run dev -- --port 5181
 공통 클라이언트는 `src/lib/api.ts`에서 `requestData<T>(path, init?)`, `ApiError(code,status,requestId?)`를 제공한다. 경로는 `/anonymous-posts`처럼 기본 주소 이후 경로다. 전체 URL·`//`·기본 경로를 벗어나는 요청은 거부한다. 서버가 반환한 비밀값 가능 오류 원문과 네트워크 예외 원문은 사용자에게 출력하거나 기록하지 않는다. 요청 body와 response data는 아직 런타임 도메인 검증을 하지 않으며 각 실제 기능의 입력/출력 모델에서 검증해야 한다.
 
 ## 검증과 타입 갱신
+
+TASK-I 통합 후 로컬 전체148개 Vitest·타입 검사·빌드·생성 타입 비교를 통과했다. 실제 Chromium 390px/1280px에서 API 연결·한글/주제/출처 검색·목록/자체 상세·근거/한계 표시·페이지 이동·빈 결과·503 안전 오류/재시도·404/쓰기405·명시적 CORS를 확인했다. 가로 넘침/페이지 오류는 없었고 모바일 상세 제목의 초점 가림을 수정했다. 공개 조회 외의 운영 업무·로그인·DB·배포 완료를 뜻하지 않는다. 상세는 [TASK-I 기록](../../docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)을 본다.
 
 ```text
 npm run api:types

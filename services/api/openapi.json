@@ -205,6 +205,32 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "GuideSection": {
+        "additionalProperties": false,
+        "properties": {
+          "heading": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Heading",
+            "type": "string"
+          },
+          "paragraphs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Paragraphs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "heading",
+          "paragraphs"
+        ],
+        "title": "GuideSection",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -237,6 +263,248 @@
           "service"
         ],
         "title": "HealthData",
+        "type": "object"
+      },
+      "PublicGuide": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "enum": [
+              "university",
+              "campus",
+              "disclosure",
+              "news",
+              "department"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "content_kind": {
+            "const": "EDITORIAL_PUBLIC_SUMMARY",
+            "default": "EDITORIAL_PUBLIC_SUMMARY",
+            "title": "Content Kind",
+            "type": "string"
+          },
+          "feature_ids": {
+            "items": {
+              "enum": [
+                "FR-WEB-001",
+                "FR-WEB-002",
+                "FR-WEB-003",
+                "FR-WEB-004",
+                "FR-DEPT-007",
+                "FR-DEPT-008"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Feature Ids",
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 80,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/GuideSection"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Sections",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceEvidence"
+          },
+          "summary": {
+            "maxLength": 700,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "feature_ids",
+          "summary",
+          "sections",
+          "tags",
+          "source"
+        ],
+        "title": "PublicGuide",
+        "type": "object"
+      },
+      "PublicGuideCard": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "enum": [
+              "university",
+              "campus",
+              "disclosure",
+              "news",
+              "department"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceEvidence"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "summary",
+          "tags",
+          "source"
+        ],
+        "title": "PublicGuideCard",
+        "type": "object"
+      },
+      "PublicGuidePage": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicGuideCard"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "notice": {
+            "default": "공식 공개 페이지를 참고한 DIT NOW 편집 요약입니다. 최신 공식 안내와 처리 규칙은 원문을 확인하세요.",
+            "title": "Notice",
+            "type": "string"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "snapshot_version": {
+            "title": "Snapshot Version",
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "offset",
+          "limit",
+          "snapshot_version"
+        ],
+        "title": "PublicGuidePage",
+        "type": "object"
+      },
+      "SourceEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "checked_scope": {
+            "default": "공식 페이지의 도구 반환본 확인. 원문 수정일이나 실시간 최신성을 보장하지 않음.",
+            "title": "Checked Scope",
+            "type": "string"
+          },
+          "evidence": {
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Evidence",
+            "type": "string"
+          },
+          "existence": {
+            "const": "VERIFIED",
+            "default": "VERIFIED",
+            "title": "Existence",
+            "type": "string"
+          },
+          "freshness": {
+            "const": "UNKNOWN",
+            "default": "UNKNOWN",
+            "title": "Freshness",
+            "type": "string"
+          },
+          "processing_rules": {
+            "const": "PARTIAL",
+            "default": "PARTIAL",
+            "title": "Processing Rules",
+            "type": "string"
+          },
+          "site": {
+            "enum": [
+              "university",
+              "cs"
+            ],
+            "title": "Site",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "site",
+          "checked_at",
+          "evidence"
+        ],
+        "title": "SourceEvidence",
         "type": "object"
       },
       "SuccessResponse_CampusSearchData_": {
@@ -297,6 +565,66 @@
           "data"
         ],
         "title": "SuccessResponse[HealthData]",
+        "type": "object"
+      },
+      "SuccessResponse_PublicGuidePage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicGuidePage"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[PublicGuidePage]",
+        "type": "object"
+      },
+      "SuccessResponse_PublicGuide_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicGuide"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[PublicGuide]",
         "type": "object"
       },
       "ValidationError": {
@@ -464,6 +792,200 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/public-campus": {
+      "get": {
+        "operationId": "list_guides_api_v1_public_campus_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "university",
+                    "campus",
+                    "disclosure",
+                    "news",
+                    "department"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "university",
+                    "cs"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_PublicGuidePage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "List Guides",
+        "tags": [
+          "public-campus"
+        ]
+      }
+    },
+    "/api/v1/public-campus/{record_id}": {
+      "get": {
+        "operationId": "get_guide_api_v1_public_campus__record_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "record_id",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "title": "Record Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_PublicGuide_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Guide",
+        "tags": [
+          "public-campus"
         ]
       }
     },
