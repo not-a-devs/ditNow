@@ -1,9 +1,11 @@
 # 🏫 DIT NOW
 
-> **동의과학대학교 학생을 위한 AI 스마트 캠퍼스 서비스**<br>
+> **동의과학대학교 구성원을 위한 통합 대학 플랫폼**<br>
 > "학교의 모든 정보를 내 손안에서, 더욱 간편하고 편리하게"
 
-> **현재 구현 상태:** `mvp/`는 React/Vite/Tailwind의 브라우저 저장소 기반 시연 앱입니다. [FastAPI 공통 기반](services/api/README.md)과 별도 [RAG 시연 서버](chatbot/CLAUDE.md)가 있습니다. RAG에는 자체 세션·DB 코드가 있으나 통합 플랫폼의 인증·DB 계약과 프런트 연결은 미검증입니다. 실제 학교 연동은 수행하지 않습니다. 아래 제품 목표와 현재 구현을 구별하며, 저장소 적격성은 [사용자 해결 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)으로 갱신했습니다.
+> **제품 방향:** 학사·소통·수업·학생지원·AI를 포함하는 신규 통합 대학 플랫폼입니다. [92개 기능 진행표](docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)에서 화면·API·DB·테스트를 따로 추적합니다.
+>
+> **현재 구현과 경계:** [FastAPI 기반](services/api/README.md)과 [신규 웹 셸](apps/web/README.md)은 구현·단위 테스트되었고, [기존 RAG](chatbot/CLAUDE.md)는 통합 대상입니다. 신규 웹은 통합 홈·9개 영역 탐색·공개 서버 연결 확인을 제공하며, 개별 업무 기능은 모듈 통합 전 안내 상태입니다. `mvp/`는 사전 프로토타입으로 최종 서비스·시연·제출에서 제외하며 코드를 복사하지 않습니다. 실제 학교 연동·공통 로그인·MariaDB 연결·배포는 미완료입니다. [병렬 작업 보드](docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md)와 [사용자 적격성 해결 확인](docs/dev-prep/02_HACKATHON_ELIGIBILITY.md)을 참고하세요.
 
 <br>
 
@@ -12,9 +14,9 @@
 | 항목 | 내용 |
 |---|---|
 | 서비스명 | DIT NOW |
-| 대상 | 동의과학대학교 재학생 (특히 신입생·편입생) |
+| 대상 | 학생·교수·조교·관리자 등 대학 구성원 |
 | 개발 기간 | 2026.10.29 ~ 30 |
-| 한 줄 소개 | 자연어로 묻고, 실시간 위치 기반으로 캠퍼스 시설까지 안내받는 AI 캠퍼스 앱 |
+| 한 줄 소개 | 학사·학과 소통·강의실·협업·기회·학생지원·RAG를 하나의 계정으로 연결하는 통합 플랫폼 |
 
 ### 문제 정의
 - 캠퍼스 건물·시설이 많아 **처음 오는 학생은 강의실·편의시설 위치를 찾기 어렵습니다.**
@@ -50,11 +52,11 @@
 
 | 분류 | 기술 |
 |---|---|
-| Frontend | React + TypeScript + Vite + Tailwind CSS — 확정, `mvp/` 시연 구현 |
+| Frontend | React + TypeScript + Vite + Tailwind CSS — `apps/web/` 신규 통합 셸 구현·테스트; 개별 업무 모듈 통합 중 |
 | Backend | FastAPI — 공개 health·오류·설정·로그·테스트 기반 구현, 업무 API 미구현 |
-| DB | PostgreSQL 권장 후보; DB 제품·운영 방식 미확정 |
+| DB | MariaDB 확정; 클라우드 접속·운영 계정·백업·비용 미확정 |
 | 인증·호스팅·비용 | 공급자·방식·지역·예산 미확정 (OPEN-002/003) |
-| AI·RAG·지도 | 제품 제안, 공급자·실제 연동·검증 미완료 |
+| AI·RAG·지도 | 기존 `chatbot/` RAG 재사용·통합 중; 외부 LLM·개인화·지도 통합 검증 미완료 |
 | 개발 도구 | Claude Code, Git / GitHub |
 
 <br>
@@ -67,23 +69,16 @@ git clone https://github.com/not-a-devs/ditNow
 cd ditNow
 ```
 
-### 2. 패키지 설치
-```bash
-cd mvp
-npm ci
-```
+### 2. 현재 검증 가능한 서버 기반
+[API 설치·실행·검사 안내](services/api/README.md)와 [신규 웹 실행 안내](apps/web/README.md)를 따르세요. 신규 웹은 `cd apps/web`, `npm ci`, `npm run dev`로 실행합니다. 공개 서버와 연결하려면 API 주소와 CORS origin을 설정해야 합니다. 사전 프로토타입 실행은 최종 서비스 실행법이 아닙니다.
 
-### 3. 현재 시연 앱 실행
-```bash
-npm run dev
-```
-브라우저에서 `http://localhost:5173`에 접속합니다. 시연 계정과 범위는 [MVP 안내](mvp/README.md), Python 서버 설치·실행·테스트는 [API 안내](services/api/README.md)를 참고하세요. 프런트는 아직 FastAPI 업무 원장에 연결되지 않았습니다.
+공통 MariaDB·인증·실시간 공급자의 접속 정보나 운영 권한은 이 저장소에 포함하지 않습니다. 시연 데이터는 가상 자료이며 학교 운영 원장이 아닙니다.
 
 <br>
 
 ## 🧠 AI 활용 계획과 기록
 
-### 1. 서비스 내 AI (제안, 미구현)
+### 1. 서비스 내 AI (기존 RAG 코드, 통합·운영 미검증)
 | 항목 | 내용 |
 |---|---|
 | 방식 | LLM + RAG |
