@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from .auth import authenticate, issue_token, now_utc, resolve_token, revoke_token
 from .config import Settings, get_settings
 from .conversation import condense
-from .data_loader import DataError, load_data, load_mock_data
-from .db import init_db, make_engine
+from .data_loader import DataError, load_data
+from .db import make_engine, require_existing_schema
 from .intents import CAMPUS, route
 from .llm import get_llm_client
 from .models import QuestionLogRow
@@ -61,13 +61,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.llm = get_llm_client(settings)
         app.state.hits = defaultdict(deque)
         engine = make_engine(settings.database_url)
-        if settings.db_auto_init:
-            mock = load_mock_data(settings.mock_dir, app.state.data)
-            if await init_db(engine, mock):
-                logger.info("DB가 비어 있어 목업 데이터를 넣었습니다")
-        app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
-        yield
-        await engine.dispose()
+        try:
+            await require_existing_schema(engine)
+            app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+            yield
+        finally:
+            await engine.dispose()
 
     app = FastAPI(title="DIT NOW RAG", lifespan=lifespan)
     app.add_middleware(
@@ -118,7 +117,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             await db.commit()
         except SQLAlchemyError:
-            logger.exception("질문 로그 저장 실패")
+            # DB 예외에는 SQL·바인딩된 질문·접속 정보가 들어갈 수 있다.
+            logger.warning("질문 로그 저장 실패")
             await db.rollback()
 
     @app.post("/auth/login")
