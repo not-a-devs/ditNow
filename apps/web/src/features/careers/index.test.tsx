@@ -26,7 +26,7 @@ const APPLICATION = {
   review_status: 'not_reviewed', is_virtual: true, program: PROGRAM,
 };
 
-type Reply = { status: number; body: unknown } | 'pending' | 'network';
+type Reply = { status: number; body: unknown } | 'pending' | 'network' | Promise<Response>;
 type Handler = (method: string, path: string, init: RequestInit) => Reply | undefined;
 
 const ok = (data: unknown): Reply => ({ status: 200, body: { data } });
@@ -38,6 +38,7 @@ function stub(override: Handler = () => undefined) {
     const method = init.method ?? 'GET';
     const path = new URL(url).pathname;
     const reply = override(method, path, init) ?? defaults(method, path);
+    if (reply instanceof Promise) return reply;
     if (reply === 'pending') return new Promise<Response>(() => {});
     if (reply === 'network') return Promise.reject(new TypeError('offline'));
     return Promise.resolve(new Response(JSON.stringify(reply.body), { status: reply.status }));
@@ -118,6 +119,73 @@ describe('CareersPage', () => {
     expect(await screen.findByText(/로그인이 필요합니다/)).toBeInTheDocument();
     expect(screen.queryByDisplayValue('새별칭')).not.toBeInTheDocument();
     expect(screen.queryByText('저장했습니다. 본인만 볼 수 있는 가상 기록입니다.')).not.toBeInTheDocument();
+  });
+
+  it('403 on applications discards notes and my applications; recheck remounts from empty state', async () => {
+    let denied = true;
+    const fetch = stub((method, path) => {
+      if (path.endsWith('/applications') && method === 'POST') return denied ? fail(403, 'FORBIDDEN') : undefined;
+      if (path.endsWith('/me/program-applications')) return ok({ items: [{ ...APPLICATION, id: '00000000-0000-4000-8000-0000000000c2', program_id: '00000000-0000-4000-8000-0000000000a2', program: null }] });
+      return undefined;
+    });
+    render(<CareersPage />);
+    const note = await screen.findByLabelText(`${PROGRAM.title} 메모`);
+    expect(await screen.findByText('비공개로 전환된 프로그램')).toBeInTheDocument();
+    fireEvent.change(note, { target: { value: '개인 메모' } });
+    fireEvent.click(screen.getByText('가상 신청'));
+
+    expect(await screen.findByText(/프로그램 가상 신청: 이 계정에는 권한이 없어/)).toBeInTheDocument();
+    // Personal parts are unmounted, the public program card stays.
+    expect(screen.getByText(PROGRAM.title)).toBeInTheDocument();
+    expect(screen.queryByLabelText(`${PROGRAM.title} 메모`)).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('개인 메모')).not.toBeInTheDocument();
+    expect(screen.queryByText('내 가상 신청')).not.toBeInTheDocument();
+    expect(screen.queryByText('비공개로 전환된 프로그램')).not.toBeInTheDocument();
+    expect(await screen.findByDisplayValue(PROFILE.alias)).toBeInTheDocument(); // other panel unaffected
+
+    denied = false;
+    const listsBefore = fetch.mock.calls.filter(([url]) => String(url).endsWith('/me/program-applications')).length;
+    // The employer panel is also 403 by default; recheck only the applications area.
+    fireEvent.click(within(screen.getByText(/프로그램 가상 신청: 이 계정에는/)).getByText('권한 다시 확인'));
+    // Fresh mount: list fetched again, note input empty (old state was discarded, not hidden).
+    expect(await screen.findByLabelText(`${PROGRAM.title} 메모`)).toHaveValue('');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/me/program-applications')).length).toBe(listsBefore + 1),
+    );
+  });
+
+  it('drops a late apply success after 401 and makes no follow-up request; login recheck recovers', async () => {
+    let finishApply: (r: Response) => void = () => {};
+    const applyReply = new Promise<Response>((resolve) => { finishApply = resolve; });
+    let loggedOut = false;
+    const fetch = stub((method, path) => {
+      if (path.endsWith('/applications') && method === 'POST') return applyReply;
+      if (path.endsWith('/me/profile') && method === 'PATCH') { loggedOut = true; return fail(401, 'UNAUTHORIZED'); }
+      if (loggedOut && (path.includes('/me/') || path.endsWith('/employer-requests'))) return fail(401, 'UNAUTHORIZED');
+      return undefined;
+    });
+    render(<CareersPage />);
+    fireEvent.change(await screen.findByLabelText(`${PROGRAM.title} 메모`), { target: { value: '늦은 메모' } });
+    fireEvent.click(screen.getByText('가상 신청')); // stays pending
+    fireEvent.change(await screen.findByDisplayValue(PROFILE.alias), { target: { value: '새별칭' } });
+    fireEvent.click(screen.getByText('수정 저장'));
+    expect(await screen.findByText(/로그인이 필요합니다/)).toBeInTheDocument();
+    expect(screen.queryByText('내 가상 신청')).not.toBeInTheDocument();
+
+    const listCalls = () => fetch.mock.calls.filter(([url]) => String(url).endsWith('/me/program-applications')).length;
+    const before = listCalls();
+    finishApply(new Response(JSON.stringify({ data: APPLICATION }), { status: 201 }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText(/가상 신청을 기록했습니다/)).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('늦은 메모')).not.toBeInTheDocument();
+    expect(listCalls()).toBe(before); // no follow-up personal fetch from the discarded panel
+
+    loggedOut = false;
+    fireEvent.click(screen.getByText('로그인 상태 다시 확인'));
+    expect(await screen.findByDisplayValue(PROFILE.alias)).toBeInTheDocument();
+    expect(await screen.findByLabelText(`${PROGRAM.title} 메모`)).toHaveValue('');
+    expect(screen.queryByText(/가상 신청을 기록했습니다/)).not.toBeInTheDocument();
   });
 
   it('keeps the form, reuses the key for the same input and rotates it when input changes', async () => {

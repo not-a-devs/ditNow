@@ -13,12 +13,35 @@ Transaction contract (`with uow.transaction() as tx:` = one DB transaction):
   duplicate raises `StoreConflict`; the caller retries in a new transaction and replays.
 - Claims are never deleted by resource deletes. A claim whose resource is gone is a tombstone:
   a late retry of the original create gets 409 instead of resurrecting the resource.
-- `lock_program` must serialise concurrent applications for one program (e.g. SELECT ... FOR
-  UPDATE on the program row) so capacity and per-user limits cannot be exceeded.
+- Lock order (deadlock avoidance): a write transaction takes at most one actor lock and then
+  at most one program lock, always `lock_actor` -> `lock_program`, never the reverse. Every
+  write that changes an actor-wide aggregate (profile create/delete, apply/cancel, employer
+  draft create/delete) takes `lock_actor` before it reads claims, limits or counts.
+- `lock_actor(user_id)` holds an exclusive lock on one existing per-actor row until commit
+  (e.g. SELECT ... FOR UPDATE on the actor's user/aggregate row; the DB owner picks the row).
+  It serialises one actor's concurrent writes across *different* programs, so the per-user
+  active-application limit and the employer-draft limit cannot be raced.
+- `lock_program(program_id)` holds an exclusive lock on the program row until commit so the
+  capacity count cannot be raced by other actors.
+- Visibility after a lock: `grants`, `find_claim`, `count_*`, `find_active_application`,
+  `get_application` and `list_employer_drafts` called after `lock_actor`/`lock_program` must
+  see the latest *committed* rows, not a snapshot taken before the lock was granted. Under
+  MariaDB InnoDB's default REPEATABLE READ a plain SELECT reuses the snapshot of the first
+  read in the transaction, so the adapter must either run these transactions at READ
+  COMMITTED or issue those reads as locking reads (FOR UPDATE / LOCK IN SHARE MODE), which
+  read the latest committed version. Which one is chosen, and the server's actual isolation
+  setting, is the DB owner's decision and is not verified here.
+- Error mapping: UNIQUE/CHECK violations (e.g. MariaDB 1062) raise `StoreConflict`; deadlock
+  and lock-wait timeout (e.g. 1213, 1205) raise `StoreBusy` after the adapter has rolled the
+  transaction back. Neither carries the driver message; the service retries a bounded number
+  of times in a *new* transaction and otherwise answers 409 without detail.
 - `update_*`/`delete_*` are conditional on `expected_revision` (CAS) and return False when the
   row changed or vanished.
 - UNIQUE(user_id) on profiles and UNIQUE(user_id, program_id) for *active* applications raise
-  `StoreConflict` on violation.
+  `StoreConflict` on violation. MariaDB has no partial/filtered index, so "UNIQUE only while
+  status='applied'" cannot be declared directly; one option is a generated column such as
+  `IF(status='applied', program_id, NULL)` plus UNIQUE(user_id, that column) (NULLs do not
+  collide). The concrete schema is an open task for the DB owner, not decided here.
 """
 
 from contextlib import AbstractContextManager
@@ -32,6 +55,10 @@ from app.features.careers.domain import ApplicationStatus, CareerGrant, Employme
 
 class StoreConflict(Exception):
     """UNIQUE/CHECK violation reported by the adapter (mapped to 409 or replay)."""
+
+
+class StoreBusy(Exception):
+    """Deadlock or lock-wait timeout; the transaction was rolled back and may be retried."""
 
 
 ResourceType = Literal["profile", "program_application", "employer_request"]
@@ -117,6 +144,9 @@ class CareersTransaction(Protocol):
     def find_claim(self, scope: ClaimScope) -> IdempotencyClaim | None: ...
 
     def put_claim(self, claim: IdempotencyClaim) -> None: ...
+
+    # serialisation (see module docstring for order and visibility)
+    def lock_actor(self, user_id: UUID) -> None: ...
 
     # FR-JOB-002 profile (one per user)
     def get_profile(self, user_id: UUID) -> ProfileRecord | None: ...

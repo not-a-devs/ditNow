@@ -2,6 +2,10 @@
 body or query. Order on every protected call: actor (401) -> current grant in the same
 transaction (403) -> owner-scoped lookup (404, other users' rows look missing) -> revision/state
 (409). Idempotent creates key on actor+method+canonical path+key and store a payload hash.
+
+Writes that touch an actor-wide aggregate take `lock_actor` (then at most one `lock_program`)
+before reading claims, limits or counts, and re-read the grant after the lock; see `ports.py`
+for the order and the visibility the adapter must provide after a lock.
 """
 
 import hashlib
@@ -37,6 +41,7 @@ from app.features.careers.ports import (
     ProfileRecord,
     ProgramRecord,
     ResourceType,
+    StoreBusy,
     StoreConflict,
 )
 from app.features.careers.schemas import (
@@ -65,6 +70,8 @@ from app.features.opportunities.service import deadline_passed, matches
 from app.schemas.common import ErrorCode, utc_now
 
 MAX_LIMIT = 50
+# Bounded reruns, each in a new transaction, after a deadlock/lock-wait timeout.
+MAX_TX_ATTEMPTS = 3
 PROFILE_PATH = "/careers/me/profile"
 EMPLOYER_PATH = "/careers/employer-requests"
 
@@ -169,7 +176,8 @@ class CareersService:
             job
             for record in page.items[:limit]
             # Defense in depth: never trust the adapter to have filtered kind/visibility.
-            if matches(record, query, now) and (job := self._job(record, now)) is not None
+            # `_job` first: it drops rows with naive datetimes before `matches` compares them.
+            if (job := self._job(record, now)) is not None and matches(record, query, now)
         ]
         return JobPageData(items=items, next_cursor=page.next_cursor)
 
@@ -196,7 +204,7 @@ class CareersService:
         page = self._require_catalog().list_public(query, now)
         items: list[ContestCandidateData] = []
         for record in page.items[:limit]:
-            if not matches(record, query, now) or (job := self._job(record, now)) is None:
+            if (job := self._job(record, now)) is None or not matches(record, query, now):
                 continue
             items.append(
                 ContestCandidateData(
@@ -217,6 +225,13 @@ class CareersService:
     def _authorized(self, tx: CareersTransaction, actor: CareersActor, grant: CareerGrant):
         require_grant(tx.grants(actor.user_id), grant)
 
+    def _lock_actor(self, tx: CareersTransaction, actor: CareersActor, grant: CareerGrant):
+        """Cheap grant check, then the actor lock, then the grant again as a post-lock read so a
+        revocation committed while we waited is honoured."""
+        self._authorized(tx, actor, grant)
+        tx.lock_actor(actor.user_id)
+        self._authorized(tx, actor, grant)
+
     @staticmethod
     def _claim_target(
         claim: IdempotencyClaim, scope: ClaimScope, digest: str, kind: ResourceType
@@ -228,16 +243,23 @@ class CareersService:
             raise _conflict()
         return claim.resource_id
 
-    def _idempotent(self, attempt: Callable[[], Any]) -> Any:
-        """Run `attempt` (one transaction). A UNIQUE race reruns it once so the loser replays."""
-        try:
-            return attempt()
-        except StoreConflict:
-            pass
-        try:
-            return attempt()
-        except StoreConflict:
-            raise _conflict() from None
+    @staticmethod
+    def _run(attempt: Callable[[], Any], *, replay_on_conflict: bool = False) -> Any:
+        """Run `attempt` (one transaction per call). `StoreBusy` (deadlock/lock-wait timeout,
+        already rolled back) reruns it in a new transaction up to MAX_TX_ATTEMPTS. On an
+        idempotent create a UNIQUE race (`StoreConflict`) reruns it once so the loser replays;
+        elsewhere it is a 409. Driver details never reach the response."""
+        conflict_retried = False
+        for _ in range(MAX_TX_ATTEMPTS):
+            try:
+                return attempt()
+            except StoreBusy:
+                continue
+            except StoreConflict:
+                if not replay_on_conflict or conflict_retried:
+                    raise _conflict() from None
+                conflict_retried = True
+        raise _conflict()
 
     # ------------------------------------------------ FR-JOB-002 virtual career profile
 
@@ -279,7 +301,7 @@ class CareersService:
 
         def attempt() -> tuple[ProfileData, bool]:
             with self._tx() as tx:
-                self._authorized(tx, actor, CareerGrant.PROFILE_SELF)
+                self._lock_actor(tx, actor, CareerGrant.PROFILE_SELF)
                 claim = tx.find_claim(scope)
                 if claim is not None:
                     target = self._claim_target(claim, scope, digest, "profile")
@@ -305,12 +327,17 @@ class CareersService:
                 tx.put_claim(IdempotencyClaim(scope, digest, "profile", record.id))
                 return self._profile(record), False
 
-        return self._idempotent(attempt)
+        return self._run(attempt, replay_on_conflict=True)
 
     def update_profile(
         self, actor: CareersActor | None, body: ProfilePatch, expected_revision: int
     ) -> ProfileData:
         actor = require_actor(actor)
+        return self._run(lambda: self._update_profile(actor, body, expected_revision))
+
+    def _update_profile(
+        self, actor: CareersActor, body: ProfilePatch, expected_revision: int
+    ) -> ProfileData:
         with self._tx() as tx:
             self._authorized(tx, actor, CareerGrant.PROFILE_SELF)
             current = self._own_profile(tx, actor)
@@ -330,8 +357,11 @@ class CareersService:
 
     def delete_profile(self, actor: CareersActor | None, expected_revision: int) -> DeletedData:
         actor = require_actor(actor)
+        return self._run(lambda: self._delete_profile(actor, expected_revision))
+
+    def _delete_profile(self, actor: CareersActor, expected_revision: int) -> DeletedData:
         with self._tx() as tx:
-            self._authorized(tx, actor, CareerGrant.PROFILE_SELF)
+            self._lock_actor(tx, actor, CareerGrant.PROFILE_SELF)
             current = self._own_profile(tx, actor)
             if current.revision != expected_revision:
                 raise _conflict()
@@ -406,7 +436,8 @@ class CareersService:
 
         def attempt() -> tuple[ApplicationData, bool]:
             with self._tx() as tx:
-                self._authorized(tx, actor, CareerGrant.PROGRAM_APPLY_SELF)
+                # Order: actor lock -> claim -> program lock -> counts (all post-lock reads).
+                self._lock_actor(tx, actor, CareerGrant.PROGRAM_APPLY_SELF)
                 now = self._now()
                 claim = tx.find_claim(scope)
                 if claim is not None:
@@ -448,7 +479,7 @@ class CareersService:
                 tx.put_claim(IdempotencyClaim(scope, digest, "program_application", record.id))
                 return self._application(tx, record, now), False
 
-        return self._idempotent(attempt)
+        return self._run(attempt, replay_on_conflict=True)
 
     def list_applications(self, actor: CareersActor | None) -> ApplicationListData:
         actor = require_actor(actor)
@@ -470,16 +501,22 @@ class CareersService:
         self, actor: CareersActor | None, application_id: UUID, expected_revision: int
     ) -> ApplicationData:
         actor = require_actor(actor)
+        return self._run(lambda: self._cancel(actor, application_id, expected_revision))
+
+    def _cancel(
+        self, actor: CareersActor, application_id: UUID, expected_revision: int
+    ) -> ApplicationData:
         with self._tx() as tx:
-            self._authorized(tx, actor, CareerGrant.PROGRAM_APPLY_SELF)
+            # Same order as apply: actor lock -> owned row -> program lock.
+            self._lock_actor(tx, actor, CareerGrant.PROGRAM_APPLY_SELF)
             current = self._own_application(tx, actor, application_id)
             if current.revision != expected_revision:
                 raise _conflict()
             if current.status is not ApplicationStatus.APPLIED:
                 raise _conflict()
+            program = tx.lock_program(current.program_id)
             now = self._now()
             if not self._policy.allow_cancel_after_window:
-                program = tx.get_program(current.program_id)
                 view = self._program(program, now) if program else None
                 if view is None or not view.window_open:
                     raise _conflict()
@@ -534,7 +571,7 @@ class CareersService:
 
         def attempt() -> tuple[EmployerDraftData, bool]:
             with self._tx() as tx:
-                self._authorized(tx, actor, CareerGrant.EMPLOYER_DRAFT)
+                self._lock_actor(tx, actor, CareerGrant.EMPLOYER_DRAFT)
                 claim = tx.find_claim(scope)
                 if claim is not None:
                     target = self._claim_target(claim, scope, digest, "employer_request")
@@ -564,7 +601,7 @@ class CareersService:
                 tx.put_claim(IdempotencyClaim(scope, digest, "employer_request", record.id))
                 return self._draft(record), False
 
-        return self._idempotent(attempt)
+        return self._run(attempt, replay_on_conflict=True)
 
     def list_employer_drafts(self, actor: CareersActor | None) -> EmployerDraftListData:
         actor = require_actor(actor)
@@ -590,6 +627,15 @@ class CareersService:
         expected_revision: int,
     ) -> EmployerDraftData:
         actor = require_actor(actor)
+        return self._run(lambda: self._update_draft(actor, draft_id, body, expected_revision))
+
+    def _update_draft(
+        self,
+        actor: CareersActor,
+        draft_id: UUID,
+        body: EmployerDraftPatch,
+        expected_revision: int,
+    ) -> EmployerDraftData:
         with self._tx() as tx:
             self._authorized(tx, actor, CareerGrant.EMPLOYER_DRAFT)
             current = self._own_draft(tx, actor, draft_id)
@@ -611,8 +657,13 @@ class CareersService:
         self, actor: CareersActor | None, draft_id: UUID, expected_revision: int
     ) -> DeletedData:
         actor = require_actor(actor)
+        return self._run(lambda: self._delete_draft(actor, draft_id, expected_revision))
+
+    def _delete_draft(
+        self, actor: CareersActor, draft_id: UUID, expected_revision: int
+    ) -> DeletedData:
         with self._tx() as tx:
-            self._authorized(tx, actor, CareerGrant.EMPLOYER_DRAFT)
+            self._lock_actor(tx, actor, CareerGrant.EMPLOYER_DRAFT)
             current = self._own_draft(tx, actor, draft_id)
             if current.revision != expected_revision:
                 raise _conflict()

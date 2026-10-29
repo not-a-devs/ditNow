@@ -1,7 +1,8 @@
 // Private careers panels. On 401/403 a panel reports to the parent, which unmounts it so the
-// personal data in its state is discarded. Forms keep their input after a failure, retries of
-// the same input reuse the same Idempotency-Key, and success is only shown for a guarded reply.
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+// personal data in its state is discarded; responses that arrive after unmount are dropped
+// (useAlive) and trigger no follow-up request. Forms keep their input after a failure, retries
+// of the same input reuse the same Idempotency-Key, and success is only shown for a guarded reply.
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MutableRefObject, type ReactNode } from 'react';
 import { ApiError } from '../../lib/api';
 import * as api from './api';
 import type { CareerProfile, EmployerDraft, EmploymentType, Program, ProgramApplication } from './types';
@@ -23,14 +24,27 @@ type Failure = { message: string; requestId?: string; conflict: boolean } | null
 
 const splitList = (value: string) => value.split(',').map((v) => v.trim()).filter(Boolean);
 
-function useFailure(area: PrivateArea, onAuthError: AuthHandler) {
+/** False once the component unmounted, so late replies cannot refill discarded state. */
+function useAlive(): MutableRefObject<boolean> {
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  return alive;
+}
+
+function useFailure(area: PrivateArea, onAuthError: AuthHandler, alive: MutableRefObject<boolean>) {
   const [failure, setFailure] = useState<Failure>(null);
   const fail = useCallback(
     (error: unknown) => {
+      // A late 401/403 still reaches the parent: it can only remove more, never show data.
       if (authCode(error)) onAuthError(area, error);
-      else setFailure({ ...describeError(error), conflict: error instanceof ApiError && error.status === 409 });
+      else if (alive.current) setFailure({ ...describeError(error), conflict: error instanceof ApiError && error.status === 409 });
     },
-    [area, onAuthError],
+    [alive, area, onAuthError],
   );
   return { failure, setFailure, fail };
 }
@@ -50,22 +64,24 @@ export function ProfilePanel({ onAuthError }: { onAuthError: AuthHandler }) {
   const [form, setForm] = useState<ProfileForm>(EMPTY_PROFILE);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const { failure, setFailure, fail } = useFailure('profile', onAuthError);
+  const alive = useAlive();
+  const { failure, setFailure, fail } = useFailure('profile', onAuthError, alive);
   const intent = useRef(new api.IntentKey('profile'));
 
   const load = useCallback(() => {
     setProfile({ state: 'loading' });
     api.getProfile().then(
       (data) => {
+        if (!alive.current) return;
         setProfile({ state: 'ready', data });
         setForm(toForm(data));
       },
       (error) => {
         if (authCode(error)) onAuthError('profile', error);
-        else setProfile({ state: 'error', ...describeError(error) });
+        else if (alive.current) setProfile({ state: 'error', ...describeError(error) });
       },
     );
-  }, [onAuthError]);
+  }, [alive, onAuthError]);
   useEffect(load, [load]);
 
   if (profile.state === 'loading') return <Loading label="내 진로 요약을 불러오는 중…" />;
@@ -83,13 +99,14 @@ export function ProfilePanel({ onAuthError }: { onAuthError: AuthHandler }) {
       : api.createProfile(input, intent.current.keyFor(input));
     request.then(
       (saved) => {
+        if (!alive.current) return;
         intent.current.settle();
         setProfile({ state: 'ready', data: saved });
         setForm(toForm(saved));
         setNotice('저장했습니다. 본인만 볼 수 있는 가상 기록입니다.');
       },
       fail,
-    ).finally(() => setBusy(false));
+    ).finally(() => alive.current && setBusy(false));
   };
 
   const remove = () => {
@@ -99,12 +116,13 @@ export function ProfilePanel({ onAuthError }: { onAuthError: AuthHandler }) {
     setFailure(null);
     api.deleteProfile(current.revision).then(
       () => {
+        if (!alive.current) return;
         setProfile({ state: 'ready', data: null });
         setForm(EMPTY_PROFILE);
         setNotice('삭제했습니다.');
       },
       fail,
-    ).finally(() => setBusy(false));
+    ).finally(() => alive.current && setBusy(false));
   };
 
   return (
@@ -159,34 +177,76 @@ function MyApplications({ items, onCancel, busy }: { items: ProgramApplication[]
   );
 }
 
+function ProgramCard({ program, children }: { program: Program; children?: ReactNode }) {
+  return (
+    <li className="rounded border border-slate-200 p-3 text-sm">
+      <ProvenanceBadge kind={program.provenance} checkedAt={program.checked_at} />
+      <p className="mt-1 font-medium">{program.title}</p>
+      <p className="text-slate-600">{program.host} · 신청 마감 {formatDate(program.apply_ends_at)}{program.capacity !== null && ` · 정원 ${program.capacity}`}</p>
+      <p className="whitespace-pre-wrap">{program.summary}</p>
+      <SourceLink url={program.source_url} />
+      {children}
+    </li>
+  );
+}
+
+/** Public program list. Personal state (my applications, notes, notices, keys) lives only in
+ * ProgramApplications, which the parent's `canApply=false` unmounts on 401/403. */
 export function ProgramsPanel({ canApply, onAuthError }: { canApply: boolean; onAuthError: AuthHandler }) {
   const [programs, setPrograms] = useState<Load<{ items: Program[]; policyId: string }>>({ state: 'loading' });
-  const [mine, setMine] = useState<Load<ProgramApplication[]>>({ state: 'loading' });
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const { failure, setFailure, fail } = useFailure('applications', onAuthError);
-  const intents = useRef(new Map<string, api.IntentKey>());
+  const alive = useAlive();
 
   const loadPrograms = useCallback(() => {
     setPrograms({ state: 'loading' });
     api.listPrograms().then(
-      (data) => setPrograms({ state: 'ready', data: { items: data.items, policyId: data.policy_id } }),
-      (error) => setPrograms({ state: 'error', ...describeError(error) }),
+      (data) => alive.current && setPrograms({ state: 'ready', data: { items: data.items, policyId: data.policy_id } }),
+      (error) => alive.current && setPrograms({ state: 'error', ...describeError(error) }),
     );
-  }, []);
+  }, [alive]);
+  useEffect(loadPrograms, [loadPrograms]);
+
+  return (
+    <section aria-labelledby="careers-programs" className="space-y-3">
+      <h2 id="careers-programs" className="text-lg font-semibold">취업 프로그램 가상 신청</h2>
+      <p className="text-xs text-slate-500">DEMO 프로그램만 가상 신청할 수 있습니다. 공개 원문 프로그램은 안내만 하며, 심사·선정·상담 기록은 제공하지 않습니다.</p>
+      {programs.state === 'loading' && <Loading label="프로그램을 불러오는 중…" />}
+      {programs.state === 'error' && <ErrorBox message={programs.message} requestId={programs.requestId} onRetry={loadPrograms} />}
+      {programs.state === 'ready' && (
+        <>
+          <p className="text-xs text-slate-500">적용 규칙: 가상 시연 정책 {programs.data.policyId} (학교 규정 아님)</p>
+          {programs.data.items.length === 0 && <p className="text-sm text-slate-500">등록된 프로그램이 없습니다.</p>}
+          {!canApply && (
+            <ul className="space-y-2">
+              {programs.data.items.map((program) => <ProgramCard key={program.id} program={program} />)}
+            </ul>
+          )}
+        </>
+      )}
+      {canApply && <ProgramApplications programs={programs.state === 'ready' ? programs.data.items : null} onAuthError={onAuthError} />}
+    </section>
+  );
+}
+
+function ProgramApplications({ programs, onAuthError }: { programs: Program[] | null; onAuthError: AuthHandler }) {
+  const [mine, setMine] = useState<Load<ProgramApplication[]>>({ state: 'loading' });
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const alive = useAlive();
+  const { failure, setFailure, fail } = useFailure('applications', onAuthError, alive);
+  const intents = useRef(new Map<string, api.IntentKey>());
+
   const loadMine = useCallback(() => {
-    if (!canApply) return;
+    if (!alive.current) return;
     setMine({ state: 'loading' });
     api.listApplications().then(
-      (data) => setMine({ state: 'ready', data }),
+      (data) => alive.current && setMine({ state: 'ready', data }),
       (error) => {
         if (authCode(error)) onAuthError('applications', error);
-        else setMine({ state: 'error', ...describeError(error) });
+        else if (alive.current) setMine({ state: 'error', ...describeError(error) });
       },
     );
-  }, [canApply, onAuthError]);
-  useEffect(loadPrograms, [loadPrograms]);
+  }, [alive, onAuthError]);
   useEffect(loadMine, [loadMine]);
 
   const intentFor = (programId: string) => {
@@ -203,13 +263,14 @@ export function ProgramsPanel({ canApply, onAuthError }: { canApply: boolean; on
     setFailure(null);
     api.applyToProgram(program.id, note, intent.keyFor({ program: program.id, note })).then(
       (created) => {
+        if (!alive.current) return; // late success after 401/403: discard, no follow-up request
         intent.settle();
-        setNotes({ ...notes, [program.id]: '' });
+        setNotes((current) => ({ ...current, [program.id]: '' }));
         setNotice(created.status === 'applied' ? '가상 신청을 기록했습니다. 실제 접수·선정이 아닙니다.' : '이미 취소된 신청입니다.');
         loadMine();
       },
       fail,
-    ).finally(() => setBusy(false));
+    ).finally(() => alive.current && setBusy(false));
   };
 
   const cancel = (application: ProgramApplication) => {
@@ -218,55 +279,41 @@ export function ProgramsPanel({ canApply, onAuthError }: { canApply: boolean; on
     setFailure(null);
     api.cancelApplication(application).then(
       () => {
+        if (!alive.current) return;
         setNotice('가상 신청을 취소했습니다.');
         loadMine();
       },
       fail,
-    ).finally(() => setBusy(false));
+    ).finally(() => alive.current && setBusy(false));
   };
 
   const activeIds = new Set(mine.state === 'ready' ? mine.data.filter((a) => a.status === 'applied').map((a) => a.program_id) : []);
 
   return (
-    <section aria-labelledby="careers-programs" className="space-y-3">
-      <h2 id="careers-programs" className="text-lg font-semibold">취업 프로그램 가상 신청</h2>
-      <p className="text-xs text-slate-500">DEMO 프로그램만 가상 신청할 수 있습니다. 공개 원문 프로그램은 안내만 하며, 심사·선정·상담 기록은 제공하지 않습니다.</p>
-      {programs.state === 'loading' && <Loading label="프로그램을 불러오는 중…" />}
-      {programs.state === 'error' && <ErrorBox message={programs.message} requestId={programs.requestId} onRetry={loadPrograms} />}
-      {programs.state === 'ready' && (
-        <>
-          <p className="text-xs text-slate-500">적용 규칙: 가상 시연 정책 {programs.data.policyId} (학교 규정 아님)</p>
-          {programs.data.items.length === 0 && <p className="text-sm text-slate-500">등록된 프로그램이 없습니다.</p>}
-          <ul className="space-y-2">
-            {programs.data.items.map((program) => (
-              <li key={program.id} className="rounded border border-slate-200 p-3 text-sm">
-                <ProvenanceBadge kind={program.provenance} checkedAt={program.checked_at} />
-                <p className="mt-1 font-medium">{program.title}</p>
-                <p className="text-slate-600">{program.host} · 신청 마감 {formatDate(program.apply_ends_at)}{program.capacity !== null && ` · 정원 ${program.capacity}`}</p>
-                <p className="whitespace-pre-wrap">{program.summary}</p>
-                <SourceLink url={program.source_url} />
-                {canApply && program.accepts_virtual_application && !activeIds.has(program.id) && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <input aria-label={`${program.title} 메모`} maxLength={200} value={notes[program.id] ?? ''} onChange={(e) => setNotes({ ...notes, [program.id]: e.target.value })} className="rounded border px-2 py-1" />
-                    <button type="button" disabled={busy || !program.window_open} onClick={() => apply(program)} className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50">가상 신청</button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
+    <>
+      {programs && (
+        <ul className="space-y-2">
+          {programs.map((program) => (
+            <ProgramCard key={program.id} program={program}>
+              {program.accepts_virtual_application && !activeIds.has(program.id) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input aria-label={`${program.title} 메모`} maxLength={200} value={notes[program.id] ?? ''} onChange={(e) => setNotes({ ...notes, [program.id]: e.target.value })} className="rounded border px-2 py-1" />
+                  <button type="button" disabled={busy || !program.window_open} onClick={() => apply(program)} className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50">가상 신청</button>
+                </div>
+              )}
+            </ProgramCard>
+          ))}
+        </ul>
       )}
       {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
       {failure && <ErrorBox message={failure.message} requestId={failure.requestId} />}
-      {canApply && (
-        <div className="space-y-2">
-          <h3 className="font-medium">내 가상 신청</h3>
-          {mine.state === 'loading' && <Loading label="내 신청을 불러오는 중…" />}
-          {mine.state === 'error' && <ErrorBox message={mine.message} requestId={mine.requestId} onRetry={loadMine} />}
-          {mine.state === 'ready' && <MyApplications items={mine.data} onCancel={cancel} busy={busy} />}
-        </div>
-      )}
-    </section>
+      <div className="space-y-2">
+        <h3 className="font-medium">내 가상 신청</h3>
+        {mine.state === 'loading' && <Loading label="내 신청을 불러오는 중…" />}
+        {mine.state === 'error' && <ErrorBox message={mine.message} requestId={mine.requestId} onRetry={loadMine} />}
+        {mine.state === 'ready' && <MyApplications items={mine.data} onCancel={cancel} busy={busy} />}
+      </div>
+    </>
   );
 }
 
@@ -289,19 +336,21 @@ export function EmployerDraftPanel({ onAuthError }: { onAuthError: AuthHandler }
   const [form, setForm] = useState<DraftForm>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const { failure, setFailure, fail } = useFailure('employer', onAuthError);
+  const alive = useAlive();
+  const { failure, setFailure, fail } = useFailure('employer', onAuthError, alive);
   const intent = useRef(new api.IntentKey('draft'));
 
   const load = useCallback(() => {
+    if (!alive.current) return;
     setDrafts({ state: 'loading' });
     api.listEmployerDrafts().then(
-      (data) => setDrafts({ state: 'ready', data }),
+      (data) => alive.current && setDrafts({ state: 'ready', data }),
       (error) => {
         if (authCode(error)) onAuthError('employer', error);
-        else setDrafts({ state: 'error', ...describeError(error) });
+        else if (alive.current) setDrafts({ state: 'error', ...describeError(error) });
       },
     );
-  }, [onAuthError]);
+  }, [alive, onAuthError]);
   useEffect(load, [load]);
 
   const submit = (event: FormEvent) => {
@@ -313,20 +362,28 @@ export function EmployerDraftPanel({ onAuthError }: { onAuthError: AuthHandler }
     setFailure(null);
     api.createEmployerDraft(input, intent.current.keyFor(input)).then(
       () => {
+        if (!alive.current) return;
         intent.current.settle();
         setForm(EMPTY_DRAFT);
         setNotice('초안을 저장했습니다. 제출·게시되지 않습니다.');
         load();
       },
       fail,
-    ).finally(() => setBusy(false));
+    ).finally(() => alive.current && setBusy(false));
   };
 
   const remove = (draft: EmployerDraft) => {
     setBusy(true);
     setNotice(null);
     setFailure(null);
-    api.deleteEmployerDraft(draft).then(() => { setNotice('초안을 삭제했습니다.'); load(); }, fail).finally(() => setBusy(false));
+    api.deleteEmployerDraft(draft).then(
+      () => {
+        if (!alive.current) return;
+        setNotice('초안을 삭제했습니다.');
+        load();
+      },
+      fail,
+    ).finally(() => alive.current && setBusy(false));
   };
 
   return (

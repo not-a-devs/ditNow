@@ -11,6 +11,7 @@ from test_careers_support import (
     NOW,
     USER_A,
     USER_B,
+    FakeTransaction,
     FakeUnitOfWork,
     demo_policy,
     make_program,
@@ -27,7 +28,9 @@ from app.features.careers import (
     create_careers_router,
     router,
 )
+from app.features.careers.ports import StoreBusy
 from app.features.careers.router import parse_if_match
+from app.features.careers.service import MAX_TX_ATTEMPTS
 from app.features.opportunities.schemas import OpportunityKind
 
 PRIVATE = "private, no-store"
@@ -276,6 +279,27 @@ def test_employer_draft_flow_and_tombstone_over_http(env):
     late = client.post("/api/v1/careers/employer-requests", json=body, headers=headers)
     assert late.status_code == 409
     assert client.get(item, headers=as_user(DRAFTER)).status_code == 404
+
+
+def test_deadlock_or_lock_timeout_is_bounded_409_without_driver_text(env, monkeypatch):
+    def busy(self, user_id):
+        raise StoreBusy("Deadlock found when trying to get lock (1213) password=secret")
+
+    monkeypatch.setattr(FakeTransaction, "lock_actor", busy)
+    client, program, uow = env["client"], env["program"], env["uow"]
+    before = uow.transactions
+    response = client.post(
+        f"/api/v1/careers/programs/{program.id}/applications",
+        json={},
+        headers=as_user(USER_A, **{"Idempotency-Key": "apply-key-busy"}),
+    )
+    assert response.status_code == 409 and set(response.json()) == ERROR_KEYS
+    for leaked in ("1213", "Deadlock", "secret"):
+        assert leaked not in response.text
+    assert response.headers["Cache-Control"] == PRIVATE
+    # 1 route grant check + MAX_TX_ATTEMPTS service transactions, nothing written.
+    assert uow.transactions - before == 1 + MAX_TX_ATTEMPTS
+    assert uow.applications == {} and uow.claims == {}
 
 
 def test_unexpected_store_error_is_500_without_leak_and_private(env):

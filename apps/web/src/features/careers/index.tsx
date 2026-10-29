@@ -19,6 +19,16 @@ export default function CareersPage() {
     setBlocked((current) => ({ ...current, [area]: { code, requestId } }));
   }, []);
 
+  // Recovery remounts the panels from scratch; nothing from before the 401/403 is restored.
+  const recheck = useCallback((area?: PrivateArea) => {
+    setBlocked((current) => {
+      if (!area) return {};
+      const rest = { ...current };
+      delete rest[area];
+      return rest;
+    });
+  }, []);
+
   const entries = Object.entries(blocked) as Array<[PrivateArea, Block]>;
   const unauthorized = entries.find(([, block]) => block.code === 'UNAUTHORIZED');
   const forbidden = entries.filter(([, block]) => block.code === 'FORBIDDEN');
@@ -36,6 +46,7 @@ export default function CareersPage() {
         <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <p>로그인이 필요합니다. 공통 로그인이 연결되기 전에는 개인 기능을 사용할 수 없어 개인 화면을 표시하지 않습니다.</p>
           {unauthorized[1].requestId && <p className="mt-1 text-xs">요청 ID: {unauthorized[1].requestId}</p>}
+          <button type="button" onClick={() => recheck()} className="mt-2 rounded border border-amber-400 px-2 py-1 text-xs">로그인 상태 다시 확인</button>
         </div>
       )}
       {!unauthorized && forbidden.length > 0 && (
@@ -44,6 +55,7 @@ export default function CareersPage() {
             <p key={area}>
               {AREA_LABEL[area]}: 이 계정에는 권한이 없어 화면을 표시하지 않습니다.
               {block.requestId && <span className="ml-1 text-xs">(요청 ID: {block.requestId})</span>}
+              <button type="button" onClick={() => recheck(area)} className="ml-2 rounded border border-amber-400 px-2 py-0.5 text-xs">권한 다시 확인</button>
             </p>
           ))}
         </div>

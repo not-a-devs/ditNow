@@ -133,15 +133,25 @@ def resolve_provenance(
 
 _EMAIL = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
 _LINK = re.compile(r"(?i)(?:https?://|www\.|[a-z0-9-]+\.(?:com|net|kr|org)\b)")
+# Technology names that look like domains. Only these exact tokens are exempted from _LINK;
+# any other `name.net` (and every URL/e-mail) is still refused.
+_TECH_DOTNET = re.compile(r"(?i)(?<![\w.-])(?:asp|ado|vb)\.net(?![\w-]|\.\w)")
 # Phone/ID-like runs: 9+ digits allowing common separators (010-1234-5678, 900101-1234567).
 _DIGIT_RUN = re.compile(r"(?:\d[\s.\-()]*){9,}")
+# A run made only of year.month[.day] dates (optionally a range) is a period, not a number.
+_DATE = r"(?:19|20)\d{2}[.\-/](?:0?[1-9]|1[0-2])(?:[.\-/](?:0?[1-9]|[12]\d|3[01]))?\.?"
+_PERIOD = re.compile(rf"{_DATE}(?:\s*-\s*{_DATE})?")
 
 
 def reject_contact_details(value: str) -> str:
-    """Refuse e-mail, links and phone/ID-like numbers. Real names cannot be detected; the UI
-    and docs state that only a virtual alias is allowed."""
-    if _EMAIL.search(value) or _LINK.search(value) or _DIGIT_RUN.search(value):
+    """Refuse e-mail, links and phone/ID-like numbers. Pattern screening, not a guarantee: it
+    cannot detect real names or every contact format, so the UI and docs state that only a
+    virtual alias is allowed."""
+    if _EMAIL.search(value) or _LINK.search(_TECH_DOTNET.sub(" ", value)):
         raise ValueError("contact details are not allowed")
+    for run in _DIGIT_RUN.finditer(value):
+        if not _PERIOD.fullmatch(run.group().strip(" \t\r\n()-")):
+            raise ValueError("contact details are not allowed")
     return value
 
 

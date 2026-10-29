@@ -113,4 +113,25 @@ describe('runtime guards', () => {
     expect(() => guard.profile({ ...profile, shared_with: ['employer'] })).toThrow(ApiError);
     expect(() => guard.profile({ ...profile, is_virtual: false })).toThrow(ApiError);
   });
+
+  it('counts length in code points like the server, so an emoji alias at the limit is accepted', () => {
+    const profile = { id: ID, alias: '별빛', desired_roles: [], skills: [], summary: '', revision: 1, created_at: '2026-10-30T03:00:00Z', updated_at: '2026-10-30T03:00:00Z', shared_with: [], is_virtual: true };
+    const emoji16 = '😀'.repeat(16); // 16 code points, 32 UTF-16 units; server alias max is 30
+    const emoji30 = '😀'.repeat(30); // exactly the server limit
+    expect(guard.codePointLength(emoji16)).toBe(16);
+    expect(emoji16.length).toBe(32);
+    expect(guard.profile({ ...profile, alias: emoji16 }).alias).toBe(emoji16);
+    expect(guard.profile({ ...profile, alias: emoji30 }).alias).toBe(emoji30);
+    expect(() => guard.profile({ ...profile, alias: '😀'.repeat(31) })).toThrow(ApiError);
+    expect(() => guard.profile({ ...profile, alias: 'a'.repeat(31) })).toThrow(ApiError);
+  });
+
+  it('accepts only a trailing Z or ±hh:mm offset on timestamps', () => {
+    expect(guard.employerDraft({ ...draft, closes_at: '2026-11-30T23:59:00+09:00' }).closes_at).toBe('2026-11-30T23:59:00+09:00');
+    expect(guard.employerDraft({ ...draft, closes_at: '2026-11-30T14:59:00z' }).closes_at).toBe('2026-11-30T14:59:00z');
+    // Both parse as dates, and the unanchored `[zZ]` alternative used to accept them.
+    expect(() => guard.employerDraft({ ...draft, closes_at: 'Z 2026-11-30 14:59' })).toThrow(ApiError);
+    expect(() => guard.employerDraft({ ...draft, closes_at: '2026-11-30z14:59' })).toThrow(ApiError);
+    expect(() => guard.employerDraft({ ...draft, closes_at: '2026-11-30T14:59:00+0900' })).toThrow(ApiError);
+  });
 });

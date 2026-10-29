@@ -9,10 +9,9 @@ from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 
-from app.features.careers.domain import DemoCareerPolicy
+from app.features.careers.domain import DemoCareerPolicy, ensure_utc
 from app.features.opportunities.repository import OpportunityCatalog, OpportunityRecord
 from app.features.opportunities.schemas import OpportunityKind, PublicationStatus
-from app.features.opportunities.service import deadline_passed
 from app.schemas.common import utc_now
 
 
@@ -23,7 +22,13 @@ def contest_linkable(
         return False
     if record.kind is not OpportunityKind.CONTEST:
         return False
-    return policy.link_closed_contests or not deadline_passed(record, now)
+    try:
+        deadline, current = ensure_utc(record.deadline_at), ensure_utc(now)
+    except ValueError:
+        return False  # naive deadline or clock: refuse rather than guess the zone
+    if current is None:
+        return False
+    return policy.link_closed_contests or deadline is None or deadline > current
 
 
 class ContestTeamLinkVisibility:

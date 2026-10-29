@@ -25,7 +25,7 @@
   - `service.py` — 순수 서비스(공개 검색 재사용, 프로필/신청/초안 CRUD, 멱등·CAS·권한 재검사).
   - `linking.py` — community `OpportunityVisibility` Protocol 구현 `ContestTeamLinkVisibility`(FR-OPP-005 seam).
   - `router.py`, `__init__.py` — `create_careers_router(CareersDependencies)`, 기본 `router`는 전부 503. 모든 성공/오류 응답 `Cache-Control: private, no-store`.
-- `services/api/tests/test_careers_support.py`(테스트 전용 메모리 fake), `test_careers_service.py`, `test_careers_http.py`
+- `services/api/tests/test_careers_support.py`(테스트 전용 메모리 fake: 전역 lock `FakeUnitOfWork`, 독립 트랜잭션·한정 잠금 `ScopedLockUnitOfWork`), `test_careers_service.py`, `test_careers_http.py`, `test_careers_concurrency.py`
 - `apps/web/src/features/careers/` — `index.tsx`(default `CareersPage`), `PublicPanels.tsx`, `PrivatePanels.tsx`, `ui.tsx`, `api.ts`, `guards.ts`, `types.ts`, `api.test.ts`, `index.test.tsx`
 - 이 문서
 
@@ -47,7 +47,16 @@
 
 **멱등:** claim 범위 = actor + `POST` + canonical path(UUID 포함) + key, payload SHA-256 저장. 같은 key·같은 본문 → 200 + `Idempotent-Replayed: true`로 현재 상태 반환(취소된 신청은 취소 상태 그대로 — 과거 성공 재표시 없음). 같은 key·다른 본문 409. 삭제 후 claim은 tombstone으로 남아 늦은 재시도 409(부활 없음). replay 전에 현재 grant를 다시 검사하므로 권한 폐기 후 replay는 403. UNIQUE 경합(`StoreConflict`)은 새 트랜잭션으로 1회 재시도해 replay 또는 409.
 
-**원자성:** `with uow.transaction()` 안의 읽기·검사·쓰기·claim 저장이 한 트랜잭션이라는 것은 **Protocol 계약**이다. 테스트 fake는 전역 lock + 예외 시 snapshot 복원으로 이를 흉내 낼 뿐 MariaDB InnoDB 격리/잠금(`SELECT … FOR UPDATE`)을 증명하지 않는다.
+**원자성:** `with uow.transaction()` 안의 읽기·검사·쓰기·claim 저장이 한 트랜잭션이라는 것은 **Protocol 계약**이다. 테스트 fake는 이를 흉내 낼 뿐 MariaDB InnoDB 격리/잠금을 증명하지 않는다.
+
+**직렬화 계약(리뷰 M1 보완, `ports.py` 모듈 docstring이 기준):**
+- 잠금 순서: 한 쓰기 트랜잭션은 actor 잠금 최대 1개 → program 잠금 최대 1개 순서만 쓴다(역순 금지). 프로필 생성/삭제, 신청/취소, 초안 생성/삭제는 claim·한도·count를 읽기 **전에** `lock_actor`를 잡는다. 서비스 순서: grant(빠른 403) → `lock_actor` → grant 재조회(잠금 대기 중 회수 반영) → claim → (신청·취소) `lock_program` → count/상태 → 쓰기. 취소도 같은 순서로 program 잠금을 잡는다.
+- `lock_actor`는 1인 활성 신청 한도와 초안 한도를 서로 다른 프로그램/요청 사이에서 직렬화한다. 어떤 행을 잠글지(사용자 행 또는 집계 행)는 DB 소유자가 정한다.
+- 가시성: MariaDB 기본 REPEATABLE READ에서 일반 SELECT는 트랜잭션 첫 읽기의 snapshot을 재사용하므로, 잠금 뒤의 grant/claim/count 조회가 옛 snapshot을 보면 정원·한도를 넘을 수 있다. adapter는 해당 트랜잭션을 READ COMMITTED로 실행하거나 잠금 뒤 조회를 locking read(`FOR UPDATE`/`LOCK IN SHARE MODE`, 최신 커밋 버전을 읽음)로 수행해야 한다. 둘 중 무엇을 택할지와 **실서버 격리 수준 설정은 확인하지 않았다**(DB 소유자 결정).
+- 오류 변환: UNIQUE/CHECK 위반(예: 1062) → `StoreConflict`, deadlock/lock wait timeout(예: 1213/1205) → `StoreBusy`(adapter가 rollback 후 드라이버 문구 없이 발생). 서비스는 `StoreBusy`를 새 트랜잭션으로 최대 `MAX_TX_ATTEMPTS=3`회까지 재실행하고, 소진하거나 비멱등 쓰기에서 `StoreConflict`가 나면 세부 없는 409를 반환한다(예외 연결·원문 노출 없음, HTTP 테스트로 확인).
+- 조건부 UNIQUE: MariaDB에는 partial/filtered index가 없어 "status='applied'일 때만 UNIQUE(user_id, program_id)"를 직접 선언할 수 없다. 예: 생성 열 `IF(status='applied', program_id, NULL)` + UNIQUE(user_id, 그 열)(NULL은 충돌하지 않음). 실제 스키마 선택은 **DB 소유자 과제**로 남긴다.
+- 근거(root 제공, 2026-10-30 확인 기록; 이 세션은 네트워크 금지로 직접 재열람하지 않음): [REPEATABLE READ](https://mariadb.com/docs/server/reference/sql-statements/transactions/transactions-repeatable-read), [SELECT … FOR UPDATE](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/for-update), [Generated Columns](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/generated-columns).
+- 테스트: 기존 전역 lock fake(`FakeUnitOfWork`) 외에 독립 트랜잭션 + actor/program 한정 잠금만 있는 `ScopedLockUnitOfWork`를 추가해 `test_careers_concurrency.py`에서 같은 actor·다른 프로그램 한도, 다른 actor·같은 프로그램 정원, 초안 한도, 잠금 순서, 잠금 대기 중 grant 회수 403, deadlock 재시도·한계·lock timeout 409, 비멱등 UNIQUE 409를 검사한다. **음성 대조**로 actor 잠금을 끄거나 잠금 뒤 snapshot 읽기로 바꾸면 같은 시나리오가 실제로 한도/정원을 넘는 것을 확인해, 통과가 fake의 전역 직렬화 덕분이 아님을 보인다. 이것은 계약 모델 검사이며 **실DB 동시성 검증이 아니다(NOT_RUN)**.
 
 **DemoCareerPolicy:** 기간 강제·기간 후 취소·마감 공모전 연결·1인 활성 신청 수·초안 수는 학교 규정이 아니므로 기본값 없이 root가 명시 주입해야 하고(미주입 503), `basis`가 DEMO가 아니면 생성 실패. 학교 정책 경로는 만들지 않았다.
 
@@ -62,16 +71,37 @@
 | 프로그램 실제 심사·선정 | `review_status="not_reviewed"` 고정, 심사 API 없음 |
 | 공모전→팀 모집 실제 생성 | community 소유. careers는 seam(`ContestTeamLinkVisibility`)과 후보·ID 참조만 |
 | 실 auth·DB adapter·global router mount·OpenAPI 스냅샷·App 라우팅 | root/A 소유. 이 작업에서 DB 접속·컨테이너·migration·GRANT 시도 없음 |
+| 삭제된 프로필의 멱등 claim 본문 hash 보존(리뷰 L6) | 별칭·기술처럼 엔트로피가 낮은 본문의 SHA-256은 추측으로 되돌릴 수 있는 파생 정보다. claim TTL, 삭제 후 최소 tombstone(자원 ID·범위만 남기고 hash 삭제 등)·hash 보호 방식은 **정책 미확정**이며 DB 연결(실데이터 저장) 전 차단 조건이다. 이 작업은 임의 보존 기간이나 실개인 자료를 도입하지 않았고 현재 동작(fake에서 claim·hash 유지)을 바꾸지 않았다. DB·개인정보 소유자 결정 필요(NFR-PRIV) |
 
 ## 5. 프런트엔드
 
 - `requestData<unknown>('/careers/...')` 후 `guards.ts`가 모든 응답을 런타임 검증한다. 형식 불일치나 서버가 해서는 안 되는 주장(게시 가능, 심사 결과, 공유됨, 비 https 링크, naive 시각)은 `INVALID_RESPONSE`로 표시하지 않는다. 공식 출처 라벨은 https 링크+확인일이 있어야만 표시하고 아니면 "출처 미확인".
-- 401은 부모가 모든 개인 패널을 unmount(상태 폐기)하고 로그인 안내, 403은 해당 패널만 제거하고 권한 안내. 공개 검색은 유지.
+- 401은 부모가 모든 개인 패널을 unmount(상태 폐기)하고 로그인 안내, 403은 해당 패널만 제거하고 권한 안내. 공개 검색은 유지. 프로그램 영역은 공개 목록(`ProgramsPanel`)과 개인 하위 컴포넌트(`ProgramApplications`: 내 신청·메모·알림·멱등 key)로 분리해 401/403 시 개인 하위만 unmount한다(리뷰 L4). unmount 뒤 도착한 성공/오류 응답은 버리고 후속 개인 요청도 보내지 않는다(`useAlive`). 안내의 "권한 다시 확인"/"로그인 상태 다시 확인"은 차단만 해제해 패널을 빈 상태로 새로 mount한다(이전 상태 복원 없음).
+- guard 문자열 길이는 서버(Python `len`)와 같은 코드 포인트 단위로 센다(리뷰 L5; 이모지 별칭 회귀 테스트). 시각 형식은 끝 고정 `(?:[zZ]|[+-]\d{2}:\d{2})$`만 허용한다(Nit). 이 정규식은 ISO 전체 형식을 강제하지는 않는다(`Date.parse` 가능 여부와 끝 오프셋만 검사).
 - 로딩/503/빈/오류/재시도, 실패 시 폼 유지, 같은 입력 재시도는 같은 Idempotency-Key, 입력이 바뀌면 key 회전, 성공은 guard 통과 응답 후에만 표시.
 - 텍스트는 React 텍스트 노드로만 렌더링, `dangerouslySetInnerHTML` 없음. 새 인증·가짜 로그인 저장소 없음.
 - 전역 App에 mount하지 않았다. 따라서 `npm run build` 번들에는 포함되지 않으며 검증은 **타입 검사 + Vitest/RTL(jsdom)** 뿐이다. 실제 브라우저·390/1280 반응형·DB 연동 완료가 아니다.
 
 ## 6. 실제 실행 결과 (2026-10-30, 이 worktree)
+
+### 6.1 독립 리뷰 보완(M1·L1~L6·Nit) 후 재실행
+
+| 명령 | 결과 |
+|---|---|
+| `services/api`: `uv run --locked pytest` (전체) | **533 passed** (careers 136: service 71·http 53·concurrency 12). 전체 1회 실행 후 동시성 테스트 timeout 조정 뒤 careers 3파일만 1회 재실행(136 passed); 의미 없는 반복 실행은 하지 않음 |
+| `uv run --locked ruff check .` / `ruff format --check .` | PASS / PASS (76 files) |
+| `uv run --locked python -m app.export_openapi --check` | PASS (careers 미mount라 스냅샷 변화 없음) |
+| Python 타입 검사 | NOT_RUN — 프로젝트에 mypy/pyright 설정 없음 |
+| `apps/web`: `npm run typecheck` | PASS |
+| `npm test` (전체) | **176 passed** (careers 36: api 23·index 13) |
+| `npm run build` / `npm run api:types:check` | PASS / PASS |
+| `npm ci` / `npm audit` | NOT_RUN — 이번 작업은 네트워크 사용 금지. 의존성·lock 파일 변경 없음 |
+| `node scripts/check-agent-config.mjs` / `check-feature-progress.mjs` | PASS (NAV 54 경로, 8 스킬) / errors [] |
+| 실 MariaDB 동시성·격리, 실인증, 브라우저(390/1280) | NOT_RUN (DB/네트워크 금지; 라이브 DB는 BLOCKED_TLS) |
+
+이전 기록의 "35회 중 1회 실패"는 상세 로그가 없어 원인을 재현·확인하지 못했다. 이번에는 의미 없는 반복을 하지 않았고 위 1회 실행에서 실패는 없었다. 새 동시성 테스트는 barrier로 두 트랜잭션을 겹치게 한다. 한쪽이 잠금에서 막혀야 하는 경우만 0.3초 뒤 기다림을 포기하고(결과는 잠금이 보장하므로 timing과 무관), 아무도 막히지 않아야 하는 음성 대조는 5초까지 기다린다. 그래도 실패하면 로그를 보존해 원인을 기록해야 한다.
+
+### 6.2 최초 구현 시점 기록
 
 | 명령 | 결과 |
 |---|---|
@@ -101,7 +131,8 @@
 
 ## 7. 남은 위험
 
-- 실명은 탐지 불가. 연락처 차단은 정규식 기반이라 우회 가능하다(별칭·기술만 수집하는 최소화가 1차 방어).
+- 실명은 탐지 불가. 연락처 차단은 정규식 기반이라 우회 가능하다(별칭·기술만 수집하는 최소화가 1차 방어). 리뷰 L3 보완으로 기술명 `ASP.NET`·`ADO.NET`·`VB.NET` 토큰과 연·월(·일) 기간 표기(예: `2023.03-2024.02`)만 예외로 허용했고, 다른 `이름.net`·URL·이메일·전화/주민번호형 숫자열은 계속 거부한다(정상·차단 회귀 테스트). 정규식이 모든 개인정보를 막는다고 보장하지 않는다.
+- 리뷰 L1/L2: 공개 검색 `open_only=true`와 공모전 연결 seam은 naive 시각 행/시계를 먼저 걸러 해당 행만 제외하거나 `False`로 거부한다(500 없음).
 - 공개 프로그램 목록도 UOW가 필요해 미설정 시 503이다. 공개 프로그램 카탈로그를 별도 읽기 포트로 분리할지는 DB 소유자와 결정.
 - `ContestTeamLinkVisibility`를 community에 주입하는 배선은 root 통합 작업이다.
 - 응답 `Cache-Control`은 공개 검색에도 `private, no-store`(보수적 기본값).

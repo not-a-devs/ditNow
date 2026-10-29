@@ -26,8 +26,14 @@ function rec(value: unknown): Rec {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Rec) : invalid();
 }
 
+/** Length in Unicode code points, the unit the server (Python `len`) uses for its limits. */
+export function codePointLength(text: string): number {
+  return Array.from(text).length;
+}
+
 function str(value: unknown, max = 5000): string {
-  return typeof value === 'string' && value.length <= max ? value : invalid();
+  // A code point is at most two UTF-16 units, so the cheap bound rejects huge strings first.
+  return typeof value === 'string' && value.length <= max * 2 && codePointLength(value) <= max ? value : invalid();
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,7 +44,7 @@ function id(value: unknown): string {
 
 function date(value: unknown): string {
   const text = str(value, 40);
-  return /[zZ]|[+-]\d{2}:\d{2}$/.test(text) && !Number.isNaN(Date.parse(text)) ? text : invalid();
+  return /(?:[zZ]|[+-]\d{2}:\d{2})$/.test(text) && !Number.isNaN(Date.parse(text)) ? text : invalid();
 }
 
 function nullable<T>(value: unknown, read: (v: unknown) => T): T | null {

@@ -136,6 +136,21 @@ def test_naive_datetimes_from_adapter_are_dropped_not_guessed():
     assert svc.list_jobs().items == []
 
 
+def test_open_only_search_drops_naive_row_instead_of_failing_the_page():
+    # L1: open_only compares deadlines, so the naive row must be dropped before that compare.
+    naive = job(deadline_at=datetime(2026, 11, 1, 0, 0))
+    good = job(deadline_at=NOW + timedelta(days=3))
+    closed = job(deadline_at=NOW - timedelta(days=1))
+    svc = service(catalog=FakeCatalog([naive, good, closed], leak_unfiltered=True))
+    assert [item.id for item in svc.list_jobs(open_only=True).items] == [good.id]
+    assert {item.id for item in svc.list_jobs(open_only=False).items} == {good.id, closed.id}
+    naive_contest = make_opportunity(
+        kind=OpportunityKind.CONTEST, deadline_at=datetime(2026, 11, 1, 0, 0)
+    )
+    contests = service(catalog=FakeCatalog([naive_contest], leak_unfiltered=True))
+    assert contests.list_contests().items == []
+
+
 @pytest.mark.parametrize(
     "url",
     [
@@ -184,6 +199,36 @@ def test_contest_candidates_and_community_seam_agree():
     )
     assert lenient.is_linkable(str(USER_A), str(closed.id)) is True
     assert lenient.is_linkable(str(USER_A), str(hidden.id)) is False
+
+
+@pytest.mark.parametrize("closed_ok", [False, True])
+def test_contest_link_refuses_naive_deadline_or_clock(closed_ok):
+    # L2: a malformed time is refused (False), never a TypeError/500, even if closed is allowed.
+    naive = make_opportunity(kind=OpportunityKind.CONTEST, deadline_at=datetime(2026, 11, 1))
+    aware = make_opportunity(kind=OpportunityKind.CONTEST, deadline_at=NOW + timedelta(days=1))
+    no_deadline = make_opportunity(kind=OpportunityKind.CONTEST, deadline_at=None)
+    catalog = FakeCatalog([naive, aware, no_deadline])
+    policy = demo_policy(link_closed_contests=closed_ok)
+    seam = ContestTeamLinkVisibility(catalog, policy, clock=lambda: NOW)
+    assert seam.is_linkable(str(USER_A), str(naive.id)) is False
+    assert seam.is_linkable(str(USER_A), str(aware.id)) is True
+    assert seam.is_linkable(str(USER_A), str(no_deadline.id)) is True
+
+    naive_clock = ContestTeamLinkVisibility(catalog, policy, clock=lambda: datetime(2026, 10, 30))
+    for target in (naive, aware, no_deadline):
+        assert naive_clock.is_linkable(str(USER_A), str(target.id)) is False
+    kst = timezone(timedelta(hours=9))
+    # Same instant in another zone: compared as UTC, so 1 second before the deadline is open.
+    before = ContestTeamLinkVisibility(
+        catalog,
+        demo_policy(),
+        clock=lambda: (aware.deadline_at - timedelta(seconds=1)).astimezone(kst),
+    )
+    at = ContestTeamLinkVisibility(
+        catalog, demo_policy(), clock=lambda: aware.deadline_at.astimezone(kst)
+    )
+    assert before.is_linkable(str(USER_A), str(aware.id)) is True
+    assert at.is_linkable(str(USER_A), str(aware.id)) is False
 
 
 # ------------------------------------------------------------------ FR-JOB-002 virtual profile
@@ -552,3 +597,47 @@ def test_employer_draft_dates_cas_limit_and_tombstone(uow):
 
 def test_contact_screen_accepts_plain_skill_text():
     assert reject_contact_details("Python 3년, React 2년") == "Python 3년, React 2년"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "ASP.NET",
+        "ASP.NET Core, ADO.NET, VB.NET",
+        "asp.net.",
+        "2023.03-2024.02 인턴",
+        "2023.03 - 2024.02. 백엔드 인턴",
+        "2023.03.01-2024.02.28 (현장실습)",
+        "2024-01 ~ 2024-06 프로젝트",
+    ],
+)
+def test_contact_screen_allows_technology_names_and_periods(value):
+    # L3: technology names and year.month periods are not contacts.
+    assert reject_contact_details(value) == value
+    assert ProfileCreate(alias="별빛개발자", skills=["ASP.NET"], summary="2023.03-2024.02 인턴")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "010-1234-5678",
+        "010 1234 5678",
+        "900101-1234567",
+        "2023.03-2024.02 010-1234-5678",
+        "2010-12-1234-5678",
+        "2024.13-2025.01",
+        "myname.net",
+        "asp.net.kr",
+        "x.asp.net",
+        "foo-asp.net",
+        "https://asp.net",
+        "www.example.org",
+        "me@example.com",
+    ],
+)
+def test_contact_screen_still_blocks_real_contact_shapes(value):
+    # Pattern screening only: it narrows obvious contacts, it does not prove none remain.
+    with pytest.raises(ValueError):
+        reject_contact_details(value)
+    with pytest.raises(ValidationError):
+        ProfileCreate(alias="별빛개발자", skills=[value])
