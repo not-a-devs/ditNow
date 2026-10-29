@@ -21,17 +21,28 @@ logger = logging.getLogger(__name__)
 
 _SOURCES_LINE = re.compile(r"\[근거:\s*([^\]]*)\]")
 _BLOCK_ID = re.compile(r"^\[([^\]]+)\]")
+# 최신 모델은 답하기 전 추론에도 토큰을 써서, 시험 4과목 나열 같은 답이 600에서 잘렸다
+ANSWER_MAX_TOKENS = 1024
 
 
 def parse_sources(raw: str, allowed: set[str]) -> tuple[str, list[str]]:
-    """답변에서 [근거: ...]를 떼어 내고, 검색 결과에 있던 id만 순서대로 남긴다."""
+    """답변에서 [근거: ...]를 떼어 내고, 검색 결과에 있던 id만 순서대로 남긴다.
+
+    모델이 본문에 '자료구조(CS201)'처럼 내부 id를 따라 쓰는 경우가 있어 '(id)'·'[id]'도 지운다.
+    """
     ids: list[str] = []
     for match in _SOURCES_LINE.finditer(raw):
         for part in match.group(1).split(","):
             doc_id = part.strip()
             if doc_id in allowed and doc_id not in ids:
                 ids.append(doc_id)
-    return _SOURCES_LINE.sub("", raw).strip(), ids
+    answer = _SOURCES_LINE.sub("", raw)
+    if allowed:
+        names = "|".join(re.escape(i) for i in sorted(allowed, key=len, reverse=True))
+        answer = re.sub(rf"\s*[(\[](?:{names})[)\]]", "", answer)  # '자료구조(CS201)'
+        answer = re.sub(rf"(?<=[(\[])(?:{names}),\s*", "", answer)  # '(CS210, 담당 …)'
+        answer = re.sub(rf",\s*(?:{names})(?=[)\]])", "", answer)  # '(담당 …, CS210)'
+    return answer.strip(), ids
 
 
 def _is_refusal(answer: str, sources: list[str]) -> bool:
@@ -97,7 +108,7 @@ async def answer_question(
         ChatMessage(role="user", content=build_user_message(blocks, question, max_context_chars)),
     ]
     try:
-        raw = await llm.chat(messages)
+        raw = await llm.chat(messages, max_tokens=ANSWER_MAX_TOKENS)
     except LLMError as e:
         logger.error("LLM 호출 실패: %s", e)
         return done(answer=LLM_FAILURE_ANSWER, found=True)

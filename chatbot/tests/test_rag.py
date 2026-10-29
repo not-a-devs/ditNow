@@ -79,6 +79,17 @@ async def test_partial_answer_is_found(
     assert res.found is True and res.sources == ["fac_cafeteria"]
 
 
+def test_parse_sources_strips_ids_in_body() -> None:
+    """본문의 '(CS201)'·'[CS201]' 같은 내부 id 표기는 지운다 (실제 LLM 평가에서 발견)."""
+    raw = "자료구조(CS201), 웹프로그래밍 [CS205]입니다. CS 전공이에요.\n[근거: CS201, CS205]"
+    answer, ids = parse_sources(raw, {"CS201", "CS205"})
+    assert (answer, ids) == ("자료구조, 웹프로그래밍입니다. CS 전공이에요.", ["CS201", "CS205"])
+    mixed, _ = parse_sources(
+        "데이터베이스(CS210, 담당 한교수)와 (3학점, CS205) 수업", {"CS210", "CS205"}
+    )
+    assert mixed == "데이터베이스(담당 한교수)와 (3학점) 수업"
+
+
 def test_parse_sources_drops_unknown_ids() -> None:
     """검색 결과에 없던 id(환각)는 버린다."""
     answer, ids = parse_sources("답입니다.\n[근거: a, ghost, a, b]", {"a", "b"})
