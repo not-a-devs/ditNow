@@ -3,6 +3,8 @@
 > 대상 파일: `app/intents.py`, `app/personal.py`, `app/auth.py`, `app/student_repo.py`, `data/mock/*.json`
 > 학생 데이터는 MariaDB에 있습니다. 테이블·시드는 `SKILL/database.md`.
 
+> 아래 로그인과 students 모델은 보존된 독립 시연 계약이다. 통합 앱은 services/api의 공통 신원·학적 원장과 세션을 사용하며 이 로그인·테이블을 별도로 provisioning하지 않는다. 실제 DB 연결·기존 스키마 검증은 미완료다. 런타임 자동 초기화·원격 reset/시드는 금지한다.
+
 ## 1. 흐름
 
 ```
@@ -47,7 +49,7 @@
    - 단독 단어(`졸업`, `중간`)는 교내 질문과 겹치기 쉬우니 피하세요.
 2. `prompt.py`의 `CLASSIFY_PROMPT` 의도 목록에 한 줄 설명을 추가합니다(LLM 분류용).
 3. `personal.py`에 처리기를 쓰고 `HANDLERS`에 등록합니다. `test_every_intent_has_handler`가 빠진 것을 잡습니다.
-4. 새 데이터가 필요하면 `models.py`(테이블) → `data/mock/`(시드) → `student_repo.py`(조회) 순으로 추가하고 `seed_db.py --reset`.
+4. 새 데이터는 공통 플랫폼 원장/신원 매핑과 마이그레이션 소유자에게 먼저 요청한다. 테스트 전용 픽스처는 SQLite 메모리에서만 명시적으로 준비하며 원격 `seed_db.py --reset`은 사용하지 않는다.
 5. `tests/test_personal.py`에 분류·계산 테스트를, `tests/eval_personal.json`에 평가 질문을 추가합니다.
    키워드로 못 잡는 표현은 `"needs_llm": true`로 표시합니다.
 6. 운영 중에는 `GET /admin/questions`로 답을 못 찾은 질문을 보고 규칙·평가 세트에 반영합니다.

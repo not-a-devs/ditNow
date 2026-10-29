@@ -4,6 +4,8 @@
 > 세부 구현 규칙은 `SKILL/` 폴더에 기능별로 나뉘어 있습니다.
 > **기능을 개발하기 전, 아래 "SKILL 라우팅 표"에서 해당 문서를 반드시 먼저 읽고 작업하세요.**
 
+> 최신 DB 안전 경계: `DB_AUTO_INIT=false`, 런타임 DDL/자동 시드 금지. 기존 독립 시연은 읽기 전용으로 기존 스키마를 확인하고 누락 시 시작을 거부한다. 운영 마이그레이션은 공통 소유자의 별도 승인 작업이며 통합 신원과 별도 학생/세션 원장을 생성하지 않는다. [README](README.md)와 [DB 규칙](SKILL/database.md)을 우선 적용한다.
+
 ---
 
 ## 1. 프로젝트 개요
@@ -129,9 +131,9 @@ python3.11 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# DB (MariaDB, Docker) — 서버 시작 시 테이블 생성·목업 시드
-docker compose up -d
-python scripts/seed_db.py --reset  # 목업을 고친 뒤 다시 넣기
+# 팀 제공 MariaDB를 사용한다. 프로젝트 내 중복 컨테이너 생성은 금지한다.
+# 런타임 자동 DDL/시드는 없으며, 원격 연결은 승인된 공통 DB factory 주입 전 차단한다.
+# 운영 초기화/reset은 금지. 테스트는 아래 pytest가 메모리 픽스처를 명시적으로 준비한다.
 
 # 서버 실행
 uvicorn app.main:app --reload --port 8000

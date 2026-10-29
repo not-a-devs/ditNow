@@ -50,8 +50,10 @@ async def login(
 
 @router.post("/logout", response_model=SuccessResponse[dict[str, str]])
 async def logout(
-    creds: Credentials, assistant: AssistantDep, db: Session
+    request: Request, creds: Credentials, assistant: AssistantDep, db: Session
 ) -> SuccessResponse[dict[str, str]]:
+    # 임의 토큰으로 DB 삭제·commit을 반복하지 못하게 폐기 전에 같은 IP 제한을 적용한다
+    assistant.check_rate_limit(client_ip(request))
     if creds:
         await assistant.logout(db, creds.credentials)
     return SuccessResponse(data={"status": "ok"})

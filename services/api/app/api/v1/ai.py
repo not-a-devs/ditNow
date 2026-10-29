@@ -35,6 +35,6 @@ async def ask(
 
     history를 보내면 '거기 몇 시까지 해?' 같은 후속 질문을 완전한 질문으로 바꿔 처리한다.
     """
-    student_id = await assistant.student_id(db, creds.credentials if creds else None)
     assistant.check_rate_limit(client_ip(request))
+    student_id = await assistant.student_id(db, creds.credentials if creds else None)
     return SuccessResponse(data=await assistant.ask(body, db, student_id))

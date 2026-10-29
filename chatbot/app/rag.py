@@ -117,7 +117,8 @@ async def answer_question(
     try:
         raw = await llm.chat(messages, max_tokens=ANSWER_MAX_TOKENS)
     except LLMError as e:
-        logger.error("LLM 호출 실패: %s", e)
+        # 공급자 오류 문자열에 키 일부·요청 조각이 섞일 수 있어 예외 종류만 남긴다
+        logger.error("LLM 호출 실패: %s", type(e).__name__)
         return done(answer=LLM_FAILURE_ANSWER, found=True)
 
     allowed = {m.group(1) for b in blocks if (m := _BLOCK_ID.match(b))}
