@@ -29,7 +29,7 @@ class LLMClient(ABC):
 ## 2. 공급자 선택 (`.env`)
 
 ```env
-LLM_PROVIDER=openai            # openai | anthropic | openai_compatible
+LLM_PROVIDER=openai            # openai | anthropic | openai_compatible | fake
 LLM_MODEL=                     # 사용할 모델 이름
 LLM_API_KEY=
 LLM_BASE_URL=                  # openai_compatible일 때만 (예: 로컬 vLLM, Ollama 등)
@@ -45,11 +45,12 @@ LLM_TIMEOUT_SEC=20
 | 공급자 | SDK | 주의점 |
 |---|---|---|
 | OpenAI / 호환 서버 | `openai` (AsyncOpenAI) | system 메시지를 `messages`에 그대로 포함 |
-| Anthropic | `anthropic` (AsyncAnthropic) | system 메시지는 `messages`에서 빼서 `system=` 파라미터로 전달 |
+| Anthropic | `anthropic` (AsyncAnthropic) | system 메시지는 `messages`에서 빼서 `system=` 파라미터로 전달. 최신 Claude 모델은 `temperature`를 받지 않아(400) **보내지 않음**. `stop_reason == "refusal"`이면 `LLMError` |
 
 ## 4. 오류 처리
 
-- 타임아웃·네트워크 오류는 **최대 2회 재시도**(지수 백오프 1s → 2s).
+- 타임아웃·네트워크·429·5xx 오류는 **최대 2회 재시도** — 두 SDK의 내장 재시도(`max_retries=2`, 지수 백오프)를 쓰고 직접 구현하지 않습니다.
+- 그 밖의 SDK 오류는 `LLMError`로 감싸서 올립니다.
 - 401/403(키 오류)은 재시도하지 않고 즉시 `LLMAuthError`를 발생시킵니다.
 - 최종 실패 시 API는 사용자에게 `"지금은 답변을 만들 수 없어요. 잠시 후 다시 시도해 주세요."`를 반환하고, 서버 로그에 원인을 남깁니다.
 - **로그에 API 키나 전체 프롬프트를 남기지 않습니다.** (요청 id, 모델명, 소요 시간, 토큰 수만)
