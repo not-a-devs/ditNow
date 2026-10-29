@@ -13,7 +13,7 @@ from chatbot.app.auth import verify_password
 from chatbot.app.models import StudentRow
 from pydantic import SecretStr
 from sqlalchemy import event, func, select, text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.db.models import (
@@ -229,13 +229,15 @@ def test_success_creates_exact_synthetic_ledger_with_single_commit(engine, caplo
     [opportunity] = data["opportunities"]
     assert opportunity.id == UUID(report["opportunity_id"])
     assert (opportunity.title, opportunity.status, opportunity.submission_mode) == (
-        "[가상] 통합검증용 기회",
+        ops.OPPORTUNITY_TITLE,
         "published",
         "info_only",
     )
     assert opportunity.kind == "contest" and opportunity.source_kind == "DEMO"
     assert opportunity.source_url is None and opportunity.checked_at is None
     assert opportunity.original_url is None and opportunity.organization == ""
+    assert report["opportunity_marker"] == ops.OPPORTUNITY_MARKER
+    assert ops.OPPORTUNITY_MARKER in opportunity.title
     assert sorted(report["audit_log_ids"]) == sorted(str(a.id) for a in data["audits"])
     # No password, hash or DSN in output or logs.
     output = json.dumps(report, ensure_ascii=False) + caplog.text
@@ -510,3 +512,84 @@ def test_operator_module_is_never_wired_into_app_or_startup():
     source = Path(ops.__file__).read_text(encoding="utf-8")
     for forbidden in (".create_all(", ".drop_all(", '"DROP', '"GRANT', '"TRUNCATE', '"admin"'):
         assert forbidden not in source
+
+
+def test_post_commit_connection_exit_failure_reports_yes_with_own_ids(engine, monkeypatch):
+    original_provision = ops.provision
+    original_exit = AsyncConnection.__aexit__
+
+    async def isolated_provision(engine, secrets, approval, *, outcome):
+        return await original_provision(
+            engine,
+            secrets,
+            approval,
+            readiness=offline_readiness,
+            clock=lambda: NOW,
+            outcome=outcome,
+        )
+
+    async def fail_release(connection, *args):
+        await original_exit(connection, *args)
+        raise RuntimeError("synthetic-password-or-dsn-must-not-be-printed")
+
+    monkeypatch.setattr(ops, "provision", isolated_provision)
+    monkeypatch.setattr(
+        ops,
+        "Settings",
+        Mock(
+            return_value=Mock(
+                database_configured=True,
+                db_user="ditnow_app",
+            )
+        ),
+    )
+    monkeypatch.setattr(ops, "create_database_engine", Mock(return_value=engine))
+    with monkeypatch.context() as patch:
+        patch.setattr(AsyncConnection, "__aexit__", fail_release)
+        report = asyncio.run(ops._run(passwords(), APPROVAL))
+    assert report["status"] == "BLOCKED" and report["committed"] == "YES"
+    assert report["code"] == "POST_COMMIT_FAILURE_REVIEW_REQUIRED"
+    assert len(report["accounts"]) == 2 and len(report["audit_log_ids"]) == 2
+    assert counts(engine)["students"] == 2
+    assert "synthetic-password-or-dsn" not in json.dumps(report)
+    assert PASSWORD_A not in json.dumps(report) and PASSWORD_B not in json.dumps(report)
+
+
+def test_commit_attempt_failure_reports_unknown_with_own_ids(engine, monkeypatch):
+    original_provision = ops.provision
+
+    async def isolated_provision(engine, secrets, approval, *, outcome):
+        return await original_provision(
+            engine,
+            secrets,
+            approval,
+            readiness=offline_readiness,
+            clock=lambda: NOW,
+            outcome=outcome,
+        )
+
+    def fail_commit(connection):
+        raise RuntimeError("synthetic-private-driver-error")
+
+    monkeypatch.setattr(ops, "provision", isolated_provision)
+    monkeypatch.setattr(
+        ops,
+        "Settings",
+        Mock(
+            return_value=Mock(
+                database_configured=True,
+                db_user="ditnow_app",
+            )
+        ),
+    )
+    monkeypatch.setattr(ops, "create_database_engine", Mock(return_value=engine))
+    event.listen(engine.sync_engine, "commit", fail_commit)
+    try:
+        report = asyncio.run(ops._run(passwords(), APPROVAL))
+    finally:
+        event.remove(engine.sync_engine, "commit", fail_commit)
+    assert report["committed"] == "UNKNOWN"
+    assert report["code"] == "COMMIT_OUTCOME_UNKNOWN_REVIEW_REQUIRED"
+    assert len(report["accounts"]) == 2
+    assert counts(engine)["students"] == 0
+    assert "synthetic-private" not in json.dumps(report)

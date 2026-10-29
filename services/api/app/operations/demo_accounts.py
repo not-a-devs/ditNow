@@ -51,7 +51,8 @@ OPERATOR_ISSUER = "urn:ditnow:demo-audit-operator:v1"
 OPERATOR_SUBJECT = "DITDEMO_AUDIT_OPERATOR"
 AUDIT_EVENT = "identity_binding_approved"
 AUDIT_RESOURCE = "identity_binding"
-OPPORTUNITY_TITLE = "[가상] 통합검증용 기회"
+OPPORTUNITY_MARKER = "DITNOW_DEMO_P0_INTEGRATION"
+OPPORTUNITY_TITLE = "[가상] 통합검증용 기회 " + OPPORTUNITY_MARKER
 PASSWORD_ENV = ("DIT_DEMO_ACCOUNT_PASSWORD_A", "DIT_DEMO_ACCOUNT_PASSWORD_B")
 REQUIRED_TABLES = tuple(sorted(set(Base.metadata.tables) | LEGACY))
 APPROVAL_REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{2,63}")
@@ -151,6 +152,22 @@ class ProvisionPlan:
                 ids.audit_log_id,
             ]
         return values
+
+
+@dataclass
+class CommitOutcome:
+    """Non-secret outcome survives connection context exit, cancellation and cleanup errors."""
+
+    plan: ProvisionPlan | None = None
+    attempted: bool = False
+    confirmed: bool = False
+
+    def failure_report(self, code: str, approval_reference: str) -> dict[str, object]:
+        committed = "YES" if self.confirmed else "UNKNOWN" if self.attempted else "NO"
+        report = {"status": "BLOCKED", "code": code, "committed": committed}
+        if self.attempted and self.plan is not None:
+            report.update(metadata(self.plan, approval_reference))
+        return report
 
 
 async def require_readiness(connection: AsyncConnection) -> None:
@@ -408,6 +425,7 @@ def metadata(plan: ProvisionPlan, approval_reference: str) -> dict[str, object]:
         "operator_identity": {"status": "disabled", "roles": 0, "login": "NONE"},
         "audit_log_ids": [str(ids.audit_log_id) for ids in plan.accounts],
         "opportunity_id": str(plan.opportunity_id),
+        "opportunity_marker": OPPORTUNITY_MARKER,
         "runtime_audit_allowlist": "OPERATOR_REVIEW_REQUIRED",
         "secret_material": "NOT_OUTPUT",
     }
@@ -420,9 +438,12 @@ async def provision(
     *,
     readiness: Callable[[AsyncConnection], Awaitable[None]] = require_readiness,
     clock: Callable[[], datetime] = utc_now,
+    outcome: CommitOutcome | None = None,
 ) -> dict[str, object]:
     require(APPROVAL_REFERENCE.fullmatch(approval_reference or ""), "APPROVAL_REFERENCE_REQUIRED")
     plan = ProvisionPlan()
+    outcome = outcome if outcome is not None else CommitOutcome()
+    outcome.plan = plan
     require(len(set(plan.all_ids())) == 12 and all(v.int for v in plan.all_ids()), "UUID_PLAN")
     # PBKDF2 before the transaction keeps the write window short; hashes never leave this frame.
     hashes = (
@@ -456,10 +477,12 @@ async def provision(
                 await connection.run_sync(lambda conn: conn.connection.rollback())
                 raise
             guard.commit_armed = True
+            outcome.attempted = True
             try:
                 await transaction.commit()
             except BaseException:
                 raise DemoAccountBlocked("COMMIT_OUTCOME_UNKNOWN_REVIEW_REQUIRED") from None
+            outcome.confirmed = True
             guard.commit_armed = False
             # Committed: always return identifiers. Fresh read of own keys only, then roll back.
             try:
@@ -508,21 +531,25 @@ def dry_run_report() -> dict[str, object]:
 
 async def _run(passwords: DemoAccountPasswords, approval_reference: str) -> dict[str, object]:
     engine = None
+    outcome = CommitOutcome()
     try:
         settings = Settings()
         require(settings.database_configured, "DATABASE_NOT_CONFIGURED")
         require(settings.db_user == "ditnow_app", "RUNTIME_APP_ACCOUNT_REQUIRED")
         engine = create_database_engine(settings)
         async with asyncio.timeout(120):
-            return await provision(engine, passwords, approval_reference)
+            return await provision(engine, passwords, approval_reference, outcome=outcome)
     except DemoAccountBlocked as exc:
         code = str(exc)
-        unknown = code.startswith("COMMIT_OUTCOME_UNKNOWN")
-        return {"status": "BLOCKED", "code": code, "committed": "UNKNOWN" if unknown else "NO"}
+        return outcome.failure_report(code, approval_reference)
     except Exception:
-        # Every pre-commit failure rolls back; commit failures are converted above.
-        code = "CONFIGURATION_FAILED" if engine is None else "FAILED_BEFORE_COMMIT"
-        return {"status": "BLOCKED", "code": code, "committed": "NO"}
+        if outcome.confirmed:
+            code = "POST_COMMIT_FAILURE_REVIEW_REQUIRED"
+        elif outcome.attempted:
+            code = "COMMIT_OUTCOME_UNKNOWN_REVIEW_REQUIRED"
+        else:
+            code = "CONFIGURATION_FAILED" if engine is None else "FAILED_BEFORE_COMMIT"
+        return outcome.failure_report(code, approval_reference)
     finally:
         if engine is not None:
             try:

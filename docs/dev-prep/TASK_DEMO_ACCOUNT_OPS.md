@@ -25,7 +25,7 @@ DIT_DEMO_ACCOUNT_PASSWORD_A=... DIT_DEMO_ACCOUNT_PASSWORD_B=... \
 3. 단일 트랜잭션: 고정 합성 키만으로 충돌 검사 → 생성 → 자체 UUID 행수 재확인 → **명시적 1회 commit**.
 4. commit 후 새 읽기 트랜잭션에서 자체 UUID 행수만 재확인(`post_commit_verification`).
 
-연결 단위 가드가 `SELECT/SHOW/INSERT/SAVEPOINT/RELEASE/ROLLBACK` 외 문장(DDL·UPDATE·DELETE·GRANT 등)과 무장 전 commit을 차단한다. 실패 시 전체 롤백, commit 자체 실패는 `COMMIT_OUTCOME_UNKNOWN_REVIEW_REQUIRED`(재시도·자동 정리 없음, 사람 대조 필요).
+연결 단위 가드가 `SELECT/SHOW/INSERT/SAVEPOINT/RELEASE/ROLLBACK` 외 문장(DDL·UPDATE·DELETE·GRANT 등)과 무장 전 commit을 차단한다. commit 전 실패는 전체 롤백한다. commit 시도 이후 결과 미확정은 `COMMIT_OUTCOME_UNKNOWN_REVIEW_REQUIRED`와 `committed=UNKNOWN`, commit 성공 뒤 연결 context 종료 등 실패는 `POST_COMMIT_FAILURE_REVIEW_REQUIRED`와 `committed=YES`다. 두 경우 신규 UUID·감사 UUID 등 비밀 아닌 metadata를 함께 남겨 사람이 대조할 수 있게 하며 자동 재실행·정리하지 않는다. 연결 반환 실패를 미반영(`NO`)이라고 보고하지 않는다.
 
 ## 3. 생성 행 (총 16행, 모두 신규 UUID)
 | 테이블 | 행 | 내용 |
@@ -37,7 +37,7 @@ DIT_DEMO_ACCOUNT_PASSWORD_A=... DIT_DEMO_ACCOUNT_PASSWORD_B=... \
 | `academic_memberships` | 2 | 각 학과, 1학년, `active`, `valid_from=적용 시각`, 종료 없음 |
 | `role_assignments` | 2 | `student`·`department` 범위만. admin/교수/조교/플랫폼 역할 없음 |
 | `audit_logs` | 2 | `identity_binding_approved` / `identity_binding`, actor=비활성 운영자 UUID, entity=해당 학생 canonical UUID, `DEMO` |
-| `opportunities` | 1 | `[가상] 통합검증용 기회`, `contest`, `published`, `info_only`, `DEMO`, 공식 출처·URL·기관명 없음 |
+| `opportunities` | 1 | `[가상] 통합검증용 기회 DITNOW_DEMO_P0_INTEGRATION`, `contest`, `published`, `info_only`, `DEMO`, 공식 출처·URL·기관명 없음 |
 
 legacy 학과·학년은 초기 필수값만 일치시키며 이후 권위는 canonical membership/role뿐이다. 운영자 identity는 사람·관리자 신원이 아니며 로그인 행·역할·프로필·학적이 없다. 감사 행만으로는 아무 권한도 생기지 않는다: 런타임은 **운영자가 검토한 audit UUID allowlist**(기본 빈 목록 → 503)를 요구한다(별도 root 소유).
 
@@ -49,19 +49,24 @@ legacy 학과·학년은 초기 필수값만 일치시키며 이후 권위는 ca
 동시 실행 경합은 `students` PK·`uq_identity_binding_digest`·학과 코드 UNIQUE가 최종 차단하며 실패 시 전체 롤백된다.
 
 ## 5. root 보호 메타데이터 계약 (stdout JSON, 성공 시)
-`status=APPLIED`, `commits=1`, `rows_created`, `post_commit_verification`, `approval_reference`, `issuer`, `accounts[]`(`student_id`, `identity_id`, `display_name`, `department_id`, `department_code`, `membership_id`, `academic_year`, `role_assignment_id`, `role`, `role_scope`, `audit_log_id`), `operator_identity_id`, `operator_identity`, `audit_log_ids`, `opportunity_id`, `runtime_audit_allowlist=OPERATOR_REVIEW_REQUIRED`, `secret_material=NOT_OUTPUT`.
-비밀번호·해시·DSN·호스트는 출력하지 않는다. 실패 시 `{"status":"BLOCKED","code":...,"committed":"NO"|"UNKNOWN"}` 또는 사전 차단 `{"status":"BLOCKED","code":...,"persistent_writes":0}`. root가 저장소 밖 보호 위치로 캡처한다.
+`status=APPLIED`, `commits=1`, `rows_created`, `post_commit_verification`, `approval_reference`, `issuer`, `accounts[]`(`student_id`, `identity_id`, `display_name`, `department_id`, `department_code`, `membership_id`, `academic_year`, `role_assignment_id`, `role`, `role_scope`, `audit_log_id`), `operator_identity_id`, `operator_identity`, `audit_log_ids`, `opportunity_id`, `opportunity_marker=DITNOW_DEMO_P0_INTEGRATION`, `runtime_audit_allowlist=OPERATOR_REVIEW_REQUIRED`, `secret_material=NOT_OUTPUT`.
+비밀번호·해시·DSN·호스트는 출력하지 않는다. 실패 시 `{"status":"BLOCKED","code":...,"committed":"NO"|"UNKNOWN"|"YES"}` 또는 사전 차단 `{"status":"BLOCKED","code":...,"persistent_writes":0}`. `UNKNOWN`/`YES`는 위 자체 식별 metadata도 포함한다. root가 저장소 밖 보호 위치로 캡처한다.
 
 ## 6. 검증 (2026-10-30, 로컬 Windows, Python 3.13, uv 잠금)
-- `uv run --locked pytest tests/test_demo_accounts.py`: 34 passed (격리 SQLite+aiosqlite, SQLAlchemy ORM)
+- `uv run --locked pytest tests/test_demo_accounts.py`: 36 passed (격리 SQLite+aiosqlite, SQLAlchemy ORM)
   - 성공 원장 전체 값·단일 commit·SELECT/INSERT만·비밀번호 해시 검증·출력/로그 비밀 미노출
   - 학번·학과 코드·학생/운영자 issuer-subject 충돌, 재실행 거부(비밀번호 미변경), 중간 실패·제약 위반 전체 롤백
   - DDL·UPDATE·무장 전 commit 가드, commit 실패 UNKNOWN 보고, 기본 준비 검사의 비 MariaDB 거부
   - CLI 기본 DRY_RUN·옵션 게이트·argv 비밀번호 거부·약한/중복 비밀번호 거부가 Settings/네트워크 전에 일어남, 엔진 dispose·예외 정화, 앱 미배선
-- `uv run --locked pytest` 전체: 1147 passed. `ruff check .`, `ruff format --check .`: 통과.
+  - 독립 리뷰 P2 보완: 실제 commit 뒤 `AsyncConnection.__aexit__` 실패도 YES+자체 UUID 보존, commit event 실패는 UNKNOWN+자체 UUID 보존, 오류 원문·비밀번호 비출력. 고정 기회 marker가 제목·출력에 동일하게 포함됨.
+- `uv run --locked pytest` 전체: 수정 후 **1149 passed**, 기존 Starlette 테스트 클라이언트 deprecation 경고 1개. `ruff check .`, `ruff format --check .`: 통과(187개 파일).
 - **NOT_RUN**: 실제 MariaDB 연결·TLS·GRANT·25테이블 준비 검사, 실제 계정 생성, 로그인→identity bridge→개인 CRUD 종단 흐름, 런타임 audit allowlist 연결. SQLite 결과는 MariaDB 증거가 아니다.
 
 ## 7. 잔여 게이트
 - 사람 승인 + root의 실제 `--apply` 실행과 메타데이터 보호 캡처.
 - 런타임 identity ledger 어댑터와 audit UUID allowlist 배선(root/auth 소유). 이 CLI는 라우터·의존성을 활성화하지 않는다.
 - DML 계정에서 보이지 않는 트리거는 별도 권한 검토가 필요하다.
+
+## 8. 독립 리뷰와 수정 구분
+- Codex B가 원본 HEAD `3c9959627d9831ab56eb9e98cae27ca40f6469f4`를 읽기 전용으로 검토하고 전용 34개/Ruff를 직접 통과했다. commit 이후 예외의 NO 오분류 P2와 기회 marker 계약 불일치를 보고했다.
+- root의 소유권 이전 후 위 두 사항을 B가 수정하고 전용 36개를 통과했다. 수정자 자기 검토를 독립 재리뷰 완료라고 주장하지 않는다. 실제 MariaDB·계정 생성·HTTP 연결은 이 수정에서도 NOT_RUN이다.
