@@ -12,6 +12,7 @@
 - P0 인증·소속·CRUD 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`, MariaDB 정정과 독립 보안 리뷰는 [병합된 PR #13](https://github.com/not-a-devs/ditNow/pull/13)을 본다. 사용자 승인과 실제 병합 결과는 `docs/dev-prep/TASK_PR_BATCH_MERGE_20261030.md`에 기록한다. 코드 병합과 운영 활성화·비용·배포 승인은 별개다.
 - 전체 92개 1차 구현의 FE·BE·DB·테스트 상태는 `docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv`, Codex·Claude worktree·브랜치·파일 소유자는 `docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md`다.
 - MariaDB 11.4의 팀원 VM·Tailscale·DML/migration 계정 분리와 실제 연결 검사/차단은 `docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md`다. 프로젝트 내부 DB 컨테이너를 중복 생성하지 않는다.
+- 최신 원격 TLS·25개 테이블·합성 키 충돌의 읽기 전용 재검증과 바이트 파라미터 호환 보완은 `docs/dev-prep/TASK_MARIADB_LIVE_REVALIDATION.md`다. 계정 생성·업무 E2E·배포 승인과 구분한다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점

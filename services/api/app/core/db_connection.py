@@ -33,6 +33,15 @@ class TLSRequiredConnection(aiomysql.Connection):
     sent by the superclass until TLS capability and certificate checks apply.
     """
 
+    def escape(self, obj):
+        # PyMySQL 1.2.3 retained an import-only sentinel for aiomysql's private
+        # escape_bytes_prefixed dependency. Match PyMySQL's fixed binary hex
+        # representation, independent of charset and NO_BACKSLASH_ESCAPES.
+        # Keep this local to the strict runtime connection; no global patch.
+        if isinstance(obj, (bytes, bytearray)):
+            return f"X'{obj.hex()}'"
+        return super().escape(obj)
+
     async def _request_authentication(self) -> None:
         context = self._ssl_context
         if (
