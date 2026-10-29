@@ -1,0 +1,43 @@
+{
+  "project": "DIT Campus",
+  "version": "0.2",
+  "date": "2026-10-29",
+  "status": "draft_for_team_review",
+  "main_doc": "00_START_HERE.md",
+  "read_order": [
+    "01_PRD.md",
+    "02_FRD.md",
+    "03_NFR.md",
+    "04_POLICY_RBAC.md",
+    "05_DATA_MODEL.md",
+    "06_ARCHITECTURE.md",
+    "07_IA_UX.md",
+    "08_TEST_QA.md",
+    "09_RELEASE_SCOPE.md",
+    "10_AI_RUNBOOK.md",
+    "11_DECISION_LOG.md",
+    "12_HACKATHON_GATE.md",
+    "15_PLATFORM_BASELINE.md"
+  ],
+  "approved_directions": [
+    "new_independent_platform",
+    "full_baseline_design",
+    "anonymous_and_realname_spaces",
+    "department_all_year_custom_channels",
+    "official_notice_auto_delivery",
+    "external_scholarship_file_submission",
+    "classroom_materials_and_live_screen",
+    "course_chat_plus_question_queue"
+  ],
+  "unresolved_ids": [
+    "OPEN-001",
+    "OPEN-002",
+    "OPEN-003",
+    "OPEN-004",
+    "OPEN-005",
+    "OPEN-006",
+    "OPEN-007",
+    "OPEN-008",
+    "OPEN-009"
+  ]
+}
