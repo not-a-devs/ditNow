@@ -17,7 +17,7 @@ from .auth import authenticate, issue_token, now_utc, resolve_token, revoke_toke
 from .config import Settings, get_settings
 from .conversation import condense
 from .data_loader import DataError, load_data
-from .db import make_engine, require_existing_schema
+from .db import ApprovedEngineFactory, make_engine, require_existing_schema
 from .intents import CAMPUS, route
 from .llm import get_llm_client
 from .models import QuestionLogRow
@@ -51,7 +51,9 @@ def _load_state(app: FastAPI, settings: Settings) -> None:
     app.state.cache = {}
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, approved_db_factory: ApprovedEngineFactory | None = None
+) -> FastAPI:
     """FastAPI 앱을 만든다. 테스트에서는 settings를 주입한다."""
     settings = settings or get_settings()
 
@@ -60,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _load_state(app, settings)
         app.state.llm = get_llm_client(settings)
         app.state.hits = defaultdict(deque)
-        engine = make_engine(settings.database_url)
+        engine = make_engine(settings.database_url, approved_factory=approved_db_factory)
         try:
             await require_existing_schema(engine)
             app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
@@ -97,7 +99,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def require_admin(token: str) -> None:
         """ADMIN_TOKEN이 맞는지 확인한다. 비어 있으면 관리자 기능은 꺼져 있다."""
-        if not settings.admin_token or not secrets.compare_digest(token, settings.admin_token):
+        configured = settings.admin_token.get_secret_value()
+        if not configured or not secrets.compare_digest(token, configured):
             raise HTTPException(403, "권한이 없어요.")
 
     async def log_question(db: AsyncSession, question: str, res: AskResponse) -> None:

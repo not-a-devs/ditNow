@@ -25,7 +25,7 @@ def client(mock_data: MockData, monkeypatch: pytest.MonkeyPatch) -> Iterator[Tes
     )
     engine = make_engine(SQLITE_MEMORY)
     asyncio.run(init_db(engine, mock_data))  # 초기화는 테스트 준비 단계에서만 수행한다.
-    monkeypatch.setattr("app.main.make_engine", lambda _url: engine)
+    monkeypatch.setattr("app.main.make_engine", lambda _url, **_options: engine)
     with TestClient(create_app(settings)) as c:
         yield c
 

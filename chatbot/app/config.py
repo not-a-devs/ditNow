@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -18,13 +18,13 @@ class Settings(BaseSettings):
     mock_dir: Path = ROOT_DIR / "data" / "mock"  # DB 시드용 학생 목업
 
     # 예: mysql+aiomysql://ditnow:ditnow@localhost:3306/ditnow?charset=utf8mb4
-    database_url: str = ""
+    database_url: SecretStr = Field(default=SecretStr(""), repr=False)
     db_auto_init: bool = False  # 호환 키. 런타임 DDL/자동 시드는 허용하지 않는다.
     current_semester: str = "2026-2"
 
     llm_provider: str = "openai"
     llm_model: str = ""
-    llm_api_key: str = ""
+    llm_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     llm_base_url: str = ""
     llm_timeout_sec: float = 20
 
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     max_context_chars: int = 3000
 
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
-    admin_token: str = ""
+    admin_token: SecretStr = Field(default=SecretStr(""), repr=False)
     rate_limit_per_min: int = 20
 
     @field_validator("db_auto_init")

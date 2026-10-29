@@ -17,7 +17,7 @@ def get_llm_client(settings: Settings) -> LLMClient:
         from ..llm.openai_client import OpenAIClient
 
         base_url = None
-        api_key = settings.llm_api_key
+        api_key = settings.llm_api_key.get_secret_value()
         if provider == "openai_compatible":
             if not settings.llm_base_url:
                 raise ValueError("openai_compatible은 LLM_BASE_URL이 필요합니다")
@@ -28,5 +28,7 @@ def get_llm_client(settings: Settings) -> LLMClient:
     if provider == "anthropic":
         from ..llm.anthropic_client import AnthropicClient
 
-        return AnthropicClient(settings.llm_model, settings.llm_api_key, settings.llm_timeout_sec)
+        return AnthropicClient(
+            settings.llm_model, settings.llm_api_key.get_secret_value(), settings.llm_timeout_sec
+        )
     raise ValueError(f"알 수 없는 LLM_PROVIDER: {provider}")

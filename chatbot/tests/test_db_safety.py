@@ -11,7 +11,8 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import event, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.db import DatabaseNotReady, init_db, make_engine, require_existing_schema
@@ -25,6 +26,74 @@ def test_runtime_auto_init_is_disabled_and_true_is_rejected() -> None:
     assert Settings(_env_file=None).db_auto_init is False
     with pytest.raises(ValidationError, match="DB_AUTO_INIT"):
         Settings(_env_file=None, db_auto_init=True)
+
+
+def test_settings_secrets_are_hidden_from_repr_and_json() -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url="mysql+aiomysql://fake-user:private-db-password@db.invalid/demo",
+        llm_api_key="private-llm-key",
+        admin_token="private-admin-token",
+    )
+    for secret in ["private-db-password", "private-llm-key", "private-admin-token"]:
+        assert secret not in repr(settings)
+        assert secret not in settings.model_dump_json()
+
+
+def test_remote_connection_requires_approved_factory_before_network() -> None:
+    with pytest.raises(DatabaseNotReady, match="공통 연결 정책") as captured:
+        make_engine("mysql+aiomysql://fake-user:private-password@db.invalid/demo")
+    assert "private-password" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    "suffix", ["?uri=true&mode=rwc", "?uri=true&mode=memory", "?uri=true&cache=shared"]
+)
+async def test_memory_query_variants_cannot_initialize_or_reset(
+    suffix: str, mock_data: MockData
+) -> None:
+    url = SQLITE_MEMORY + suffix
+    with pytest.raises(DatabaseNotReady):
+        make_engine(url)
+    # 직접 만든 엔진을 전달해도 guard가 연결 전에 거부한다.
+    engine = create_async_engine(url, poolclass=StaticPool)
+    try:
+        with pytest.raises(DatabaseNotReady, match="메모리"):
+            await init_db(engine, mock_data, reset=True)
+    finally:
+        await engine.dispose()
+
+
+async def test_memory_engine_hides_sql_bindings() -> None:
+    engine = make_engine(SQLITE_MEMORY)
+    try:
+        assert engine.sync_engine.hide_parameters is True
+    finally:
+        await engine.dispose()
+
+
+async def test_injected_factory_must_hide_parameters() -> None:
+    engine = create_async_engine(SQLITE_MEMORY)
+    try:
+        with pytest.raises(DatabaseNotReady):
+            make_engine(
+                "mysql+aiomysql://fake-user:private-password@db.invalid/demo",
+                approved_factory=lambda _secret: engine,
+            )
+    finally:
+        await engine.dispose()
+
+
+def test_factory_exception_does_not_expose_dsn() -> None:
+    def broken_factory(_secret):
+        raise ValueError("private-driver-password")
+
+    with pytest.raises(DatabaseNotReady) as captured:
+        make_engine(
+            "mysql+aiomysql://fake-user:private-password@db.invalid/demo",
+            approved_factory=broken_factory,
+        )
+    assert "private-driver-password" not in str(captured.value)
 
 
 async def test_schema_check_never_creates_missing_tables() -> None:
@@ -67,7 +136,7 @@ async def test_reset_rejects_persistent_targets_before_connecting(
     tmp_path: Path, mock_data: MockData
 ) -> None:
     database = tmp_path / "must-not-exist.sqlite"
-    engine = make_engine(f"sqlite+aiosqlite:///{database.as_posix()}")
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database.as_posix()}")
     try:
         with pytest.raises(DatabaseNotReady, match="메모리"):
             await init_db(engine, mock_data, reset=True)
@@ -78,7 +147,7 @@ async def test_reset_rejects_persistent_targets_before_connecting(
 
 def test_missing_schema_fails_startup_without_provisioning(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = make_engine(SQLITE_MEMORY)
-    monkeypatch.setattr("app.main.make_engine", lambda _url: engine)
+    monkeypatch.setattr("app.main.make_engine", lambda _url, **_options: engine)
     settings = Settings(
         _env_file=None, data_dir=FIXTURES, database_url=SQLITE_MEMORY, llm_provider="fake"
     )

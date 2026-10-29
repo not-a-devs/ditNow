@@ -131,8 +131,8 @@ python3.11 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# DB (MariaDB, Docker) — 서버 시작 시 테이블 생성·목업 시드
-docker compose up -d
+# 팀 제공 MariaDB를 사용한다. 프로젝트 내 중복 컨테이너 생성은 금지한다.
+# 런타임 자동 DDL/시드는 없으며, 원격 연결은 승인된 공통 DB factory 주입 전 차단한다.
 # 운영 초기화/reset은 금지. 테스트는 아래 pytest가 메모리 픽스처를 명시적으로 준비한다.
 
 # 서버 실행

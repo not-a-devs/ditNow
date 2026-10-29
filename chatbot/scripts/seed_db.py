@@ -20,7 +20,7 @@ from app.db import DatabaseNotReady, init_db, make_engine  # noqa: E402
 async def main() -> None:
     """명시한 메모리 테스트 원장에만 픽스처를 넣는다."""
     settings = get_settings()
-    if settings.database_url != "sqlite+aiosqlite:///:memory:":
+    if settings.database_url.get_secret_value() != "sqlite+aiosqlite:///:memory:":
         raise DatabaseNotReady("이 명령은 SQLite 메모리 테스트에서만 실행할 수 있습니다.")
     mock = load_mock_data(settings.mock_dir, load_data(settings.data_dir))
     engine = make_engine(settings.database_url)

@@ -52,8 +52,9 @@ uv run --locked pytest -q
 - `init_db`는 폐기 가능한 SQLite 메모리 테스트 전용이다. 파일 SQLite나 MariaDB에서 초기화/reset을 시도하면 연결 전에 거부한다. `seed_db.py --reset`은 지원하지 않으며 명시한 메모리 테스트만 허용한다.
 - 운영 스키마 변경·시드는 공통 MariaDB 마이그레이션 책임자와 별도 계정의 승인 작업이다. 기존 `students`/`auth_sessions`를 별도 원격 스키마에 새로 만들어 플랫폼 신원 원장과 이중으로 운영하는 마이그레이션은 제공하지 않는다. 통합 신원 매핑과 허용 학적 조회 계약 확정 전 이 작업은 BLOCKED다.
 - 앱 DML 계정과 마이그레이션 계정의 분리는 운영 요구사항이며, 실제 GRANT를 확인했다는 뜻이 아니다. DB 접속 비밀번호·클라우드 접속이 준비되지 않아 실제 MariaDB 접근·DDL·데이터 변경·마이그레이션은 NOT_RUN이다. 기존 인스턴스 외 새 컨테이너를 만들지 않았다.
+- DSN·LLM 키·관리자 토큰은 SecretStr로 다루며 설정 repr/JSON 출력에서 숨긴다. 메모리 테스트 엔진에도 hide_parameters를 적용한다. 정확한 `sqlite+aiosqlite:///:memory:` 이외의 연결은 승인된 공통 엔진 factory가 주입되기 전 생성 단계에서 거부한다. TLS·서버 인증서·연결/읽기/쓰기 timeout은 공통 DB 소유자의 정책을 주입해야 하며 별도 중복 드라이버 hook은 만들지 않는다. 현재 그 원격 factory는 연결하지 않았다.
 - DB 오류의 SQL·바인딩된 질문·연결 정보를 질문 감사 실패 로그에 기록하지 않는다. 기존 독립 로그인은 여전히 통합 앱에 mount하지 않는다.
 
 `.env.example`의 DB 주소는 호스트/자격 증명 자리표시자와 포트 3307을 제공한다. 실제 비밀값은 저장소 밖에서 구성한다. 원격 운영 DB에 이 독립 시연의 테스트 시드를 실행하지 않는다.
 
-2026-10-30 코드 제안 검증: 기존 챗봇+안전 회귀 `pytest` 138개 PASS, Ruff 검사·37개 포맷 PASS, 통합 API 37개 PASS와 OpenAPI 스냅샷 일치. 초기화 검사는 격리 SQLite 메모리/임시 경로만 사용했고 파일 DB/원격 DSN의 초기화·reset 거부를 검사했다. 실제 MariaDB 연결·GRANT·DDL·시드는 실행하지 않았다.
+2026-10-30 코드 제안 검증: 기존 챗봇+안전 회귀 `pytest` 146개 PASS, Ruff 검사·37개 포맷 PASS, 통합 API 37개 PASS와 OpenAPI 스냅샷 일치. 초기화 검사는 격리 SQLite 메모리/임시 경로만 사용했고 파일 DB/원격 DSN/query가 붙은 메모리 URI의 초기화·reset 거부를 검사했다. 설정 repr/JSON의 비밀값 숨김과 원격 factory 미설정 거부도 검사했다. 실제 MariaDB 연결·GRANT·DDL·시드는 실행하지 않았다.
