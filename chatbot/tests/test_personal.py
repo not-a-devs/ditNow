@@ -133,6 +133,11 @@ async def test_route_uses_llm_when_rules_miss(campus_data: CampusData) -> None:
     intent = await route("나 뭐 해야 돼?", retriever, weird)
     assert (intent.name, intent.day) == (CAMPUS, None)
 
+    # 리스트처럼 해시 불가 값이 와도 500 없이 교내 질문으로 처리한다
+    unhashable = _ScriptedLLM('{"intent": ["grades"], "day": {"x": 1}}')
+    intent = await route("나 뭐 해야 돼?", retriever, unhashable)
+    assert (intent.name, intent.day) == (CAMPUS, None)
+
 
 async def test_route_skips_llm(campus_data: CampusData) -> None:
     """규칙에 맞거나, 1인칭 없이 교내 검색이 되는 질문은 LLM을 부르지 않는다."""

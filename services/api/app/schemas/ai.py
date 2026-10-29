@@ -29,3 +29,35 @@ class CampusSearchData(ApiModel):
     source_notice: str = "기존 챗봇 시설 스냅샷이며 공식 출처와 최신성은 검증되지 않았습니다."
     generated: Literal[False] = False
     personal_data_access: Literal[False] = False
+
+
+class AskTurn(ApiModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=1000)
+
+
+class AskInput(ApiModel):
+    question: str = Field(min_length=1, max_length=200)
+    history: list[AskTurn] = Field(default_factory=list, max_length=6)
+
+
+class AskLocation(ApiModel):
+    id: str
+    name: str
+    building: str
+    lat: float
+    lng: float
+
+
+class AskData(ApiModel):
+    answer: str
+    sources: list[str]
+    locations: list[AskLocation]
+    found: bool
+    intent: str
+    need_login: bool
+    classified_by: Literal["keyword", "llm"]
+    rewritten_question: str | None = None
+    generated: Literal[True] = True
+    personal_data_access: bool
+    record_source: Literal["DEMO"] = "DEMO"

@@ -17,6 +17,13 @@
 
 통합 라우터의 공용 등록과 `services/api`의 로컬 의존성 잠금을 반영했다. 통합 앱의 실제 경로로 검색을 테스트하지만 운영 배포·신규 프런트 연결은 별도 검증 대상이다.
 
+## 통합 2단계 — 학번 로그인·AI 답변 (DEC-020)
+
+- 통합 어댑터: `services/api/app/integrations/chatbot/assistant.py`. `route`·`condense`·`load_student`·`answer_question`과 `auth`의 로그인·토큰 함수를 그대로 호출한다.
+- 계약: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `POST /api/v1/ai/ask` (자세한 내용은 `services/api/README.md`).
+- 통합 경로는 `chatbot/.env`를 읽지 않고 `DIT_API_*` 설정만 쓴다. 서버 시작 시 DDL·시드를 하지 않는다. 가상 학적 데이터(`data/mock/`)는 패키지에 포함되어 `python -m app.seed_demo`로 넣는다.
+- 기존 `app/main.py` 단독 실행 경로와 관리자 API는 통합 앱에 mount하지 않는다.
+
 ## 설치와 검증
 
 Python 3.11 이상에서 사용한다. 통합 API의 Python 3.13과 공존하며, 내부 상대 import는 기존 `uvicorn app.main:app` 실행도 보존한다.
