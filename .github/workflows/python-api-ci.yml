@@ -45,6 +45,8 @@ jobs:
           uv run --locked python -c
           "import json; from app.main import app; schema = app.openapi();
           assert '/api/v1/health' in schema['paths']; json.dumps(schema)"
+      - name: OpenAPI 스냅샷 일치 검사
+        run: uv run --locked python -m app.export_openapi --check
   repository:
     name: 에이전트 설정 검사
     runs-on: ubuntu-latest
@@ -58,3 +60,9 @@ jobs:
           node-version: '22'
       - name: 탐색 지도와 스킬 검사
         run: node scripts/check-agent-config.mjs
+      - name: 프런트 타입 생성 도구 설치
+        working-directory: mvp
+        run: npm ci
+      - name: OpenAPI 기반 타입 일치 검사
+        working-directory: mvp
+        run: npm run api:types:check

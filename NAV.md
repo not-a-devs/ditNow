@@ -31,6 +31,8 @@
 
 FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작한다. 설정·공통 오류·안전 로그는 `services/api/app/core/`, 테스트는 `services/api/tests/`, 실행·잠금 파일 안내는 `services/api/README.md`를 본다. `/health`는 프로세스 생존만 확인하며 인증·DB 준비 상태는 검사하지 않는다. 작업 상태와 후속 게이트는 `docs/dev-prep/03_BACKEND_PROGRESS.md`에 기록한다.
 
+실제 공개 API 스냅샷은 `services/api/openapi.json`, 내보내기/드리프트 검사는 `services/api/app/export_openapi.py`다. 프런트 타입은 `mvp/scripts/api-types.mjs`로 `mvp/src/shared/api/schema.d.ts`에 생성한다. 제안 상태의 인증·도메인 API는 스냅샷에 추가하지 않는다.
+
 `chatbot/`과 `services/api/`는 각각 별도 `app` 패키지이므로 각 디렉터리에서 독립 환경으로 실행·검증한다. RAG의 MariaDB 어댑터·자체 세션 코드는 플랫폼 DB·인증 공급자 선정의 승인 근거가 아니다. 이 기반 작업에서 RAG의 외부 LLM·DB·배포는 실행하지 않았다.
 
 ## 3. 현재 도구와 제안된 모노레포 영역

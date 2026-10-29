@@ -7,6 +7,8 @@
 
 [FastAPI 공개 health 기반](../services/api/README.md)은 별도로 실행할 수 있습니다. 이 프런트의 시연 데이터와 로그인은 여전히 브라우저 모의 계층입니다.
 
+실제 API의 타입 계약은 `src/shared/api/schema.d.ts`입니다. 서버 스냅샷 갱신 후 `npm run api:types`로 생성하고 `npm run api:types:check`로 일치를 검사합니다. 현재 health만 포함하며 업무 API 연결은 아직 수행하지 않았습니다.
+
 ## 실행
 
 ```bash
