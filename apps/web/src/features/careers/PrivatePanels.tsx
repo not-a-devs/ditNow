@@ -2,7 +2,7 @@
 // personal data in its state is discarded; responses that arrive after unmount are dropped
 // (useAlive) and trigger no follow-up request. Forms keep their input after a failure, retries
 // of the same input reuse the same Idempotency-Key, and success is only shown for a guarded reply.
-import { useCallback, useEffect, useRef, useState, type FormEvent, type MutableRefObject, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type MutableRefObject, type ReactNode } from 'react';
 import { ApiError } from '../../lib/api';
 import * as api from './api';
 import type { CareerProfile, EmployerDraft, EmploymentType, Program, ProgramApplication } from './types';
@@ -24,10 +24,10 @@ type Failure = { message: string; requestId?: string; conflict: boolean } | null
 
 const splitList = (value: string) => value.split(',').map((v) => v.trim()).filter(Boolean);
 
-/** False once the component unmounted, so late replies cannot refill discarded state. */
+/** Invalidate during unmount commit, before a late reply can beat passive cleanup. */
 function useAlive(): MutableRefObject<boolean> {
   const alive = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;

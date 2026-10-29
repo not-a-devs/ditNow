@@ -1,8 +1,31 @@
 // UI states against the real shared transport (fetch stubbed). jsdom/RTL only — this is not a
 // browser, DB or mounted-App verification.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import CareersPage from './index';
+
+// Model the permitted commit-to-passive-cleanup gap deterministically. A late reply must
+// already be rejected after the private UI unmounts, before passive cleanup is delivered.
+const lifecycle = vi.hoisted(() => ({ holdPassiveCleanup: false, pending: [] as Array<() => void> }));
+vi.mock('react', async original => {
+  const react = await original<typeof import('react')>();
+  return {
+    ...react,
+    useEffect: (effect: () => void | (() => void), dependencies?: readonly unknown[]) => react.useEffect(() => {
+      const cleanup = effect();
+      if (typeof cleanup !== 'function') return;
+      return () => {
+        if (lifecycle.holdPassiveCleanup) lifecycle.pending.push(cleanup);
+        else cleanup();
+      };
+    }, dependencies),
+  };
+});
+afterEach(() => {
+  lifecycle.holdPassiveCleanup = false;
+  lifecycle.pending.splice(0).forEach(cleanup => cleanup());
+});
 
 const RID = '12345678-1234-1234-1234-123456789012';
 const PID = '00000000-0000-4000-8000-0000000000a1';
@@ -175,8 +198,9 @@ describe('CareersPage', () => {
 
     const listCalls = () => fetch.mock.calls.filter(([url]) => String(url).endsWith('/me/program-applications')).length;
     const before = listCalls();
-    finishApply(new Response(JSON.stringify({ data: APPLICATION }), { status: 201 }));
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await act(async () => {
+      finishApply(new Response(JSON.stringify({ data: APPLICATION }), { status: 201 }));
+    });
     expect(screen.queryByText(/가상 신청을 기록했습니다/)).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue('늦은 메모')).not.toBeInTheDocument();
     expect(listCalls()).toBe(before); // no follow-up personal fetch from the discarded panel
@@ -185,6 +209,34 @@ describe('CareersPage', () => {
     fireEvent.click(screen.getByText('로그인 상태 다시 확인'));
     expect(await screen.findByDisplayValue(PROFILE.alias)).toBeInTheDocument();
     expect(await screen.findByLabelText(`${PROGRAM.title} 메모`)).toHaveValue('');
+    expect(screen.queryByText(/가상 신청을 기록했습니다/)).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])('rejects late success before passive cleanup after private unmount (StrictMode=%s)', async strict => {
+    let finishApply!: (response: Response) => void;
+    const applyReply = new Promise<Response>(resolve => { finishApply = resolve; });
+    const fetch = stub((method, path) => {
+      if (path.endsWith('/applications') && method === 'POST') return applyReply;
+      if (path.endsWith('/me/profile') && method === 'PATCH') return fail(401, 'UNAUTHORIZED');
+      return undefined;
+    });
+    render(strict ? <StrictMode><CareersPage /></StrictMode> : <CareersPage />);
+    fireEvent.change(await screen.findByLabelText(`${PROGRAM.title} 메모`), { target: { value: '폐기할 신청 메모' } });
+    fireEvent.click(screen.getByText('가상 신청'));
+    await waitFor(() => expect(posts(fetch, '/applications')).toHaveLength(1));
+    // Do not delay setup/StrictMode replay: hold only subsequent passive unmount cleanups.
+    lifecycle.holdPassiveCleanup = true;
+    fireEvent.change(await screen.findByDisplayValue(PROFILE.alias), { target: { value: '변경할 별칭' } });
+    fireEvent.click(screen.getByText('수정 저장'));
+    expect(await screen.findByText(/로그인이 필요합니다/)).toBeInTheDocument();
+    expect(screen.queryByText('내 가상 신청')).not.toBeInTheDocument();
+    const listCalls = () => fetch.mock.calls.filter(([url]) => String(url).endsWith('/me/program-applications')).length;
+    const before = listCalls();
+    await act(async () => {
+      finishApply(new Response(JSON.stringify({ data: APPLICATION }), { status: 201 }));
+    });
+    expect(listCalls()).toBe(before);
+    expect(screen.queryByDisplayValue('폐기할 신청 메모')).not.toBeInTheDocument();
     expect(screen.queryByText(/가상 신청을 기록했습니다/)).not.toBeInTheDocument();
   });
 
