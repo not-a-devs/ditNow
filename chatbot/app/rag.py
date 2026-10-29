@@ -19,7 +19,8 @@ from app.schemas import AskResponse, CampusData, LocationOut, Student, StudentDa
 
 logger = logging.getLogger(__name__)
 
-_SOURCES_LINE = re.compile(r"\[근거:\s*([^\]]*)\]")
+# '[근거: a, b]'. 대괄호 없이 '근거: a, b'로 쓰는 경우도 있어 괄호는 선택
+_SOURCES_LINE = re.compile(r"\[?근거:\s*([^\]\n]*)\]?")
 _BLOCK_ID = re.compile(r"^\[([^\]]+)\]")
 # 최신 모델은 답하기 전 추론에도 토큰을 써서, 시험 4과목 나열 같은 답이 600에서 잘렸다
 ANSWER_MAX_TOKENS = 1024
@@ -42,6 +43,7 @@ def parse_sources(raw: str, allowed: set[str]) -> tuple[str, list[str]]:
         answer = re.sub(rf"\s*[(\[](?:{names})[)\]]", "", answer)  # '자료구조(CS201)'
         answer = re.sub(rf"(?<=[(\[])(?:{names}),\s*", "", answer)  # '(CS210, 담당 …)'
         answer = re.sub(rf",\s*(?:{names})(?=[)\]])", "", answer)  # '(담당 …, CS210)'
+        answer = re.sub(rf"(?<!\w)(?:{names})(?!\w)\s?", "", answer)  # '금요일에 GE101 수업'
     return answer.strip(), ids
 
 

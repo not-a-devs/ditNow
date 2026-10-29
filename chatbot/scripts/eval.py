@@ -110,7 +110,8 @@ async def main(with_llm: bool) -> int:
     out.parent.mkdir(exist_ok=True)
     out.write_text(report, encoding="utf-8")
     print("\n".join(summary), f"\n→ {out.relative_to(ROOT)}")
-    return int(recall < RECALL_TARGET or intent_acc < RECALL_TARGET or hallucinations or mismatches)
+    failed = recall < RECALL_TARGET or intent_acc < RECALL_TARGET or hallucinations or mismatches
+    return 1 if failed else 0
 
 
 async def _eval_personal(

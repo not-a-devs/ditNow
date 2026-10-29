@@ -22,6 +22,10 @@ RULES: list[tuple[str, str]] = [
     # 개인 키워드와 겹치지만 교내 정보인 표현
     ("증명서", CAMPUS),  # 성적증명서·졸업증명서
     ("장학", CAMPUS),  # 성적장학금
+    ("이의신청", CAMPUS),  # 성적 이의신청
+    ("시험기간", CAMPUS),  # 시험기간 도서관 운영
+    ("버스", CAMPUS),  # 셔틀버스 시간표
+    ("셔틀", CAMPUS),
     # 성적·평점
     ("평점", "grades"),
     ("평균학점", "grades"),
@@ -79,6 +83,9 @@ _DAY = re.compile(r"([월화수목금토일])요일|(오늘|내일|모레)|(이�
 VALID_DAYS = {*WEEKDAYS, "오늘", "내일", "모레", WEEK}
 
 # '내 ~', '제 ~' 같은 1인칭이 있으면 개인 질문일 가능성이 높다
+# 분류 답은 JSON 한 줄이지만, 최신 모델은 답 전에 추론 토큰을 써서 200일 때 빈 응답이 왔다
+CLASSIFY_MAX_TOKENS = 1024
+
 _FIRST_PERSON = {"내", "나", "제", "저", "내가", "나는", "제가", "저는", "나의", "저의", "내꺼"}
 
 
@@ -114,7 +121,7 @@ async def classify_with_llm(question: str, llm: LLMClient) -> Intent | None:
         ChatMessage(role="user", content=question),
     ]
     try:
-        raw = await llm.chat(messages, temperature=0, max_tokens=200)
+        raw = await llm.chat(messages, temperature=0, max_tokens=CLASSIFY_MAX_TOKENS)
         match = re.search(r"\{.*?\}", raw, re.DOTALL)
         data = json.loads(match.group(0)) if match else None
     except (LLMError, json.JSONDecodeError) as e:
