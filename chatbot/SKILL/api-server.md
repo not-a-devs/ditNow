@@ -35,6 +35,7 @@
 
 - `intent`: `campus` | `next_class` | `day_classes` | `my_courses` | `grades` | `exams` | `remaining_credits`
 - `classified_by`: 의도를 고른 방법 (`keyword` | `llm`)
+- `rewritten_question`: `history`로 후속 질문을 바꿨을 때 실제로 처리한 질문
 - `need_login=true`면 개인 질문인데 로그인하지 않은 것입니다. 프론트는 로그인 화면으로 안내합니다.
 - 잘못되거나 만료된 토큰을 보내면 `401`입니다. 토큰 없이 보내면 교내 질문은 정상 응답합니다.
 - `found=false`이면 데이터에 없다는 뜻입니다. 프론트는 "관리자에게 제보하기" 같은 UI를 띄울 수 있습니다.
@@ -52,15 +53,23 @@
 
 - CORS 허용 출처는 `.env`의 `CORS_ORIGINS`(쉼표 구분)에서 읽습니다.
   - 개발 기본값: `http://localhost:5173,http://localhost:3000`
-- 프론트 호출 예시:
+- 프론트 호출 예시 (후속 질문을 위해 직전 대화를 `history`로 함께 보냄):
   ```js
+  // messages: [{ role: "user" | "assistant", content: string }, ...] 화면에 쌓인 대화
   const res = await fetch(`${API_URL}/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    headers: {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify({ question, history: messages.slice(-6) }),
   });
-  const data = await res.json();
+  const data = await res.json(); // data.need_login이면 로그인 화면으로
   ```
+- `history`: 직전 대화 **최대 6턴**(오래된 것부터), 턴당 1000자. 서버는 대화를 저장하지 않습니다.
+  - 보내면 서버가 "거기 몇 시까지 해?"를 "정보관 편의점 몇 시까지 해?"처럼 바꿔 처리하고,
+    응답 `rewritten_question`에 바꾼 질문을 담습니다(바뀌지 않았으면 `null`).
+  - 질문 재작성에 LLM 호출이 1번 더 들어 응답이 약간 느려집니다. 첫 질문은 `history` 없이 보내세요.
 
 ## 5. 운영 고려
 

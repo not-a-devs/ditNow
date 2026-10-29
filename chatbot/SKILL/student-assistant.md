@@ -6,9 +6,10 @@
 ## 1. 흐름
 
 ```
-질문 + (선택) Authorization: Bearer <token>
+질문 + (선택) Authorization: Bearer <token> + (선택) history
+  → history가 있으면 condense()로 완전한 질문으로 재작성   # app/conversation.py
   → route(question)                     # app/intents.py
-     ├─ RULES(키워드 규칙)에 맞으면 그 의도            (classified_by=keyword)
+     ├─ RULES(키워드 규칙, 단어 끝 조사 제거 후 비교)에 맞으면 그 의도   (classified_by=keyword)
      ├─ 규칙에 없고, 1인칭('내','나','제'…)이거나 교내 검색 결과가 없으면
      │    LLM이 {"intent", "day"} JSON으로 분류      (classified_by=llm)
      └─ 그 밖에는 campus
