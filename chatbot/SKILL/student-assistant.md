@@ -28,11 +28,15 @@
 
 ## 3. 새 개인 질문 추가하기
 
-1. `intents.py`의 `INTENT_KEYWORDS`에 의도와 표현(띄어쓰기 제거)을 추가합니다. 위에 있을수록 우선합니다.
+1. `intents.py`의 `INTENT_KEYWORDS`에 의도와 표현(띄어쓰기 제거)을 추가합니다.
+   - `"수업+몇시"`처럼 `+`로 이으면 **두 단어가 모두 들어 있을 때** 일치합니다("이따 수업 몇 시야?").
+   - 정확한 표현이 `+` 조합보다 먼저 검사되고, 같은 종류끼리는 위에 있는 의도가 우선합니다
+     ("오늘 수업 몇시에 끝나" → `오늘수업`이 `수업+몇시`를 이김).
    - 교내 질문과 겹치는 표현은 피하세요. `졸업`만 넣으면 "졸업증명서 어디서 뽑아"가 개인 질문이 됩니다.
 2. `personal.py`에 처리기를 쓰고 `HANDLERS`에 등록합니다.
 3. 필요하면 `data/mock/`과 `Student` 모델에 필드를 추가합니다.
-4. `tests/test_personal.py`에 분류·계산 테스트를 추가합니다. `test_eval_questions_stay_campus`가 기존 교내 질문의 오분류를 잡아 줍니다.
+4. `tests/test_personal.py`에 분류·계산 테스트를, `tests/eval_personal.json`에 평가 질문을 추가합니다.
+   `test_eval_questions_stay_campus`가 기존 교내 질문의 오분류를 잡아 줍니다.
 
 ## 4. 로그인 (현재: 더미)
 
