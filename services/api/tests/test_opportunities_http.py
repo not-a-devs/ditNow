@@ -17,6 +17,7 @@ from app.core.config import Settings
 from app.core.errors import ApiError
 from app.factory import create_app
 from app.features.opportunities import OpportunityDependencies, Principal, create_router, router
+from app.features.opportunities.router import parse_if_match
 from app.features.opportunities.schemas import PublicationStatus
 from app.schemas.common import ErrorCode
 
@@ -181,7 +182,32 @@ def test_body_identity_is_ignored_and_rejected(env):
     assert env["store"].saved == {}
 
 
-@pytest.mark.parametrize("if_match", [None, "abc", "0", "-1", "1" * 12])
+@pytest.mark.parametrize(
+    "if_match",
+    [
+        None,
+        "abc",
+        "0",
+        "-1",
+        "1" * 12,
+        "1234567890",
+        "01",
+        'W/"1"',
+        'w/"1"',
+        '""1',
+        '1""',
+        '"1',
+        '1"',
+        '""1""',
+        '"1", "2"',
+        "1, 2",
+        "*",
+        '"*"',
+        '" 1"',
+        "+1",
+        "",
+    ],
+)
 def test_if_match_required_and_validated(env, if_match):
     client, oid = env["client"], env["oid"]
     client.put(f"/api/v1/me/saved-opportunities/{oid}", headers=as_user(USER_A))
@@ -231,3 +257,64 @@ def test_feature_openapi_has_no_identity_inputs(env):
         for operation in schema["paths"][path].values():
             names = {p["name"].lower() for p in operation.get("parameters", [])}
             assert names.isdisjoint({"user_id", "role", "department_id", "academic_year"})
+
+
+@pytest.mark.parametrize(
+    "value,expected", [("1", 1), ('"1"', 1), (" 7\t", 7), ('"999999999"', 999999999)]
+)
+def test_parse_if_match_accepts_bare_or_strong_tag(value, expected):
+    assert parse_if_match(value) == expected
+
+
+@pytest.mark.parametrize("value", ["١", "１", '"١"', "1٢", "²"])
+def test_parse_if_match_rejects_non_ascii_digits(value):
+    with pytest.raises(ApiError) as exc:
+        parse_if_match(value)
+    assert exc.value.code == ErrorCode.VALIDATION
+
+
+@pytest.mark.parametrize("if_match", ["1", '"1"'])
+def test_if_match_strong_tag_reaches_service(env, if_match):
+    client, oid = env["client"], env["oid"]
+    client.put(f"/api/v1/me/saved-opportunities/{oid}", headers=as_user(USER_A))
+    response = client.patch(
+        f"/api/v1/me/saved-opportunities/{oid}",
+        json={"memo": "x"},
+        headers=as_user(USER_A, **{"If-Match": if_match}),
+    )
+    assert response.status_code == 200 and response.json()["resource_version"] == 2
+
+
+def test_check_replay_after_delete_is_conflict_not_new_item(env):
+    client, store, oid = env["client"], env["store"], env["oid"]
+    client.put(f"/api/v1/me/saved-opportunities/{oid}", headers=as_user(USER_A))
+    url = f"/api/v1/me/saved-opportunities/{oid}/checks"
+    headers = as_user(USER_A, **{"Idempotency-Key": "check-replay"})
+    body = {"text": "추천서", "sort_order": 0}
+    created = client.post(url, json=body, headers=headers)
+    assert created.status_code == 201
+    check_id = created.json()["data"]["id"]
+    deleted = client.delete(f"{url}/{check_id}", headers=as_user(USER_A, **{"If-Match": "1"}))
+    assert deleted.status_code == 200
+    replay = client.post(url, json=body, headers=headers)
+    assert replay.status_code == 409 and replay.json()["code"] == "CONFLICT"
+    assert store.checks == {}
+
+
+def test_status_event_failure_returns_500_and_keeps_state():
+    published = make_opportunity()
+    catalog, store = FakeCatalog([published]), FakeStore(fail_event_append=True)
+    deps = OpportunityDependencies(
+        current_principal=fake_principal, catalog=lambda: catalog, store=lambda: store
+    )
+    application = create_app(Settings(environment="test"))
+    application.include_router(create_router(deps), prefix="/api/v1")
+    client = TestClient(application, raise_server_exceptions=False)
+    base = f"/api/v1/me/saved-opportunities/{published.id}"
+    client.put(base, headers=as_user(USER_A))
+    response = client.patch(
+        base, json={"status": "preparing"}, headers=as_user(USER_A, **{"If-Match": "1"})
+    )
+    assert response.status_code == 500 and set(response.json()) == ERROR_KEYS
+    row = store.get(USER_A, published.id)
+    assert row.status == "interested" and row.revision == 1 and store.events == []

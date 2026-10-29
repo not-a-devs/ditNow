@@ -10,13 +10,19 @@ from test_opportunities_support import (
     NOW,
     USER_A,
     USER_B,
+    EventWriteFailed,
     FakeCatalog,
     FakeStore,
     make_opportunity,
 )
 
 from app.core.errors import ApiError
-from app.features.opportunities.repository import OpportunityFile, OpportunityQuery
+from app.features.opportunities.repository import (
+    OpportunityFile,
+    OpportunityQuery,
+    StoreConflict,
+    source_kind_from_storage,
+)
 from app.features.opportunities.schemas import (
     CheckItemCreate,
     CheckItemPatch,
@@ -130,7 +136,7 @@ def test_unsafe_urls_are_dropped(url):
 
 def test_detail_never_returns_unsafe_links(world):
     record = make_opportunity(
-        source_kind=SourceKind.PUBLIC_SOURCE,
+        source_kind=SourceKind.OFFICIAL_PUBLIC,
         original_url="javascript:alert(1)",
         checked_at=NOW,
         files=(OpportunityFile("x.hwp", "javascript:alert(2)"),),
@@ -141,8 +147,8 @@ def test_detail_never_returns_unsafe_links(world):
     assert detail.needs_verification is True
 
 
-def test_public_source_with_checked_link_is_not_flagged(world):
-    record = make_opportunity(source_kind=SourceKind.PUBLIC_SOURCE, checked_at=NOW)
+def test_official_public_with_checked_link_is_not_flagged(world):
+    record = make_opportunity(source_kind=SourceKind.OFFICIAL_PUBLIC, checked_at=NOW)
     world["catalog"].records[record.id] = record
     assert world["service"].get_public(record.id).needs_verification is False
 
@@ -246,7 +252,7 @@ def test_stale_revision_and_race_conflict(world):
     assert code_of(exc) == ErrorCode.CONFLICT
 
     class RacingStore(FakeStore):
-        def compare_and_set(self, record, expected_revision):
+        def compare_and_set(self, record, expected_revision, event):
             return False
 
     racing = RacingStore()
@@ -370,3 +376,146 @@ def test_patch_rejects_identity_and_unknown_status():
         SavedOpportunityPatch(user_id=str(USER_B))
     with pytest.raises(ValidationError):
         SaveOpportunityRequest(memo="x" * 1001)
+
+
+# ---- review fixes: idempotency tombstone, atomic UoW, provenance mapping ----
+
+
+def test_replay_after_delete_does_not_resurrect_check(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    body = CheckItemCreate(text="추천서", sort_order=0)
+    created, _ = service.add_check(USER_A, oid, body, "key-replay")
+    service.delete_check(USER_A, oid, created.id, 1)
+    with pytest.raises(ApiError) as exc:
+        service.add_check(USER_A, oid, body, "key-replay")
+    assert code_of(exc) == ErrorCode.CONFLICT
+    assert store.checks == {} and len(store.keys) == 1
+
+
+def test_replay_after_saved_reset_does_not_resurrect_check(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    body = CheckItemCreate(text="추천서", sort_order=0)
+    service.add_check(USER_A, oid, body, "key-reset")
+    service.delete(USER_A, oid, 1)
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    with pytest.raises(ApiError) as exc:
+        service.add_check(USER_A, oid, body, "key-reset")
+    assert code_of(exc) == ErrorCode.CONFLICT
+    assert store.checks == {}
+
+
+def test_idempotency_key_is_scoped_by_actor_and_parent(world):
+    service, store = world["service"], world["store"]
+    s_id, c_id = world["scholarship"].id, world["contest"].id
+    for user, oid in ((USER_A, s_id), (USER_A, c_id), (USER_B, s_id)):
+        service.save(user, oid, SaveOpportunityRequest())
+    body = CheckItemCreate(text="같은 본문", sort_order=0)
+    ids = {
+        service.add_check(user, oid, body, "key-shared")[0].id
+        for user, oid in ((USER_A, s_id), (USER_A, c_id), (USER_B, s_id))
+    }
+    assert len(ids) == 3 and len(store.keys) == 3
+
+
+def test_concurrent_same_key_returns_winner_without_duplicate(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    body = CheckItemCreate(text="서류", sort_order=0)
+    real_find = store.find_idempotency
+    winner = {}
+
+    def racing_find(scope):
+        # The other request commits between our lookup and our insert.
+        if not winner:
+            store.find_idempotency = real_find
+            winner["check"], _ = service.add_check(USER_A, oid, body, scope.key)
+            return None
+        return real_find(scope)
+
+    store.find_idempotency = racing_find
+    loser, created = service.add_check(USER_A, oid, body, "key-race")
+    assert not created and loser == winner["check"] and len(store.checks) == 1
+
+
+def test_insert_level_scope_race_replays_existing(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    body = CheckItemCreate(text="서류", sort_order=0)
+    real_find, real_list = store.find_idempotency, store.list_checks
+    winner = {}
+
+    def stale_list(_saved_id):
+        # Our pre-check snapshot was read before the winner committed.
+        store.list_checks = real_list
+        return []
+
+    def racing_find(scope):
+        store.find_idempotency = real_find
+        winner["check"], _ = service.add_check(USER_A, oid, body, scope.key)
+        store.list_checks = stale_list
+        return None
+
+    store.find_idempotency = racing_find
+    loser, created = service.add_check(USER_A, oid, body, "key-race2")
+    assert not created and loser == winner["check"] and len(store.checks) == 1
+
+
+def test_store_unique_violation_maps_to_conflict(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+
+    def violate(*_args):
+        raise StoreConflict
+
+    store.insert_check = violate
+    with pytest.raises(ApiError) as exc:
+        service.add_check(USER_A, oid, CheckItemCreate(text="A", sort_order=0), "key-uniq")
+    assert code_of(exc) == ErrorCode.CONFLICT
+
+
+def test_status_event_failure_rolls_back_state(world):
+    store = FakeStore(fail_event_append=True)
+    service = OpportunityService(world["catalog"], store, clock=lambda: NOW)
+    oid = world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    with pytest.raises(EventWriteFailed):
+        service.update(USER_A, oid, SavedOpportunityPatch(status=S.PREPARING), 1)
+    row = store.get(USER_A, oid)
+    assert row.status is S.INTERESTED and row.revision == 1 and store.events == []
+    # Memo-only change has no status event and still commits.
+    assert service.update(USER_A, oid, SavedOpportunityPatch(memo="메모"), 1).revision == 2
+
+
+def test_status_change_and_event_commit_together(world):
+    service, store, oid = world["service"], world["store"], world["scholarship"].id
+    service.save(USER_A, oid, SaveOpportunityRequest())
+    service.update(USER_A, oid, SavedOpportunityPatch(status=S.PREPARING, memo="m"), 1)
+    assert store.get(USER_A, oid).revision == 2
+    assert [(e.from_status, e.to_status, e.user_id) for e in store.events] == [
+        (S.INTERESTED, S.PREPARING, USER_A)
+    ]
+
+
+@pytest.mark.parametrize(
+    "stored,expected",
+    [
+        ("OFFICIAL_PUBLIC", SourceKind.OFFICIAL_PUBLIC),
+        ("official_public", SourceKind.OFFICIAL_PUBLIC),
+        ("DEMO", SourceKind.DEMO),
+        ("synthetic_demo", SourceKind.DEMO),
+    ],
+)
+def test_source_kind_adapter_mapping(stored, expected):
+    assert source_kind_from_storage(stored) is expected
+
+
+@pytest.mark.parametrize("stored", ["USER_DEMO", "PUBLIC_SOURCE", "official", ""])
+def test_source_kind_adapter_rejects_unknown(stored):
+    with pytest.raises(ValueError):
+        source_kind_from_storage(stored)
+
+
+def test_source_kind_matches_shared_contract_subset():
+    assert {k.value for k in SourceKind} == {"OFFICIAL_PUBLIC", "DEMO"}

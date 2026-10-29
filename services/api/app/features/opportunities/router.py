@@ -3,6 +3,7 @@
 Not included in the app router by this task. `router` uses fail-closed defaults (503).
 """
 
+import re
 from typing import Annotated
 from uuid import UUID
 
@@ -34,11 +35,17 @@ from app.schemas.common import ErrorCode, ErrorResponse, SuccessResponse
 _ERRORS = {code: {"model": ErrorResponse} for code in (400, 401, 403, 404, 409, 500, 503)}
 
 
+# RFC 9110 If-Match uses the strong comparison. Accept exactly one revision, either bare or as a
+# strong entity-tag: `7` or `"7"`. Weak tags (W/), lists, `*`, unbalanced quotes, leading zeros
+# and non-ASCII digits are rejected (400). `[0-9]` is ASCII-only in Python `re`.
+_IF_MATCH = re.compile(r'(?:"(?P<quoted>[1-9][0-9]{0,8})"|(?P<bare>[1-9][0-9]{0,8}))')
+
+
 def parse_if_match(value: str) -> int:
-    raw = value.strip().removeprefix("W/").strip('"')
-    if not raw.isdigit() or len(raw) > 9 or int(raw) < 1:
+    match = _IF_MATCH.fullmatch(value.strip(" 	"))
+    if match is None:
         raise ApiError(ErrorCode.VALIDATION)
-    return int(raw)
+    return int(match["quoted"] or match["bare"])
 
 
 IfMatch = Annotated[str, Header(alias="If-Match", max_length=16)]

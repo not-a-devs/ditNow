@@ -6,12 +6,15 @@ from uuid import UUID, uuid4
 
 from app.features.opportunities.repository import (
     CheckRecord,
+    IdempotencyEntry,
+    IdempotencyScope,
     OpportunityFile,
     OpportunityPage,
     OpportunityQuery,
     OpportunityRecord,
     SavedRecord,
     StatusEvent,
+    StoreConflict,
     TargetScope,
 )
 from app.features.opportunities.schemas import (
@@ -64,12 +67,19 @@ class FakeCatalog:
         return self.records.get(opportunity_id)
 
 
+class EventWriteFailed(Exception):
+    """Simulated audit/event insert failure inside the store transaction."""
+
+
 class FakeStore:
-    def __init__(self):
+    """Single-threaded stand-in for the documented one-transaction-per-call contract."""
+
+    def __init__(self, *, fail_event_append: bool = False):
         self.saved: dict[tuple[UUID, UUID], SavedRecord] = {}
         self.checks: dict[UUID, CheckRecord] = {}
-        self.keys: dict[tuple[UUID, str], tuple[UUID, str]] = {}
+        self.keys: dict[IdempotencyScope, tuple[UUID, str]] = {}
         self.events: list[StatusEvent] = []
+        self.fail_event_append = fail_event_append
 
     def get(self, user_id, opportunity_id):
         return self.saved.get((user_id, opportunity_id))
@@ -84,11 +94,16 @@ class FakeStore:
         self.saved[key] = record
         return record, True
 
-    def compare_and_set(self, record, expected_revision):
+    def compare_and_set(self, record, expected_revision, event):
         key = (record.user_id, record.opportunity_id)
         current = self.saved.get(key)
         if current is None or current.revision != expected_revision:
             return False
+        # Stage both writes; commit only when the event insert also succeeds (rollback otherwise).
+        if event is not None:
+            if self.fail_event_append:
+                raise EventWriteFailed
+            self.events.append(event)
         self.saved[key] = record
         return True
 
@@ -100,24 +115,31 @@ class FakeStore:
                 del self.saved[key]
                 for cid in [c.id for c in self.checks.values() if c.saved_id == saved_id]:
                     del self.checks[cid]
+                # Idempotency entries are intentionally kept as tombstones.
                 return True
         return False
-
-    def append_status_event(self, event):
-        self.events.append(event)
 
     def list_checks(self, saved_id):
         return [c for c in self.checks.values() if c.saved_id == saved_id]
 
-    def find_check_by_idempotency_key(self, saved_id, key):
-        hit = self.keys.get((saved_id, key))
-        if hit is None or hit[0] not in self.checks:
+    def find_idempotency(self, scope):
+        hit = self.keys.get(scope)
+        if hit is None:
             return None
-        return self.checks[hit[0]], hit[1]
+        check_id, request_hash = hit
+        return IdempotencyEntry(scope, request_hash, check_id, self.checks.get(check_id))
 
-    def insert_check(self, record, idempotency_key, request_hash):
+    def insert_check(self, record, scope, request_hash):
+        if scope in self.keys:
+            return self.find_idempotency(scope)
+        if any(
+            c.saved_id == record.saved_id and c.sort_order == record.sort_order
+            for c in self.checks.values()
+        ):
+            raise StoreConflict
         self.checks[record.id] = record
-        self.keys[(record.saved_id, idempotency_key)] = (record.id, request_hash)
+        self.keys[scope] = (record.id, request_hash)
+        return IdempotencyEntry(scope, request_hash, record.id, record)
 
     def compare_and_set_check(self, record, expected_revision):
         current = self.checks.get(record.id)

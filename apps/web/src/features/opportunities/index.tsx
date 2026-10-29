@@ -28,6 +28,9 @@ type Load<T> =
 function describeError(error: unknown): { message: string; requestId?: string } {
   if (error instanceof ApiError) {
     const requestId = error.requestId;
+    // The shared client reports transport failures as status 0 (NETWORK/CANCELLED timeout).
+    if (error.status === 0 && (error.code === 'NETWORK' || error.code === 'CANCELLED'))
+      return { message: '서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.' };
     if (error.status === 503) return { message: '서버 연결 준비 중입니다. 아직 이용할 수 없습니다.', requestId };
     if (error.status === 401) return { message: '로그인이 필요합니다.', requestId };
     if (error.status === 404) return { message: '찾을 수 없거나 접근할 수 없는 항목입니다.', requestId };
@@ -118,18 +121,54 @@ function Detail({ id, saved, onSave }: { id: string; saved: boolean; onSave: (id
   );
 }
 
-function Checklist({ saved, run }: { saved: SavedOpportunity; run: (action: () => Promise<unknown>) => void }) {
-  const [text, setText] = useState('');
-  const submit = (event: FormEvent) => {
+type Run = (action: () => Promise<unknown>) => Promise<boolean>;
+
+// One idempotency key per add intent. A retry of the same text reuses the key and body so the
+// server can replay (or 409) instead of creating a duplicate; editing the text starts a new intent.
+interface PendingCheck {
+  key: string;
+  text: string;
+  sortOrder: number;
+}
+
+// Held by the page (not the card) so typed text and the pending key survive list reloads/errors.
+interface CheckDraft {
+  text: string;
+  pending: PendingCheck | null;
+}
+
+type UpdateDraft = (opportunityId: string, update: (draft: CheckDraft) => CheckDraft) => void;
+
+const EMPTY_DRAFT: CheckDraft = { text: '', pending: null };
+
+function Checklist({ saved, run, busy, draft, onDraft }: {
+  saved: SavedOpportunity;
+  run: Run;
+  busy: boolean;
+  draft: CheckDraft;
+  onDraft: UpdateDraft;
+}) {
+  const id = saved.opportunity_id;
+  const value = draft.text.trim();
+  const retrying = draft.pending !== null && draft.pending.text === value;
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const value = text.trim();
-    if (!value || value.length > 200) return;
-    const nextOrder = saved.checks.reduce((max, c) => Math.max(max, c.sort_order + 1), 0);
-    run(() => api.addCheck(saved.opportunity_id, value, nextOrder, api.newIdempotencyKey()));
-    setText('');
+    if (!value || value.length > 200 || busy) return;
+    const intent =
+      retrying && draft.pending
+        ? draft.pending
+        : {
+            key: api.newIdempotencyKey(),
+            text: value,
+            sortOrder: saved.checks.reduce((max, c) => Math.max(max, c.sort_order + 1), 0),
+          };
+    onDraft(id, (d) => ({ ...d, pending: intent }));
+    const ok = await run(() => api.addCheck(id, intent.text, intent.sortOrder, intent.key));
+    // On failure the text and key stay so the user can retry the same intent.
+    if (ok) onDraft(id, (d) => (d.text.trim() === intent.text ? EMPTY_DRAFT : { ...d, pending: null }));
   };
   const toggle = (check: CheckItem) =>
-    run(() => api.updateCheck(saved.opportunity_id, check, { completed: !check.completed_at }));
+    void run(() => api.updateCheck(id, check, { completed: !check.completed_at }));
   return (
     <div className="mt-2 space-y-1 text-sm">
       {saved.checks.length === 0 && <p className="text-slate-500">준비 항목이 없습니다.</p>}
@@ -138,19 +177,27 @@ function Checklist({ saved, run }: { saved: SavedOpportunity; run: (action: () =
           <li key={check.id} className="flex items-center gap-2">
             <input type="checkbox" checked={Boolean(check.completed_at)} onChange={() => toggle(check)} aria-label={`${check.text} 완료 여부`} />
             <span className={check.completed_at ? 'line-through text-slate-400' : ''}>{check.text}</span>
-            <button type="button" onClick={() => run(() => api.deleteCheck(saved.opportunity_id, check))} className="ml-auto text-xs text-red-700">삭제</button>
+            <button type="button" onClick={() => void run(() => api.deleteCheck(id, check))} className="ml-auto text-xs text-red-700">삭제</button>
           </li>
         ))}
       </ul>
-      <form onSubmit={submit} className="flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={200} placeholder="준비 항목 추가" className="flex-1 rounded border border-slate-300 px-2 py-1" />
-        <button type="submit" className="rounded border border-slate-300 px-2 py-1">추가</button>
+      <form onSubmit={(e) => void submit(e)} className="flex gap-2">
+        <input value={draft.text} onChange={(e) => { const text = e.target.value; onDraft(id, (d) => ({ ...d, text })); }} maxLength={200} placeholder="준비 항목 추가" aria-label="준비 항목" className="flex-1 rounded border border-slate-300 px-2 py-1" />
+        <button type="submit" disabled={busy} className="rounded border border-slate-300 px-2 py-1 disabled:opacity-50">
+          {retrying ? '다시 시도' : '추가'}
+        </button>
       </form>
     </div>
   );
 }
 
-function SavedCard({ saved, run }: { saved: SavedOpportunity; run: (action: () => Promise<unknown>) => void }) {
+function SavedCard({ saved, run, busy, draft, onDraft }: {
+  saved: SavedOpportunity;
+  run: Run;
+  busy: boolean;
+  draft: CheckDraft;
+  onDraft: UpdateDraft;
+}) {
   const mode = saved.opportunity?.submission_mode;
   return (
     <li className="rounded-lg border border-slate-200 p-3">
@@ -165,15 +212,15 @@ function SavedCard({ saved, run }: { saved: SavedOpportunity; run: (action: () =
       )}
       <div className="mt-2 flex flex-wrap gap-1">
         {nextStatuses(saved.status, mode).map((status) => (
-          <button key={status} type="button" onClick={() => run(() => api.updateSaved(saved.opportunity_id, saved.revision, { status }))} className="rounded border border-slate-300 px-2 py-0.5 text-xs">
+          <button key={status} type="button" onClick={() => void run(() => api.updateSaved(saved.opportunity_id, saved.revision, { status }))} className="rounded border border-slate-300 px-2 py-0.5 text-xs">
             {STATUS_LABEL[status]}(으)로 변경
           </button>
         ))}
-        <button type="button" onClick={() => run(() => api.deleteSaved(saved.opportunity_id, saved.revision))} className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700">
+        <button type="button" onClick={() => void run(() => api.deleteSaved(saved.opportunity_id, saved.revision))} className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700">
           목록에서 삭제
         </button>
       </div>
-      <Checklist saved={saved} run={run} />
+      <Checklist saved={saved} run={run} busy={busy} draft={draft} onDraft={onDraft} />
     </li>
   );
 }
@@ -185,6 +232,11 @@ export default function OpportunitiesPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; message: string; requestId?: string } | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, CheckDraft>>({});
+  const updateDraft = useCallback<UpdateDraft>(
+    (id, update) => setDrafts((all) => ({ ...all, [id]: update(all[id] ?? EMPTY_DRAFT) })),
+    [],
+  );
 
   const loadList = useCallback(() => {
     setList({ state: 'loading' });
@@ -206,16 +258,22 @@ export default function OpportunitiesPage() {
   useEffect(() => void loadSaved(), [loadSaved]);
 
   // Mutations never update UI optimistically: the list is re-read from the server afterwards.
-  const run = useCallback(
-    (action: () => Promise<unknown>) => {
+  // Resolves true only when the server accepted the mutation.
+  const run = useCallback<Run>(
+    async (action) => {
       setBusy(true);
       setNotice(null);
-      action()
-        .then(
-          () => setNotice({ ok: true, message: '서버가 요청을 처리했습니다. 아래 목록은 서버에서 다시 불러온 내용입니다.' }),
-          (error) => setNotice({ ok: false, ...describeError(error) }),
-        )
-        .finally(() => void loadSaved().finally(() => setBusy(false)));
+      let ok = false;
+      try {
+        await action();
+        ok = true;
+        setNotice({ ok: true, message: '서버가 요청을 처리했습니다. 아래 목록은 서버에서 다시 불러온 내용입니다.' });
+      } catch (error) {
+        setNotice({ ok: false, ...describeError(error) });
+      }
+      await loadSaved();
+      setBusy(false);
+      return ok;
     },
     [loadSaved],
   );
@@ -253,7 +311,7 @@ export default function OpportunitiesPage() {
             ))}
           </ul>
         )}
-        {selected && <Detail id={selected} saved={savedIds.has(selected)} onSave={(id) => run(() => api.saveOpportunity(id))} />}
+        {selected && <Detail id={selected} saved={savedIds.has(selected)} onSave={(id) => void run(() => api.saveOpportunity(id))} />}
       </section>
 
       <section aria-labelledby="opp-saved" className="space-y-3" aria-busy={busy}>
@@ -265,7 +323,9 @@ export default function OpportunitiesPage() {
         {saved.state === 'ready' && saved.data.length === 0 && <p className="text-sm text-slate-500">아직 담아 둔 공고가 없습니다.</p>}
         {saved.state === 'ready' && saved.data.length > 0 && (
           <ul className="space-y-3">
-            {saved.data.map((item) => <SavedCard key={item.opportunity_id} saved={item} run={run} />)}
+            {saved.data.map((item) => (
+              <SavedCard key={item.opportunity_id} saved={item} run={run} busy={busy} draft={drafts[item.opportunity_id] ?? EMPTY_DRAFT} onDraft={updateDraft} />
+            ))}
           </ul>
         )}
       </section>

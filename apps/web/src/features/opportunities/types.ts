@@ -3,7 +3,7 @@
 
 export type OpportunityKind = 'scholarship' | 'work_study' | 'career' | 'contest' | 'event';
 export type SubmissionMode = 'external_document_submission' | 'external_link' | 'info_only';
-export type SourceKind = 'DEMO' | 'PUBLIC_SOURCE';
+export type SourceKind = 'OFFICIAL_PUBLIC' | 'DEMO';
 export type PreparationStatus = 'interested' | 'preparing' | 'self_reported_submitted' | 'closed';
 
 export interface TargetScope {

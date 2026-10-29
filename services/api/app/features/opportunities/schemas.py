@@ -26,8 +26,10 @@ class SubmissionMode(StrEnum):
 
 
 class SourceKind(StrEnum):
+    # Subset of the shared provenance enum (docs/v1-draft/05_DB_API.md). USER_DEMO is excluded:
+    # the catalog only exposes admin-approved records. See repository.source_kind_from_storage.
+    OFFICIAL_PUBLIC = "OFFICIAL_PUBLIC"
     DEMO = "DEMO"
-    PUBLIC_SOURCE = "PUBLIC_SOURCE"
 
 
 class PublicationStatus(StrEnum):

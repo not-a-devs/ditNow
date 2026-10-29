@@ -14,12 +14,15 @@ from uuid import UUID, uuid4
 from app.core.errors import ApiError
 from app.features.opportunities.repository import (
     CheckRecord,
+    IdempotencyEntry,
+    IdempotencyScope,
     OpportunityCatalog,
     OpportunityQuery,
     OpportunityRecord,
     SavedOpportunityStore,
     SavedRecord,
     StatusEvent,
+    StoreConflict,
 )
 from app.features.opportunities.schemas import (
     CheckItemCreate,
@@ -42,9 +45,11 @@ from app.schemas.common import ErrorCode, utc_now
 
 MAX_CHECKS_PER_SAVED = 50
 MAX_LIMIT = 50
+ADD_CHECK_OPERATION = "POST /me/saved-opportunities/{opportunity_id}/checks"
 
 _S = PreparationStatus
-# closed is terminal; deleting the saved row is the reset path.
+# Demo design assumption, not a DIT policy: closed is terminal and deleting the saved row is the
+# only reset path. Revisit when a school policy for reopening applications is approved.
 ALLOWED_TRANSITIONS: dict[PreparationStatus, frozenset[PreparationStatus]] = {
     _S.INTERESTED: frozenset({_S.PREPARING, _S.CLOSED}),
     _S.PREPARING: frozenset({_S.INTERESTED, _S.SELF_REPORTED_SUBMITTED, _S.CLOSED}),
@@ -284,10 +289,9 @@ class OpportunityService:
         if changed == saved:
             return self._view(saved, now)
         changed = replace(changed, revision=saved.revision + 1, updated_at=now)
-        if not self._owner_store.compare_and_set(changed, expected_revision):
+        # Row update and status event commit together; an event failure propagates and rolls back.
+        if not self._owner_store.compare_and_set(changed, expected_revision, event):
             raise ApiError(ErrorCode.CONFLICT)
-        if event is not None:
-            self._owner_store.append_status_event(event)
         return self._view(changed, now)
 
     def delete(self, user_id: UUID, opportunity_id: UUID, expected_revision: int) -> None:
@@ -314,17 +318,18 @@ class OpportunityService:
         idempotency_key: str,
     ) -> tuple[CheckItemData, bool]:
         saved = self._require_saved(user_id, opportunity_id)
+        scope = IdempotencyScope(user_id, opportunity_id, ADD_CHECK_OPERATION, idempotency_key)
         request_hash = _request_hash(body)
-        previous = self._owner_store.find_check_by_idempotency_key(saved.id, idempotency_key)
+        previous = self._owner_store.find_idempotency(scope)
         if previous is not None:
-            record, stored_hash = previous
-            if stored_hash != request_hash:
-                raise ApiError(ErrorCode.CONFLICT)
-            return _to_check(record), False
+            return self._replay(previous, request_hash, saved.id), False
         checks = self._owner_store.list_checks(saved.id)
-        if len(checks) >= MAX_CHECKS_PER_SAVED:
-            raise ApiError(ErrorCode.CONFLICT)
-        if any(c.sort_order == body.sort_order for c in checks):
+        full = len(checks) >= MAX_CHECKS_PER_SAVED
+        if full or any(c.sort_order == body.sort_order for c in checks):
+            # The row we collide with may be a concurrent request using this same scope.
+            raced = self._owner_store.find_idempotency(scope)
+            if raced is not None:
+                return self._replay(raced, request_hash, saved.id), False
             raise ApiError(ErrorCode.CONFLICT)
         record = CheckRecord(
             id=self._new_id(),
@@ -334,8 +339,27 @@ class OpportunityService:
             completed_at=None,
             revision=1,
         )
-        self._owner_store.insert_check(record, idempotency_key, request_hash)
+        try:
+            entry = self._owner_store.insert_check(record, scope, request_hash)
+        except StoreConflict:
+            raise ApiError(ErrorCode.CONFLICT) from None
+        if entry.check_id != record.id:
+            # A concurrent request with the same scope won the UNIQUE insert.
+            return self._replay(entry, request_hash, saved.id), False
         return _to_check(record), True
+
+    @staticmethod
+    def _replay(entry: IdempotencyEntry, request_hash: str, saved_id: UUID) -> CheckItemData:
+        """Same key + same body returns the original item; anything else is 409, never a new row.
+
+        A tombstone (item deleted after creation) or an item under a different saved row (saved
+        row deleted and re-created) is 409 so a late retry cannot resurrect deleted data.
+        """
+        if entry.request_hash != request_hash:
+            raise ApiError(ErrorCode.CONFLICT)
+        if entry.check is None or entry.check.saved_id != saved_id:
+            raise ApiError(ErrorCode.CONFLICT)
+        return _to_check(entry.check)
 
     def update_check(
         self,

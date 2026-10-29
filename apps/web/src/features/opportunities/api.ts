@@ -1,5 +1,7 @@
 // API-OPP client. Depends on shared src/lib/api.ts (requestData<T> returns success.data),
 // owned by the shell branch. Paths match the FastAPI router once root mounts it at /api/v1.
+// requestData resolves paths against the configured base (default /api/v1), so paths here are
+// relative to that base; adding /api/v1 again would produce /api/v1/api/v1/... (see api.test.ts).
 import { requestData } from '../../lib/api';
 import type {
   CheckItem,
@@ -11,7 +13,7 @@ import type {
   SavedOpportunityList,
 } from './types';
 
-const BASE = '/api/v1';
+const BASE = '';
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 function savedPath(opportunityId: string): string {
