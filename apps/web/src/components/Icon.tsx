@@ -1,5 +1,6 @@
 const symbols: Record<string, string> = {
   home: 'M3 10 12 3l9 7v11h-6v-7H9v7H3Z',
+  discovery: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
   academic: 'M3 5h18v16H3Zm0 5h18M8 3v4m8-4v4',
   department: 'M3 4h18v12H9l-6 5Zm5 5h8m-8 3h5',
   community: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a3 3 0 1 0 0-6m-15 16v-3a5 5 0 0 1 10 0v3m4-7a5 5 0 0 1 6 5v2',
