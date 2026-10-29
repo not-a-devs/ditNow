@@ -21,6 +21,7 @@
 | 공통 로그인·핵심 CRUD | `services/api/app/integrations/platform_runtime/`, `services/api/app/api/v1/p0.py`, `apps/web/src/features/auth/MemoryAuth.tsx` | 승인된 신원 매핑·현재 소속/역할 재검증, 단일 메모리 세션. 기본 비활성·설정 미충족 시503 |
 | 명시적 가상 계정 생성 | `services/api/app/operations/demo_accounts.py`, `docs/dev-prep/TASK_DEMO_ACCOUNT_OPS.md` | 기본 오프라인 계획만. 실제 계정 생성은 별도 승인·비밀 주입·원격 검증 필요 |
 | 실제 HTTP 보안 검사 도구 | `services/api/scripts/verify_p0_security.py`, `docs/dev-prep/TASK_P0_SECURITY_E2E.md` | localhost 두 가상 계정의 CRUD·소유권·익명성 검사. 기본 미실행이며 모의 테스트와 실제 실행 구별 |
+| 브라우저 통합 검사 도구 | `tests/e2e/package.json`, `tests/e2e/run.cjs`, `docs/dev-prep/TASK_P0_BROWSER_E2E.md` | 두 가상 계정·390/1280 검사 준비. 기본 NOT_RUN, 오프라인 하네스 검사와 실제 브라우저 E2E 구별 |
 | 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 공개·로그인·현재 신원 계약, 조건부 업무 라우트는 실행 설정별 확인 |
 | 신규 앱의 캠퍼스 안내 | `apps/web/src/features/ai/index.tsx`, `services/api/app/api/v1/ai.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색. 기존 검색기 재사용, 개인 원장·LLM 생성·운영 배포는 미검증 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
@@ -55,6 +56,7 @@ FastAPI 공개 상태 확인 기반은 `services/api/app/main.py`에서 시작�
 - 현재 `.github/workflows/web-ci.yml`: 신규 웹의 잠금 설치·OpenAPI 타입 일치·타입·테스트·빌드·운영 의존성 보안 검사.
 - 현재 `.github/workflows/python-api-ci.yml`: PR/main의 Python 3.13 잠금 설치·Ruff·pytest·앱 import/OpenAPI 생성·에이전트 설정 검사. 두 워크플로가 같은 PR HEAD에서 성공해야 한다.
 - 현재 `.github/workflows/chatbot-ci.yml`: 잠금 패키지 설치·Ruff·기존 챗봇 회귀 테스트·빌드. 외부 LLM과 운영 DB 없이 실행한다.
+- 현재 `.github/workflows/p0-browser-harness-ci.yml`: 브라우저 하네스의 오프라인 단위 검사·기본 NOT_RUN 확인. 실제 브라우저나 원격 DB를 실행하지 않는다.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
 - 현재 `services/api/`: FastAPI 공개 health·공통 오류·설정·로그·테스트 기반.

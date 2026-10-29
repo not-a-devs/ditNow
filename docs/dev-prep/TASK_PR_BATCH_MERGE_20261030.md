@@ -34,6 +34,7 @@
 | [#59](https://github.com/not-a-devs/ditNow/pull/59) | 명시적 가상 계정 생성 도구 | `479be137171f5716be7c89faaaa79adc71a233f8` |
 | [#63](https://github.com/not-a-devs/ditNow/pull/63) | 두 계정 HTTP 보안 검사 도구 | `46fcc7bee375b4fdd76b9c924fa1a36195dd83e4` |
 | [#65](https://github.com/not-a-devs/ditNow/pull/65) | 알림 읽음/요약 재조회 검증 경합 수정 | `c18f49d14103d69c8f95613eb6a7088703ab32b1` |
+| [#62](https://github.com/not-a-devs/ditNow/pull/62) | 보안 보완된 브라우저 검사 하네스 | `f192380653fc229c7d433561e80122fb9adaf8fc` |
 
 ## 독립 검토와 실제 검사
 
@@ -61,4 +62,6 @@ root가 기존 업무 코드와 변경 diff를 독립 검토했고 전용 9개·
 
 ## 후속 브라우저 검사
 
-PR #62는 최초 독립 검토에서 로그인 전환·모집 취소 선택자 드리프트, API 클라이언트 리디렉션에 따른 자격 유출 가능성, 정리 대상 표식 검증과 세션 정리 문제를 발견했다. 해당 PR은 보완·독립 회귀·새 HEAD CI 전까지 병합하지 않는다. 나머지 검증된 PR은 이 문제와 분리해 병합했다.
+PR #62는 최초 독립 검토에서 로그인 전환·모집 취소 선택자 드리프트, API/브라우저 리디렉션에 따른 자격 유출 가능성, 정리 대상 표식 검증과 세션 정리 문제를 발견해 보류했다. 별도 Codex가 이 항목과 잘못된 종합 PASS 판정을 보완했고 다른 세션이 독립 재검토했다. root도 최종 보완 diff를 검토하고 오프라인 37개를 직접 통과했다. 최종 HEAD `b9fabbefaf5e61c3819a9453284f1b38430a297c`의 CI 6종 성공 후 위 SHA로 병합했다.
+
+기본 실행은 실제로 NOT_RUN·단계0·verified_claim=false를 반환했다. 이 결과나 모의 하네스 37개 성공을 실제 브라우저/원격 MariaDB E2E 성공으로 표시하지 않는다. 코드/테스트 PR 20개와 별도로 이 문서·NAV·보드를 갱신하는 [PR #64](https://github.com/not-a-devs/ditNow/pull/64)를 검증한다.
