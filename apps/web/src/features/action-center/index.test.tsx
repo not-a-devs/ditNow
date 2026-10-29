@@ -78,14 +78,37 @@ describe('홈 요약·개인 알림함 1차 구현', () => {
   });
 
   it('읽음 처리는 서버 revision으로 요청하고 성공 응답 후에만 표시한다', async () => {
+    let finishRead!: (value: Notification) => void;
+    let finishSummary!: (value: ReturnType<typeof summary>) => void;
+    const summaryCalls = () => mocked.mock.calls.filter(([path]) => path === '/action-center/summary').length;
+    mocked.mockImplementation(async (path, init) => {
+      if (path === '/action-center/summary') {
+        if (summaryCalls() === 1) return summary();
+        return new Promise(resolve => { finishSummary = resolve; });
+      }
+      if (init?.method === 'POST') return new Promise(resolve => { finishRead = resolve; });
+      return page([note(A, '가상 알림')]);
+    });
     render(<ActionCenterPage />);
     fireEvent.click(await screen.findByRole('button', { name: '가상 알림 읽음 처리' }));
-    await waitFor(() => expect(screen.queryByRole('button', { name: '가상 알림 읽음 처리' })).toBeNull());
-    expect(screen.getByText(/· 읽음$/)).toBeInTheDocument();
+    await waitFor(() => expect(finishRead).toBeTypeOf('function'));
     const post = mocked.mock.calls.find(([, init]) => init?.method === 'POST')!;
     expect(post[0]).toBe(`/action-center/notifications/${A}/read`);
     expect(JSON.parse(post[1]!.body as string)).toEqual({ expected_revision: 1 });
-    expect(mocked.mock.calls.filter(([p]) => p === '/action-center/summary').length).toBeGreaterThanOrEqual(2);
+    // A pending write must neither mark the notification read nor refresh its summary.
+    expect(screen.getByRole('button', { name: '가상 알림 읽음 처리' })).toBeDisabled();
+    expect(screen.queryByText(/· 읽음$/)).toBeNull();
+    expect(screen.getByText(/읽지 않은 알림 1건/)).toBeInTheDocument();
+    expect(summaryCalls()).toBe(1);
+
+    await act(async () => { finishRead(note(A, '가상 알림', AT, 2)); });
+    expect(screen.queryByRole('button', { name: '가상 알림 읽음 처리' })).toBeNull();
+    expect(screen.getByText(/· 읽음$/)).toBeInTheDocument();
+    // Rendering the read row and useLoad's refresh effect are separate React phases.
+    await waitFor(() => expect(summaryCalls()).toBe(2));
+    expect(screen.getByText(/읽지 않은 알림 1건/)).toBeInTheDocument();
+    await act(async () => { finishSummary(summary(0)); });
+    expect(await screen.findByText(/읽지 않은 알림 0건/)).toBeInTheDocument();
   });
 
   it('충돌이면 성공으로 표시하지 않고 알림함을 다시 읽는다', async () => {
