@@ -4,9 +4,29 @@
 
 ## 최신 상태 — 2026-10-30 갱신
 
-**BLOCKED_TLS**. 사용자가 Windows 원격 인증·SELECT 성공을 알려준 뒤 Codex 환경에서도 Tailscale Running/online/대상 가시성, TCP 약0.08초와 MariaDB11.4.13 핸드셰이크를 다시 확인했다. 아래 초기 네트워크 차단 기록은 이력이다.
+**엄격 TLS·앱 계정 읽기 PASS, 실행 호환·스키마 통합 진행 중**. 사용자가 CA 배치를 알린 뒤 계정 정보를 보내지 않는 TLS 진단에서 CA·접속 주소 검증과 TLS1.3 연결이 성공했다. 동일한 엄격 FastAPI 엔진도 Windows `SelectorEventLoop`에서 `ditnow_app` 인증·SELECT1이 성공했다. 인증서 검증을 해제하지 않았다. 아래 초기 네트워크/인증서 차단 기록은 이력이며 운영 준비 완료를 뜻하지 않는다.
 
-DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비밀값을 주입했다. 두 계정 모두 VERSION/DATABASE/CURRENT_USER/SELECT1 성공, 현재 역할 없음, ditnow 기존 테이블 없음이 확인됐다. 비밀번호·해시·원문 GRANT·개인 레코드는 출력하지 않았다.
+최신 사용자 제공 서버 TLS 설정과 PR #44 병합을 확인한 뒤 다시 검사했다. CA의 **인증서 DER SHA-256**은 `0E9727B1E83140A2E6D7F219117A95279F77A391FE9D97FF136D8377B5216184`로 예상값과 일치한다(PEM 파일 바이트 해시와 구분). `ssl.create_default_context(cafile=...)`, `CERT_REQUIRED`, `check_hostname=True`를 유지하고 SQLAlchemy + aiomysql에 `connect_args={"ssl": tls_context}`를 전달했다. 앱 인증 계정 일치·`SELECT 1`·현재 DB ditnow·MariaDB 11.4.13·세션 `TLSv1.3`/`TLS_AES_256_GCM_SHA384` **PASS**. 따라서 **TLS 차단 해제**이며 비밀번호·전체 계정 host·DSN은 기록하지 않았다.
+
+최신 메타데이터는 **기존 9개 InnoDB 테이블**(students/auth_sessions/courses/course_sessions/enrollments/exams/graduation_rules/graduation_rule_categories/question_logs)과 관계를 확인했다. 모든 테이블 정렬은 utf8mb4_unicode_ci다. 과거 빈 스키마 결과로 초기화하면 안 된다. 개인 행 값은 읽지 않고 테이블·열·외래키·집계 행 수만 확인했으며, 기존 사용자·세션·학적 데이터를 변경하지 않았다. 앱의 직접 GRANT는 ditnow DML 4종과 ditnow_chatbot SELECT이며 DDL은 없다. 현재 비파괴 추가 migration과 공통 신원 매핑을 검토 중이다. 사용자가 migration·CRUD 진행을 승인했지만 보안 PR 병합·파괴적 변경 승인을 뜻하지 않는다.
+
+### CA 배치 후 오류 분리와 실제 읽기 결과
+
+| 구분 | 결과 |
+|---|---|
+| CA 로드·서버 인증서/주소 검증 | PASS, CERT_REQUIRED·check_hostname 유지, TLS1.3 |
+| 계정 없는 TLS-only 진단 | 인증 패킷0·쿼리0·쓰기0, MariaDB 공식 SSLRequest 절차 사용 |
+| 기본 Windows Proactor async | FAIL: OperationalError 2003 → OSError 22 → SSLWantReadError. SSLCertVerificationError는 관찰되지 않음 |
+| Windows Selector async | PASS: 기존 엄격 SQLAlchemy/aiomysql factory·앱 계정 인증·SELECT1 |
+| 실제 읽기 전용 schema 검사 | VERIFIED_TLS, MariaDB11.4·ditnow 일치, 기존 legacy 9개 테이블 존재·제안16개 테이블 없음, 개인 행 값 읽기0·쓰기0 |
+| 연결 collation | 기대 utf8mb4_unicode_ci와 불일치. SQLAlchemy dialect 초기화가 driver의 SET NAMES/COLLATE를 뒤에서 덮는 로컬 소스 확인, 접속 listener 보완 중 |
+| 운영 상태 | Windows 실행 helper/CLI·접속 collation 수정·독립 리뷰, 승인된 migration·CRUD 통합 검증 전 |
+
+앞선 진단은 체인의 모든 SSLError를 인증서 실패로 분류해 SSLWantReadError까지 포함한 **오분류**였다. 원문 예외·DSN·비밀값을 출력하지 않는 진단으로 위 유형을 분리했다. 현재 CA/SAN 불일치가 확인됐다고 주장하지 않는다. 담당자에게 요청한 서버 인증서 설정 확인과 별개로, 현재 신뢰 검증 성공 사실을 사용자에게 갱신했다.
+
+근거(확인2026-10-30): [MariaDB SSLRequest](https://mariadb.com/docs/server/reference/clientserver-protocol/1-connecting/connection), [Python 이벤트 루프](https://docs.python.org/3.13/library/asyncio-eventloop.html). Windows 루프 차이는 실제 비교 검사 결과이며 특정 라이브러리의 보편적 결함으로 일반화하지 않는다. 글로벌 이벤트 루프 정책·TLS 보안 설정을 변경하지 않았다.
+
+DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비밀값을 주입했다. 아래 표는 **초기 검사 이력**이며 최신 schema/TLS 성공 결과를 대신하지 않는다. 비밀번호·해시·원문 GRANT·개인 레코드는 출력하지 않았다.
 
 | Codex 실제 읽기 검사 (2026-10-29 16:19 UTC) | 결과 |
 |---|---|
@@ -20,7 +40,9 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 | FastAPI용 async SQLAlchemy/aiomysql 엄격 TLS | FAIL, 인증서 검증 실패를 안전한 오류로 반환 |
 | DDL·migration·seed·실제 CRUD 쓰기 | NOT_RUN, 변경 0 |
 
-사용자는 인프라 담당자에게 CA와 접속 주소 SAN을 요청했고 공개 CA를 저장소 밖 `.ditnow-secrets/mariadb-ca.pem`에 배치한 뒤 알리기로 했다. **검증 해제 금지**를 명시했다. 이후 엄격 TLS 재검사→기존 schema 재확인→리뷰된 비파괴 초기 migration→앱 DML/롤백·영속성 검사 순서로 진행한다. 기존 자료·관리자·운영 권한 변경은 별도 게이트다. 직접 GRANT 확인은 계정별 최소 권한 설계의 최종 적합성 승인과 구분한다.
+사용자가 저장소 밖 `.ditnow-secrets/mariadb-ca.pem` 배치를 알린 뒤 기본 async 검사 두 번이 실패해 반복을 중단했다. 이후 사용자가 정확한 오류 유형 진단을 요청해 무인증 TLS-only 검사와 로컬 단계별 오류 분리·다른 루프 비교를 수행했고 위 성공/호환성 결과를 확인했다. 비밀값·개인키 원문을 출력하지 않았다.
+
+**검증 해제 금지**를 유지한다. 엄격 TLS 재검사와 기존 schema 재확인을 완료했고, 리뷰된 비파괴 추가 migration→앱 DML/롤백·영속성 검사 순서로 진행한다. 기존 자료·관리자·운영 권한 변경은 별도 게이트다. 직접 GRANT 확인은 계정별 최소 권한 설계의 최종 적합성 승인과 구분한다. 새 CA로 실제 SQL 읽기는 성공했으며 원격 DDL·seed·CRUD 쓰기는 아직 없다.
 
 ## 초기 확정 정보와 최초 검사 이력
 
@@ -68,10 +90,10 @@ DPAPI CLIXML을 저장소 밖에서 읽어 자식 진단 프로세스에만 비�
 | 순서 | 검사 | 현재 |
 |---|---|---|
 | 1 | Tailscale online·대상 가시성·TCP 3307 | PASS, Codex 환경 재확인 |
-| 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | PASS(별도 읽기 진단); FastAPI 엄격 TLS는 BLOCKED_TLS |
+| 2 | 해당 계정 인증·버전/문자셋·현재 DB 읽기 | 엄격 TLS·Selector async 앱 인증/SELECT PASS; 기본 루프·연결 collation 보완 중 |
 | 3 | 앱 계정 DML/DDL 분리·계정별 GRANT 검토 | 직접 GRANT 확인 PASS; 실제 DML·DDL 거부 시험 NOT_RUN |
-| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 빈 스키마 확인 PASS; 백업·적용 NOT_RUN, PR #37 제안 검토 |
-| 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | NOT_RUN / 사람 승인 필요 |
+| 4 | 기존 스키마/데이터 조사·백업·비파괴 migration 리뷰 | 기존 9개 테이블/관계·집계 확인 PASS; 백업·적용 NOT_RUN, PR #37 제안 검토 |
+| 5 | migrator 적용·버전 확인·앱 계정 DML 검증 | 사용자 실행 승인 있음; 스키마 비교·보존 확인 후 수행, 현재 NOT_RUN |
 | 6 | 공통 가상 계정·두 계정 CRUD·재로그인/영속성·RAG 허용 자료만 접근 | NOT_RUN |
 
-DDL 거부 검사는 운영 DB에 임의 테스트 테이블을 만들거나 지워서 수행하지 않는다. 먼저 SHOW GRANTS/전용 검증 환경과 인프라 담당자 승인 방법을 사용한다. 현재 DB TLS 연동만 차단하고 신규 앱·서비스·테스트·공개 RAG 및 92개 기능의 독립 구현은 계속한다. 인증서 도착 전 검증을 완화하거나 같은 원격 검사를 반복하지 않는다.
+DDL 거부 검사는 운영 DB에 임의 테스트 테이블을 만들거나 지워서 수행하지 않는다. 먼저 SHOW GRANTS/전용 검증 환경과 인프라 담당자 승인 방법을 사용한다. DB 실행 호환·스키마/인증 통합의 남은 게이트만 보류하고 신규 앱·서비스·테스트·공개 RAG 및 92개 기능의 독립 구현은 계속한다. 인증서 검증을 완화하거나 같은 원격 검사를 맹목적으로 반복하지 않는다.

@@ -49,6 +49,7 @@ root는 신규 `/app/search`·11개 메뉴 탐색, 실제 API 전역 mount, Open
 - Codex F: 원본 모듈 BE18·FE15 직접 PASS·공개 자료/근거/개인 접근 없음 독립 리뷰. q200 정합·초점 여백 권고를 root가 반영했다(추가 BE3 경계 회귀 PASS).
 - Codex B: root 공유 변경의 FE44 직접 PASS, 고정 경로/상세 ID·취소·신규 mount·snapshot 정합 독립 리뷰. 파일 수정 없음.
 - root 초기 공유 통합: API514·FE200·타입·빌드·audit0·OpenAPI/타입 갱신 PASS. 이후 최신 main 합성은 PR 새 HEAD CI와 구분해서 확인한다.
+- main `172dcc5` 동기화 뒤 로컬 전체 API566·FE241·Ruff110파일·타입·빌드·생성 타입 일치·audit0 PASS. 이 결과와 최종 PR HEAD의 GitHub CI는 별도 확인한다.
 - root 실제 Chromium 390/1280: 신규 검색→대학 자체 상세→목록 복귀, 시설 검색→AI 시설 화면의 검색어/실제 결과, 한글 종류 필터·빈 결과·503 안전 오류/동일 요청 재시도·초점·가로 넘침 없음·pageerror0 PASS. POST405와 비허용 origin의 CORS 헤더 부재 확인. 처음 두 브라우저 시도는 검사 스크립트의 label/정확한 시설명 선택자가 틀려 실패했고 이를 실제 DOM/자료에 맞춰 수정한 후 성공했다.
 - 전체 FR-HOME-002는 PARTIAL이다. 보호 자료 통합 검색·공통 로그인·실DB·운영 배포 완료 증거가 아니다.
 
