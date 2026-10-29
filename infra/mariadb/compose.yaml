@@ -12,7 +12,8 @@ services:
       TZ: ${TZ:-Asia/Seoul}
     volumes:
       - ditnow_db_data:/var/lib/mysql
-      - ./conf/ditnow.cnf:/etc/mysql/conf.d/ditnow.cnf:ro
+      - ./conf:/etc/mysql/conf.d:ro           # ditnow.cnf (+ tls.cnf once scripts/gen-tls.sh ran)
+      - ./tls:/etc/mysql/tls:ro                # CA / server certificate from scripts/gen-tls.sh
     ports:
       - "${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-3307}:3306"   # host-local only
     mem_limit: ${DB_MEM_LIMIT:-1536m}
