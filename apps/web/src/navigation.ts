@@ -1,5 +1,6 @@
 export const navigation = [
   { id: 'home', label: '캠퍼스 홈', path: '/app', category: '나의 캠퍼스', description: '수업과 소식, 기회를 한눈에' },
+  { id: 'login', label: '로그인 · 계정', path: '/app/login', category: '나의 캠퍼스', description: '가상 계정 로그인과 현재 세션 확인' },
   { id: 'discovery', label: '통합 검색', path: '/app/search', category: '나의 캠퍼스', description: '공개 대학 안내와 시설을 함께 찾기' },
   { id: 'academic', label: '학사 · 시간표', path: '/app/academic', category: '나의 캠퍼스', description: '학사 일정부터 나의 수업까지' },
   { id: 'classrooms', label: '내 강의실', path: '/app/classrooms', category: '나의 캠퍼스', description: '자료, 과제, 질문이 모이는 곳' },

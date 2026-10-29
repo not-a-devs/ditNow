@@ -23,7 +23,7 @@ const created = (body: unknown, idempotencyKey: string) =>
   json("POST", body, { "Idempotency-Key": idempotencyKey });
 
 export const communityApi = {
-  listPosts: () => requestData<Page<AnonymousPost>>(`${BASE}/anonymous-posts?limit=20`),
+  listPosts: (signal?: AbortSignal) => requestData<Page<AnonymousPost>>(`${BASE}/anonymous-posts?limit=20`, { signal }),
   createPost: (input: AnonymousPostInput, idempotencyKey: string) =>
     requestData<AnonymousPost>(`${BASE}/anonymous-posts`, created(input, idempotencyKey)),
   updatePost: (id: string, revision: number, input: Partial<AnonymousPostInput>) =>
@@ -36,7 +36,7 @@ export const communityApi = {
       `${BASE}/anonymous-posts/${encodeURIComponent(id)}?revision=${revision}`,
       { method: "DELETE" },
     ),
-  listRecruitments: () => requestData<Page<Recruitment>>(`${BASE}/recruitments?limit=20`),
+  listRecruitments: (signal?: AbortSignal) => requestData<Page<Recruitment>>(`${BASE}/recruitments?limit=20`, { signal }),
   createRecruitment: (input: RecruitmentInput, idempotencyKey: string) =>
     requestData<Recruitment>(`${BASE}/recruitments`, created(input, idempotencyKey)),
   updateRecruitment: (id: string, revision: number, changes: RecruitmentUpdate) =>
@@ -44,6 +44,8 @@ export const communityApi = {
       `${BASE}/recruitments/${encodeURIComponent(id)}`,
       json("PATCH", { revision, ...changes }),
     ),
+  cancelRecruitment: (id: string, revision: number) =>
+    requestData<{ id: string; deleted: true }>(`${BASE}/recruitments/${encodeURIComponent(id)}?revision=${revision}`, { method: "DELETE" }),
   closeRecruitment: (id: string, revision: number) =>
     requestData<Recruitment>(
       `${BASE}/recruitments/${encodeURIComponent(id)}/close`,

@@ -24,7 +24,7 @@ function ifMatch(revision: number): Record<string, string> {
   return { ...JSON_HEADERS, 'If-Match': String(revision) };
 }
 
-export function listOpportunities(filter: OpportunityFilter): Promise<OpportunityPage> {
+export function listOpportunities(filter: OpportunityFilter, signal?: AbortSignal): Promise<OpportunityPage> {
   const params = new URLSearchParams();
   if (filter.kind) params.set('kind', filter.kind);
   if (filter.q?.trim()) params.set('q', filter.q.trim());
@@ -32,15 +32,15 @@ export function listOpportunities(filter: OpportunityFilter): Promise<Opportunit
   if (filter.openOnly) params.set('open_only', 'true');
   if (filter.cursor) params.set('cursor', filter.cursor);
   const query = params.toString();
-  return requestData<OpportunityPage>(`${BASE}/opportunities${query ? `?${query}` : ''}`);
+  return requestData<OpportunityPage>(`${BASE}/opportunities${query ? `?${query}` : ''}`, { signal });
 }
 
-export function getOpportunity(id: string): Promise<OpportunityDetail> {
-  return requestData<OpportunityDetail>(`${BASE}/opportunities/${encodeURIComponent(id)}`);
+export function getOpportunity(id: string, signal?: AbortSignal): Promise<OpportunityDetail> {
+  return requestData<OpportunityDetail>(`${BASE}/opportunities/${encodeURIComponent(id)}`, { signal });
 }
 
-export function listSaved(): Promise<SavedOpportunityList> {
-  return requestData<SavedOpportunityList>(`${BASE}/me/saved-opportunities`);
+export function listSaved(signal?: AbortSignal): Promise<SavedOpportunityList> {
+  return requestData<SavedOpportunityList>(`${BASE}/me/saved-opportunities`, { signal });
 }
 
 export function saveOpportunity(id: string, memo = ''): Promise<SavedOpportunity> {

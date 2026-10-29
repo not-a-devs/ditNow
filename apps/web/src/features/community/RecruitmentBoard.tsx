@@ -1,3 +1,4 @@
+import { useRequestLifetime } from '../../lib/useRequestLifetime';
 import { useState, type FormEvent } from "react";
 import { communityApi, createKeyTracker, describeError, type IssueInfo } from "./api";
 import { EmptyPanel, InlineIssue, LoadingPanel, StatusPanel } from "./StatusPanel";
@@ -6,7 +7,7 @@ import { useRemoteList } from "./useRemoteList";
 
 // FR-COM-004. Real-name recruitment, shown with the allowed activity profile name only.
 // Capacity counts the recruiter. Applications (FR-COM-005, P1) are not offered here.
-// There is no delete: the deletion policy is undecided, so only close is offered.
+// Open recruitments may be logically cancelled; close is a separate terminal state.
 
 const STATUS_LABEL: Record<Recruitment["status"], string> = {
   open: "모집 중",
@@ -100,6 +101,7 @@ export function RecruitmentBoard() {
   const { state, reload } = useRemoteList(communityApi.listRecruitments);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [pending, setPending] = useState(false);
+  const lifetime = useRequestLifetime();
   const [formError, setFormError] = useState<string | null>(null);
   const [issue, setIssue] = useState<IssueInfo | null>(null);
   const [keys] = useState(() => createKeyTracker());
@@ -115,16 +117,19 @@ export function RecruitmentBoard() {
       return;
     }
     setFormError(null);
+    const request = lifetime.begin(); if (!request) return;
     setPending(true);
     try {
       await communityApi.createRecruitment(parsed, keys.keyFor(parsed));
+      if (!request.current()) return;
       keys.reset();
       setDraft(EMPTY);
       await reload();
     } catch (error) {
-      setIssue(describeError(error));
+      if (request.current()) setIssue(describeError(error));
     } finally {
-      setPending(false);
+      if (request.current()) setPending(false);
+      request.finish();
     }
   }
 
@@ -227,27 +232,36 @@ function RecruitmentItem({
   onChanged: () => Promise<void>;
 }) {
   const [pending, setPending] = useState(false);
+  const lifetime = useRequestLifetime();
   const [issue, setIssue] = useState<IssueInfo | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function run(action: () => Promise<unknown>) {
+    const request = lifetime.begin(); if (!request) return;
     setPending(true);
     setIssue(null);
     try {
       await action();
+      if (!request.current()) return;
       setEditing(null);
       await onChanged();
     } catch (error) {
-      setIssue(describeError(error));
+      if (request.current()) setIssue(describeError(error));
     } finally {
-      setPending(false);
+      if (request.current()) setPending(false);
+      request.finish();
     }
   }
 
   function close() {
     if (window.confirm("모집을 마감할까요? 마감 후에는 다시 열 수 없습니다."))
       void run(() => communityApi.closeRecruitment(item.id, item.revision));
+  }
+
+  function cancel() {
+    if (window.confirm("모집글을 논리 취소하여 목록에서 숨길까요? 원장 이력은 보존되며 복원할 수 없습니다."))
+      void run(() => communityApi.cancelRecruitment(item.id, item.revision));
   }
 
   function save(event: FormEvent) {
@@ -362,6 +376,9 @@ function RecruitmentItem({
             className="text-red-700 underline"
           >
             모집 마감
+          </button>
+          <button type="button" disabled={pending} onClick={cancel} className="text-red-700 underline">
+            모집글 취소 · 목록에서 제거
           </button>
         </div>
       )}

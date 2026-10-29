@@ -7,6 +7,11 @@ import type { components } from './lib/generated/api';
 import CampusAssistantPage from './features/ai';
 import PublicCampusPage from './features/public-campus';
 import PublicDiscoveryPage from './features/discovery';
+import PlatformLogin from './features/auth';
+import { MemoryAuthProvider, useMemoryAuth } from './features/auth/MemoryAuth';
+import { AnonymousBoard } from './features/community/AnonymousBoard';
+import { RecruitmentBoard } from './features/community/RecruitmentBoard';
+import OpportunitiesPage from './features/opportunities';
 
 type Health = components['schemas']['HealthData'];
 type HealthState = { kind: 'loading' | 'idle' } | { kind: 'success'; data: Health } | { kind: 'error'; error: ApiError };
@@ -57,7 +62,27 @@ function PendingSection({ id }: { id: Exclude<SectionId, 'home'> }) {
   return <section className="surface pending-page"><span className="icon-tile"><Icon name={id} size={32} /></span><span className="eyebrow">CONNECTED CAMPUS</span><h1>{item.label}</h1><p className="page-description">{item.description}</p><StatusPanel title="이 기능은 아직 연결되지 않았어요">현재는 통합 탐색 화면입니다. 실제 데이터 조회·작성 기능은 서버와 권한 검증이 연결된 후 제공됩니다.</StatusPanel><p className="pending-note">{id === 'community' ? '익명 글에는 작성자의 실명이나 내부 계정 식별자를 노출하지 않습니다.' : id === 'recruitments' ? '팀원 모집은 익명 게시판과 구분되는 실명 기반 활동입니다.' : id === 'opportunities' ? '외부 기관 제출과 앱의 개인 준비 상태는 구분됩니다.' : '실제 학교의 학적·출결·상담 정보가 연결된 화면이 아닙니다.'}</p></section>;
 }
 
-export default function App() {
+function LoginPanel() {
+  const auth = useMemoryAuth();
+  if (auth.phase === 'authenticated') return <section className="surface section-block"><h1>현재 가상 계정</h1><p>{auth.user?.display_name} · DEMO</p><p>권한은 서버가 매 요청 다시 확인합니다. 새로고침하면 메모리 로그인이 해제됩니다.</p><button className="outline-button" onClick={auth.signOut}>로그아웃</button></section>;
+  if (auth.phase === 'checking') return <StatusPanel title="공통 신원과 현재 권한을 확인 중입니다">로그인 토큰만으로 보호 화면을 열지 않습니다.</StatusPanel>;
+  return <>{auth.message && <p role="status">{auth.message}</p>}<PlatformLogin enabled session={{ state: 'signed_out' }} onSignedIn={auth.accept} onSignedOut={() => undefined} /></>;
+}
+
+function ProtectedFeature({ id, navigate }: { id: 'community' | 'recruitments' | 'opportunities'; navigate: (id: SectionId) => void }) {
+  const auth = useMemoryAuth();
+  const title = navigation.find(item => item.id === id)!.label;
+  return <section key={auth.generation} className="surface section-block"><h1>{title}</h1>
+    {auth.phase !== 'authenticated' ? <StatusPanel title="로그인이 필요한 화면입니다">{auth.message || '가상 계정 로그인 후 서버의 현재 신원·권한을 확인해야 이용할 수 있습니다.'}<button className="outline-button" onClick={() => navigate('login')}>로그인 화면으로</button></StatusPanel>
+      : id !== 'opportunities' && !auth.user?.community_access ? <StatusPanel title="현재 커뮤니티 권한이 없습니다">역할이나 소속을 이 화면에서 부여할 수 없습니다. 서버의 승인 상태를 확인해 주세요.</StatusPanel>
+      : id === 'community' ? <AnonymousBoard /> : id === 'recruitments' ? <RecruitmentBoard /> : <OpportunitiesPage />}
+  </section>;
+}
+
+export default function App() { return <MemoryAuthProvider><CampusApp /></MemoryAuthProvider>; }
+
+function CampusApp() {
+  const auth = useMemoryAuth();
   const [path, setPath] = useState(window.location.pathname.replace(/\/$/, '') || '/app');
   const [menuOpen, setMenuOpen] = useState(false);
   const main = useRef<HTMLElement>(null);
@@ -65,7 +90,7 @@ export default function App() {
   useEffect(() => { const pop = () => { setPath(window.location.pathname.replace(/\/$/, '') || '/app'); setMenuOpen(false); }; window.addEventListener('popstate', pop); return () => window.removeEventListener('popstate', pop); }, []);
   function navigate(id: SectionId) { const item = navigation.find(item => item.id === id)!; window.history.pushState(null, '', item.path); setPath(item.path); setMenuOpen(false); main.current?.focus(); window.scrollTo?.({ top: 0 }); }
   return <div className="app-layout"><a className="skip-link" href="#main-content">본문으로 건너뛰기</a><aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`} id="campus-navigation"><a className="brand" href="/app" onClick={event => { event.preventDefault(); navigate('home'); }} aria-label="DIT NOW 홈"><span className="brand-symbol" aria-hidden="true">✳</span><span>DIT <b>NOW</b><small>나의 캠퍼스, 지금</small></span></a><nav aria-label="캠퍼스 전체 메뉴">{navigation.map((item, index) => <div key={item.id}>{(index === 0 || navigation[index - 1].category !== item.category) && <p className="nav-group">{item.category}</p>}<a href={item.path} className={`nav-link ${current?.id === item.id ? 'active' : ''}`} aria-current={current?.id === item.id ? 'page' : undefined} onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate(item.id); } }}><Icon name={item.id} /><span>{item.label}</span>{item.id === 'ai' && <span className="nav-new">AI</span>}</a></div>)}</nav><div className="sidebar-foot"><span className="live-dot" /> 새로운 캠퍼스를 연결하는 중<small>독립 플랫폼 · 공개 탐색</small></div></aside>
-    <div className="workspace"><header className="topbar"><button className="menu-button" aria-label={menuOpen ? '전체 메뉴 닫기' : '전체 메뉴 열기'} aria-expanded={menuOpen} aria-controls="campus-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? '닫기' : '메뉴'}</button><div className="breadcrumb">나의 캠퍼스 <span aria-hidden="true">/</span> <strong>{current?.label ?? '페이지 안내'}</strong></div><div className="visitor"><span className="visitor-avatar" aria-hidden="true">D</span><span>공개 탐색<small>로그인되지 않음</small></span></div></header><main id="main-content" ref={main} tabIndex={-1}><div className="page-intro"><span>DIT NOW <span className="intro-dot">●</span> CAMPUS PLATFORM</span><span className="preview-badge">개발 중 · 실제 학교 연동 없음</span></div>{current?.id === 'home' ? <Home navigate={navigate} /> : current?.id === 'ai' ? <CampusAssistantPage /> : current?.id === 'information' ? <PublicCampusPage /> : current?.id === 'discovery' ? <PublicDiscoveryPage /> : current ? <PendingSection key={current.id} id={current.id} /> : <StatusPanel title="페이지를 찾을 수 없어요" tone="error"><button className="text-button" onClick={() => navigate('home')}>캠퍼스 홈으로 이동</button></StatusPanel>}<footer>DIT NOW <span>배움과 사람, 기회를 연결합니다.</span><small>공개 탐색 화면 · 개인 정보 연결 전</small></footer></main></div>
+    <div className="workspace"><header className="topbar"><button className="menu-button" aria-label={menuOpen ? '전체 메뉴 닫기' : '전체 메뉴 열기'} aria-expanded={menuOpen} aria-controls="campus-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? '닫기' : '메뉴'}</button><div className="breadcrumb">나의 캠퍼스 <span aria-hidden="true">/</span> <strong>{current?.label ?? '페이지 안내'}</strong></div><div className="visitor"><span className="visitor-avatar" aria-hidden="true">D</span><span>{auth.user?.display_name ?? '공개 탐색'}<small>{auth.phase === 'authenticated' ? '가상 계정(DEMO)' : '로그인되지 않음'}</small></span>{auth.phase === 'authenticated' ? <button className="text-button" onClick={auth.signOut}>로그아웃</button> : <button className="text-button" onClick={() => navigate('login')}>로그인</button>}</div></header><main id="main-content" ref={main} tabIndex={-1}><div className="page-intro"><span>DIT NOW <span className="intro-dot">●</span> CAMPUS PLATFORM</span><span className="preview-badge">개발 중 · 실제 학교 연동 없음</span></div>{current?.id === 'login' ? <LoginPanel /> : current?.id === 'home' ? <Home navigate={navigate} /> : current?.id === 'ai' ? <CampusAssistantPage /> : current?.id === 'information' ? <PublicCampusPage /> : current?.id === 'discovery' ? <PublicDiscoveryPage /> : current && ['community', 'recruitments', 'opportunities'].includes(current.id) ? <ProtectedFeature key={`${current.id}:${auth.generation}`} id={current.id as 'community' | 'recruitments' | 'opportunities'} navigate={navigate} /> : current ? <PendingSection key={current.id} id={current.id} /> : <StatusPanel title="페이지를 찾을 수 없어요" tone="error"><button className="text-button" onClick={() => navigate('home')}>캠퍼스 홈으로 이동</button></StatusPanel>}<footer>DIT NOW <span>배움과 사람, 기회를 연결합니다.</span><small>{auth.phase === 'authenticated' ? '가상 계정 · 시연용 데이터' : '공개 탐색 · 로그인 전'}</small></footer></main></div>
     <nav className="mobile-bar" aria-label="빠른 메뉴">{(['home', 'classrooms', 'department', 'community'] as const).map(id => <button key={id} aria-current={current?.id === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon name={id} size={20} /><span>{navigation.find(item => item.id === id)!.label.replace('캠퍼스 ', '')}</span></button>)}<button aria-expanded={menuOpen} aria-controls="campus-navigation" onClick={() => setMenuOpen(!menuOpen)}><span className="more-icon" aria-hidden="true">•••</span><span>전체 메뉴</span></button></nav>
   </div>;
 }

@@ -32,7 +32,7 @@ describe('integrated campus shell', () => {
     render(<App />);
     expect(screen.getByText('로그인되지 않음')).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
-    expect(within(menu).getAllByRole('link')).toHaveLength(11);
+    expect(within(menu).getAllByRole('link')).toHaveLength(12);
     expect(screen.getByRole('heading', { name: /이번 학기도,\s*나답게\./ })).toBeInTheDocument();
   });
   it('changes route and clearly marks unfinished functionality', () => {
@@ -41,7 +41,7 @@ describe('integrated campus shell', () => {
     fireEvent.click(within(menu).getByRole('link', { name: '익명 커뮤니티' }));
     expect(window.location.pathname).toBe('/app/community');
     expect(screen.getByRole('heading', { name: '익명 커뮤니티' })).toBeInTheDocument();
-    expect(screen.getByText('이 기능은 아직 연결되지 않았어요')).toBeInTheDocument();
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
     expect(within(menu).getByRole('link', { name: '익명 커뮤니티' })).toHaveAttribute('aria-current', 'page');
   });
   it('honors browser back navigation and handles unknown pages', () => {
