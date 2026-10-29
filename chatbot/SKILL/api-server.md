@@ -2,6 +2,8 @@
 
 > 대상 파일: `app/main.py`, `app/schemas.py`(API 모델), `app/config.py`
 
+> 아래 경로는 보존된 독립 시연 서버의 기존 계약이다. 통합 DIT NOW에서는 `services/api`가 진입점이며 이 서버의 로그인·DB 시드·관리자 API를 mount하지 않는다. 통합 1단계 공개 시설 검색과 차단 범위는 [README](../README.md)를 따른다.
+
 ## 1. 엔드포인트
 
 | 메서드 | 경로 | 설명 |

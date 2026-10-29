@@ -32,7 +32,7 @@ source_ids: [FR-NOT-001, FR-NOT-002, NFR-SEC-002, NFR-REL-002, TC-005, TC-006]
 inputs: [notice_id, actor_token, audience_type, audience_id]
 outputs: [notice_revision, delivery_ids]
 dependencies: [TASK-AUTH-RBAC, TASK-DEPT-CHANNELS, TASK-NOTICE-MODEL]
-files_allowed: [mvp/src/features/notices/**, services/api/**] # services/api는 FastAPI 제안 경로이며 아직 없음
+files_allowed: [apps/web/src/features/campus/**, services/api/app/features/campus/**] # 신규 앱 분리; 공통 파일은 별도 소유자
 files_forbidden: [src/features/community/**]
 acceptance:
   - approved assistant can publish department-year notice
@@ -79,3 +79,6 @@ human_gate: shared_schema_or_policy_or_main_merge
 ## 8. 매 실행에서 남길 결과
 - 작업 ID/상태, 구현 파일, commit, 테스트 명령 및 실제 로그, 미완료 위험, 관련 문서 업데이트, 다음 실행 가능한 ID.
 - 반드시 `done` / `failed` / `blocked` / `not_run` 명시. '대체로 성공' 금지.
+
+## 9. 최신 사용자 실행 승인 (2026-10-30)
+DEC-016~018의 MariaDB·통합 RAG·신규 프런트와 전체92 1차 구현을 따른다. 낮은 위험의 독립 코드/문서/CI는 실제 테스트·독립 리뷰·동일HEAD CI·보호규칙 충족 후 한국어 PR과 Merge commit으로 자동 병합하도록 사용자가 승인했다. 인증·권한·보안 경계·관리자·파괴적 DB·민감 데이터·비용·배포는 별도 사람 승인이 필요하다. 이 기록은 미결정 정책 승인이 아니다.

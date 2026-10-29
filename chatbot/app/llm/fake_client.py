@@ -1,7 +1,7 @@
 import re
 
-from app.llm.base import ChatMessage, LLMClient
-from app.prompt import CONDENSE_PROMPT
+from ..llm.base import ChatMessage, LLMClient
+from ..prompt import CONDENSE_PROMPT
 
 _CONTEXT_ID = re.compile(r"^\[([^\]]+)\]", re.MULTILINE)
 

@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from app.models import (
+from .models import (
     Base,
     CourseRow,
     CourseSessionRow,
@@ -14,7 +14,7 @@ from app.models import (
     GraduationRuleRow,
     StudentRow,
 )
-from app.schemas import MockData
+from .schemas import MockData
 
 
 def make_engine(url: str) -> AsyncEngine:

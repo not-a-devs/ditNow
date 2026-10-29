@@ -6,11 +6,11 @@ import re
 
 from pydantic import BaseModel
 
-from app.llm import ChatMessage, LLMClient, LLMError
-from app.prompt import CLASSIFY_PROMPT
-from app.retriever.base import Retriever
-from app.retriever.keyword import normalize, tokenize
-from app.schemas import WEEKDAYS
+from .llm import ChatMessage, LLMClient, LLMError
+from .prompt import CLASSIFY_PROMPT
+from .retriever.base import Retriever
+from .retriever.keyword import normalize, tokenize
+from .schemas import WEEKDAYS
 
 logger = logging.getLogger(__name__)
 
