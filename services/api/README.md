@@ -64,6 +64,11 @@ GitHub의 `Python API 검증`은 잠금 설치·Ruff·pytest·앱 import/OpenAPI
 
 ## 실제 API와 프런트 타입 동기화
 
-`uv run --locked python -m app.export_openapi`로 실제 라우트에서 `openapi.json`을 생성하고 `--check`로 커밋된 스냅샷과 비교한다. 기존 CI의 `mvp/` 타입 생성·검사는 사전 프로토타입의 역사적 회귀만 유지한다. 생성 타입 갱신은 기존 소스를 새 제출물에 재사용하는 행위가 아니다. 신규 앱은 별도 타입 생성기와 실제 API 연결 검증을 갖춘 후 사용한다. 타입 생성은 [openapi-typescript의 공식 Node API](https://openapi-ts.dev/node)를 사용한다.
+`uv run --locked python -m app.export_openapi`로 실제 라우트에서 `openapi.json`을 생성하고 `--check`로 커밋된 스냅샷과 비교한다. 기존 CI의 `mvp/` 타입 생성·검사는 사전 프로토타입의 역사적 회귀만 유지한다. 생성 타입 갱신은 기존 소스를 새 제출물에 재사용하는 행위가 아니다. 신규 앱은 별도 타입 생성기와 공개 조회의 실제 API 연결 검증을 갖추었다. 타입 생성은 [openapi-typescript의 공식 Node API](https://openapi-ts.dev/node)를 사용한다.
 
-현재 계약에는 health 두 경로, 공개 시설 검색과 공통 응답/오류가 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. 신규 프런트 연결과 MariaDB·공통 세션 통합은 별도로 검증한다.
+현재 계약에는 health 두 경로, 공개 시설 검색, 공개 대학·학과 안내 조회 두 경로와 공통 응답/오류가 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. MariaDB·공통 세션 통합은 별도로 검증한다.
+
+## 공개 대학·학과 안내
+GET `/api/v1/public-campus`와 `/{record_id}`는 근거 7건을 자체 요약한 버전 스냅샷의 목록·정규화 검색·주제/출처 필터·상세를 제공한다. 새 앱 `/app/information`에 연결했다. 공식 게시물 동일성·실시간 최신성·학과 운영 업무 전체를 주장하지 않는다. 상세 범위와 출처는 [TASK-I](../../docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)를 본다. 쓰기·개인 신원·실DB 접근은 없다.
+
+MariaDB 실제 두 계정 읽기/권한 검증과 비동기 TLS 연결 차단은 [운영 검사](../../docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. CA·SAN 준비 전 인증서 검증을 해제하지 않는다. `infra/mariadb` 서버 운영 정의를 이 개발 PC에서 실행하지 않는다.

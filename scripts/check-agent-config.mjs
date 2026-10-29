@@ -63,7 +63,7 @@ if (exists('NAV.md')) {
     + (nav.split(/^## 4\./m)[1] ?? '').split(/^## 6\./m)[0];
   const candidates = [...currentSections.matchAll(/`([^`\r\n]+)`/g)]
     .map((match) => match[1])
-    .filter((value) => /^(?:README\.md|(?:docs|mvp|scripts|\.agents|\.claude)\/[^\s`]*)$/.test(value));
+    .filter((value) => /^(?:README\.md|(?:docs|mvp|services|apps|infra|packages|scripts|\.agents|\.claude)\/[^\s`]*)$/.test(value));
   for (const rel of new Set(candidates)) {
     check(exists(rel), `NAV PATH MISSING: ${rel}`);
     if (exists(rel) && rel.endsWith('/')) check(statSync(join(root, rel)).isDirectory(), `NAV PATH IS NOT DIRECTORY: ${rel}`);

@@ -99,6 +99,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public-campus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Guides */
+        get: operations["list_guides_api_v1_public_campus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public-campus/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Guide */
+        get: operations["get_guide_api_v1_public_campus__record_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -279,6 +313,13 @@ export interface components {
              */
             retryable: boolean;
         };
+        /** GuideSection */
+        GuideSection: {
+            /** Heading */
+            heading: string;
+            /** Paragraphs */
+            paragraphs: string[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -325,6 +366,108 @@ export interface components {
             /** Student Id */
             student_id: string;
         };
+        /** PublicGuide */
+        PublicGuide: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "university" | "campus" | "disclosure" | "news" | "department";
+            /**
+             * Content Kind
+             * @default EDITORIAL_PUBLIC_SUMMARY
+             * @constant
+             */
+            content_kind: "EDITORIAL_PUBLIC_SUMMARY";
+            /** Feature Ids */
+            feature_ids: ("FR-WEB-001" | "FR-WEB-002" | "FR-WEB-003" | "FR-WEB-004" | "FR-DEPT-007" | "FR-DEPT-008")[];
+            /** Id */
+            id: string;
+            /** Sections */
+            sections: components["schemas"]["GuideSection"][];
+            source: components["schemas"]["SourceEvidence"];
+            /** Summary */
+            summary: string;
+            /** Tags */
+            tags: string[];
+            /** Title */
+            title: string;
+        };
+        /** PublicGuideCard */
+        PublicGuideCard: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "university" | "campus" | "disclosure" | "news" | "department";
+            /** Id */
+            id: string;
+            source: components["schemas"]["SourceEvidence"];
+            /** Summary */
+            summary: string;
+            /** Tags */
+            tags: string[];
+            /** Title */
+            title: string;
+        };
+        /** PublicGuidePage */
+        PublicGuidePage: {
+            /** Items */
+            items: components["schemas"]["PublicGuideCard"][];
+            /** Limit */
+            limit: number;
+            /**
+             * Notice
+             * @default 공식 공개 페이지를 참고한 DIT NOW 편집 요약입니다. 최신 공식 안내와 처리 규칙은 원문을 확인하세요.
+             */
+            notice: string;
+            /** Offset */
+            offset: number;
+            /** Snapshot Version */
+            snapshot_version: string;
+            /** Total */
+            total: number;
+        };
+        /** SourceEvidence */
+        SourceEvidence: {
+            /**
+             * Checked At
+             * Format: date
+             */
+            checked_at: string;
+            /**
+             * Checked Scope
+             * @default 공식 페이지의 도구 반환본 확인. 원문 수정일이나 실시간 최신성을 보장하지 않음.
+             */
+            checked_scope: string;
+            /** Evidence */
+            evidence: string;
+            /**
+             * Existence
+             * @default VERIFIED
+             * @constant
+             */
+            existence: "VERIFIED";
+            /**
+             * Freshness
+             * @default UNKNOWN
+             * @constant
+             */
+            freshness: "UNKNOWN";
+            /**
+             * Processing Rules
+             * @default PARTIAL
+             * @constant
+             */
+            processing_rules: "PARTIAL";
+            /**
+             * Site
+             * @enum {string}
+             */
+            site: "university" | "cs";
+            /** Url */
+            url: string;
+        };
         /** SuccessResponse[AskData] */
         SuccessResponse_AskData_: {
             data: components["schemas"]["AskData"];
@@ -361,6 +504,28 @@ export interface components {
         /** SuccessResponse[LoginData] */
         SuccessResponse_LoginData_: {
             data: components["schemas"]["LoginData"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[PublicGuidePage] */
+        SuccessResponse_PublicGuidePage_: {
+            data: components["schemas"]["PublicGuidePage"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[PublicGuide] */
+        SuccessResponse_PublicGuide_: {
+            data: components["schemas"]["PublicGuide"];
             /** Resource Version */
             resource_version?: number | null;
             /**
@@ -620,6 +785,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_guides_api_v1_public_campus_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                category?: ("university" | "campus" | "disclosure" | "news" | "department") | null;
+                site?: ("university" | "cs") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_PublicGuidePage_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_guide_api_v1_public_campus__record_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                record_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_PublicGuide_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Internal Server Error */

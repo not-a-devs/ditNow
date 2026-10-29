@@ -76,4 +76,13 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 - H · Codex B: ditNow-library / feat/library-firstpass-20261030. FR-LIB-001~004의 가상 카탈로그·본인 대출/연장·희망도서·공간 예약, 기능 전용 FE/BE/tests만 소유. 실제 DB·운영 규정 활성화는 차단한다.
 - I · Codex F: ditNow-public-campus / feat/public-campus-information-20261030. FR-WEB-001~004/DEPT-007~008의 공개 원문 출처를 갖춘 소규모 스냅샷·검색·상세 API/UI. 담당자 쓰기·교수 실명/최신성 추정·비공개 API는 사용하지 않는다.
 
-현재 진행표는 **main 기준 부분 구현 8·미구현 79·운영 정책 차단 5·완전 구현 0**이다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+이 통합 PR 반영 기준 진행표는 **부분 구현 34·미구현 53·운영 정책 차단 5·완전 구현 0**이다. 진행 중/검토/승인 차단/일부 병합은 work_status·work_branch·work_pr·work_scope 열로 분리한다. 개별 기능 전체의 실DB·사용자 시나리오 검증은 아직 아니다.
+
+
+## 최신 실행 갱신 — 공개 안내·DB 실제 진단
+- C/D/E PR23·20·24는 독립 재검토·같은 HEAD CI·합성 API397/웹140 통과 후 미활성 모듈로 병합했다. H 도서 PR31와 J 가상 입학 PR33도 미마운트/운영 미연결 부분이다. 운영 신원·DB 활성화 승인이 아니다.
+- I 공개 안내 PR32는 기존 조회 스냅샷을 GET API·신규 `/app/information`에 연결하고 실제 브라우저 검색/필터/목록·상세/출처·오류/390·1280 검사를 수행했다. 모바일 상세 초점이 sticky 헤더 아래 숨는 결함을 수정했다.
+- Claude CLI 후속 세션을 실제 시작했다: K ditNow-collaboration/feat/collaboration-firstpass-20261030, L ditNow-careers/feat/careers-programs-firstpass-20261030, M ditNow-academics/feat/academics-attendance-firstpass-20261030. 각 features 모듈·전용 FE/BE/tests·TASK 문서만 소유하며 공유 인증/DB/migration/lock은 수정하지 않는다.
+- N · Codex B, ditNow-mariadb-integration/feat/mariadb-p0-persistence-20261030. 검토된 PR19/26을 격리 브랜치에서 조합해 실제 SQLAlchemy P0 저장소·비파괴 초기 migration 코드/테스트를 작성한다. 공통 모델·DB 의존성·migration은 B가 단일 소유한다. 다른 미병합 변경을 임의 채택하지 않는다.
+- DB의 네트워크·양 계정 인증·SELECT·직접 GRANT·빈 schema는 Codex에서도 성공했다. 실제 async API 연결은 **BLOCKED_TLS**이며 사용자에게 CA·SAN을 요청했고 검증 해제 금지를 확인했다. [현재 DB 검사](07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. 원격 DDL/seed/CRUD 쓰기는 아직 0이다.
+- PR13/19/26/28은 사람 보안 승인 대기로 유지한다. PR30은 별도 인프라 작업자가 병합한 팀원 VM 운영 정의이며 로컬 DB 컨테이너를 실행하지 않는다.
