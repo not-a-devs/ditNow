@@ -11,6 +11,7 @@
 - 통합 설계 초안은 `docs/v1-draft/`의 PRD→FRD→NFR→RBAC→DB/API→아키텍처→IA/UX→QA 순으로 읽고, 92개 ID의 기능별 연결은 `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`에서 확인한다. 미확정 정책은 `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`를 따른다. 이 초안은 기존 확정 결정을 대체하지 않는다.
 - P0 인증·소속·CRUD 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`, MariaDB 정정과 독립 보안 리뷰는 [승인 대기 PR #13](https://github.com/not-a-devs/ditNow/pull/13)을 본다. DB 제품 확정과 인증·운영 접속·비용 승인은 별개다.
 - 전체 92개 1차 구현의 FE·BE·DB·테스트 상태는 `docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv`, Codex·Claude worktree·브랜치·파일 소유자는 `docs/dev-prep/05_PARALLEL_IMPLEMENTATION_BOARD.md`다.
+- MariaDB 11.4의 팀원 VM·Tailscale·DML/migration 계정 분리와 실제 연결 검사/차단은 `docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md`다. 프로젝트 내부 DB 컨테이너를 중복 생성하지 않는다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점
