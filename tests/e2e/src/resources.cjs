@@ -31,8 +31,11 @@ class ResourceRegistry {
       if (this.#items.size >= MAX_RESOURCES) throw new RangeError('resource registry full');
       this.#onSecret(id);
       this.#items.set(key, { kind, id, revision, viewport, state: 'active' });
-    } else if (revision !== null) {
-      this.#items.get(key).revision = revision;
+    } else {
+      // A new create/save can reuse an ID already removed by an earlier viewport.
+      const item = this.#items.get(key);
+      item.state = 'active';
+      if (revision !== null) item.revision = revision;
     }
     return this.#items.get(key);
   }
