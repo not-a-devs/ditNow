@@ -309,6 +309,10 @@ def test_proposed_models_and_dependencies_are_not_live_api_routes():
         "/health",
         "/api/v1/health",
         "/api/v1/ai/campus/search",
+        # DEC-020 routes already on main; they do not mount the proposed P0 provider/DB seam.
+        "/api/v1/ai/ask",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
         "/api/v1/public-campus",
         "/api/v1/public-campus/{record_id}",
     }
