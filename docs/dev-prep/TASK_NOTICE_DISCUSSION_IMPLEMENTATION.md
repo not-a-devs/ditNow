@@ -52,4 +52,8 @@ DB 단일 소유자는 `Store/UnitOfWork`를 MariaDB로 구현한다. identity r
 - TC-R-004: 미설치503·입력400·공통 오류/안전 로그/no-store·기본 앱 미마운트.
 - TC-R-005: 신규 UI의 실제 client 호출 계약·StrictMode·오류 폼/키 유지·입력 변경 키 회전·응답 오염 거부·학과 변경 초안 폐기·권한 오류 비우기.
 
-초기 실행: BE 전용14개·Ruff PASS, FE 전용7개·타입 검사 PASS, npm ci 취약점0. 보완 후 최종 결과는 후속 검증에서 갱신한다. 운영 DB·실 로그인·전역 메뉴/router 연결·실브라우저 E2E·부하·운영 배포는 NOT_RUN이다. UI/Protocol만으로 전체 FR을 IMPLEMENTED/VERIFIED 처리하지 않는다.
+2026-10-30, main `3535e01` 기준 신규 worktree에서 `uv sync --frozen`/`npm ci`를 수행했다. 첫 전체 회귀는 Python **498개(전용16개 포함)**, 웹 **187개(전용7개 포함)** PASS였다. 전체 Python Ruff, 신규 웹 타입 검사·빌드·생성 타입 비교·audit 취약점0, 에이전트81개 탐색 경로/8개 스킬·전체92개 진행표 검사·git diff 검사 PASS다. 초기 코드의 긴 줄과 미사용 import는 소유 범위의 Ruff 수정/포맷 후 검사에 통과했다.
+
+별도 Codex 읽기 전용 검토자가 BE16개·Ruff·FE7개·타입 검사를 직접 통과했고, 댓글 부모 Q1→Q2 전환 때 Editor가 재사용되어 초안/진행 요청이 남는 P2를 발견했다. 댓글 section을 question ID로 remount하여 기존 요청을 취소·폐기하도록 수정했다. Q1 초안→Q2 빈 폼, Q1 진행 POST의 abort, 늦은 Q1 응답 이후 Q2 초안 보존 회귀를 추가했고 수정 후 **FE 전용8개 및 타입 검사**를 작성자가 통과했다. 검토자도 보완 소스와 FE8개를 직접 재검증하여 현재 미마운트 범위의 잔여 차단 finding이 없다고 보고했다. 이 AI 검토는 사람의 정책/보안 승인이 아니다. 새 전체 테스트 수는 Push 후 같은 PR HEAD의 원격 CI에서 별도로 확인하며 기존187개 결과를 보완 후 전체 수로 바꾸어 주장하지 않는다.
+
+운영 DB·실 로그인·전역 메뉴/router 연결·실브라우저 E2E·부하·운영 배포는 NOT_RUN이다. UI/Protocol만으로 전체 FR을 IMPLEMENTED/VERIFIED 처리하지 않는다. 공통 NAV·보드·92개 진행표 등록과 실제 메뉴/API 활성화는 통합 소유자의 후속 태스크다.

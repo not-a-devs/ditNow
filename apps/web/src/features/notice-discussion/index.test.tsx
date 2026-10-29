@@ -114,4 +114,35 @@ describe('공지·학과 질문 부분 구현', () => {
     expect(isNotice({ ...notice, history: [{ ...notice.history[0], revision: 3 }] })).toBe(false);
     expect(isPage({ items: [row], offset: -1, limit: 10 })).toBe(false);
   });
+
+  it('질문 전환 시 댓글 초안과 진행 중 응답을 다른 부모에 반영하지 않는다', async () => {
+    items = [{ ...row, is_mine: false }, { ...row, id: N, title: '두 번째 질문', is_mine: false }];
+    let finish!: (value: unknown) => void;
+    let pendingSignal: AbortSignal | null = null;
+    const original = vi.mocked(requestData).getMockImplementation()!;
+    vi.mocked(requestData).mockImplementation(async (path, init) => {
+      if (init?.method === 'POST') {
+        pendingSignal = init.signal as AbortSignal;
+        return new Promise(resolve => { finish = resolve; });
+      }
+      if (path.includes('/comments?')) return { items: [], offset: 0, limit: 50 };
+      return original(path, init);
+    });
+    render(<NoticeDiscussionPage departmentId={D} />);
+    fireEvent.click(screen.getByRole('button', { name: '학과 질문' }));
+    const open = await screen.findAllByRole('button', { name: '댓글 보기' });
+    fireEvent.click(open[0]);
+    fireEvent.change(screen.getByLabelText('댓글 내용'), { target: { value: '첫 질문 초안' } });
+    fireEvent.click(open[1]);
+    expect(screen.getByLabelText('댓글 내용')).toHaveValue('');
+    fireEvent.click(open[0]);
+    fireEvent.change(screen.getByLabelText('댓글 내용'), { target: { value: '첫 질문 전송' } });
+    fireEvent.submit(screen.getByRole('form', { name: '시연 댓글 작성·수정' }));
+    await waitFor(() => expect(pendingSignal).not.toBeNull());
+    fireEvent.click(open[1]);
+    expect((pendingSignal as AbortSignal | null)?.aborted).toBe(true);
+    fireEvent.change(screen.getByLabelText('댓글 내용'), { target: { value: '둘째 질문 초안' } });
+    finish({ ...row, kind: 'COMMENT', title: null, question_id: ID });
+    await waitFor(() => expect(screen.getByLabelText('댓글 내용')).toHaveValue('둘째 질문 초안'));
+  });
 });
