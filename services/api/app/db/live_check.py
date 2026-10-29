@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings
 from app.core.db_connection import create_database_engine
+from app.core.event_loop import new_event_loop
 from app.db.models import Base
 
 
@@ -87,7 +88,7 @@ def main() -> int:
     if os.environ.get("DIT_API_RUN_DB_INTEGRATION") != "1":
         print(json.dumps({"connection": "NOT_RUN", "reason": "EXPLICIT_OPT_IN_REQUIRED"}))
         return 2
-    return asyncio.run(_run())
+    return asyncio.run(_run(), loop_factory=new_event_loop)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # TASK-N P0 SQL 저장소 기반
 
-상태: **IMPLEMENTED / TESTED(로컬 SQLite), 운영 미연결**. 실제 MariaDB 원격 연결·DDL·CRUD는 **BLOCKED_TLS / NOT_RUN**. 인증서 검증을 유지하며 실제 인증 공급자·관리자 발급·운영 데이터 처리 승인은 별도다.
+상태: **IMPLEMENTED / TESTED(로컬 SQLite), 운영 업무 미연결**. 원격 DDL·업무 CRUD는 **NOT_RUN**이며 초기 적용·운영 활성화 승인이 필요하다. 과거 BLOCKED_TLS 기록과 이후 root의 Windows 루프별 엄격 TLS 연결 실험은 [운영 검사](../../../../docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md)를 따른다. 단일 Selector 실험의 연결 성공은 안정 운영 검증이 아니다. 인증서 검증을 유지하며 실제 인증 공급자·관리자 발급·운영 데이터 처리 승인은 별도다.
 
 ## 실행 경계
 

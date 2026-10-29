@@ -12,10 +12,13 @@ from typing import Literal
 import aiomysql
 from pydantic import BaseModel, ConfigDict
 from pymysql.constants import CLIENT
+from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.core.config import Settings
+
+SESSION_CHARSET_SQL = "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci"
 
 
 class DatabaseConfigurationError(RuntimeError):
@@ -58,6 +61,18 @@ def configuration_report(settings: Settings) -> DatabaseConfigurationReport:
     return DatabaseConfigurationReport(configured=settings.database_configured)
 
 
+def _configure_connection_charset(dbapi_connection, _connection_record) -> None:
+    """Run after the dialect's SET NAMES reset; this changes no persisted rows/DDL."""
+    try:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute(SESSION_CHARSET_SQL)
+        finally:
+            cursor.close()
+    except Exception:
+        raise DatabaseConfigurationError("Database session initialization failed") from None
+
+
 def create_database_engine(settings: Settings) -> AsyncEngine:
     """Construct only; the caller must separately approve/open/dispose connections.
 
@@ -78,7 +93,7 @@ def create_database_engine(settings: Settings) -> AsyncEngine:
             password=settings.db_password.get_secret_value(),
             db=settings.db_name,
             charset="utf8mb4",
-            init_command="SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+            init_command=SESSION_CHARSET_SQL,
             connect_timeout=settings.db_connect_timeout,
             ssl=context,
             local_infile=False,
@@ -102,13 +117,17 @@ def create_database_engine(settings: Settings) -> AsyncEngine:
         return connection
 
     # Credentials deliberately stay out of the engine URL/repr and exception URL.
-    return create_async_engine(
+    engine = create_async_engine(
         URL.create("mysql+aiomysql"),
         async_creator=connect,
         pool_pre_ping=True,
         hide_parameters=True,
         echo=False,
     )
+    # Append after built-in dialect initialization, never insert=True: MySQL's
+    # on_connect sets SET NAMES without COLLATE and otherwise resets MariaDB's value.
+    event.listen(engine.sync_engine, "connect", _configure_connection_charset)
+    return engine
 
 
 def main() -> int:

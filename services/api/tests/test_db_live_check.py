@@ -13,9 +13,25 @@ def test_without_opt_in_never_reads_settings_or_connects(monkeypatch, capsys):
     monkeypatch.delenv("DIT_API_RUN_DB_INTEGRATION", raising=False)
     settings = Mock(side_effect=AssertionError("must not read settings"))
     monkeypatch.setattr(live_check, "Settings", settings)
+    loop_factory = Mock(side_effect=AssertionError("must not construct event loop"))
+    monkeypatch.setattr(live_check, "new_event_loop", loop_factory)
     assert live_check.main() == 2
     assert json.loads(capsys.readouterr().out)["connection"] == "NOT_RUN"
     settings.assert_not_called()
+    loop_factory.assert_not_called()
+
+
+def test_opt_in_uses_explicit_loop_factory_without_network(monkeypatch):
+    import asyncio
+
+    monkeypatch.setenv("DIT_API_RUN_DB_INTEGRATION", "1")
+    loop = asyncio.SelectorEventLoop()
+    factory = Mock(return_value=loop)
+    monkeypatch.setattr(live_check, "new_event_loop", factory)
+    monkeypatch.setattr(live_check, "_run", AsyncMock(return_value=3))
+    assert live_check.main() == 3
+    factory.assert_called_once_with()
+    assert loop.is_closed()
 
 
 def test_opt_in_safe_failure_does_not_print_private_exception(monkeypatch, capsys):

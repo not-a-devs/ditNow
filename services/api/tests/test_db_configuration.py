@@ -115,8 +115,14 @@ def test_async_creator_passes_safe_options_and_sanitizes_driver_errors(monkeypat
     )
     driver_factory = Mock(return_value=driver)
     monkeypatch.setattr(db_connection, "TLSRequiredConnection", driver_factory)
-    monkeypatch.setattr(db_connection, "create_async_engine", lambda url, **kw: options.update(kw))
-    create_database_engine(configured())
+    actual_create = db_connection.create_async_engine
+
+    def capture(url, **kwargs):
+        options.update(kwargs)
+        return actual_create(url, **kwargs)
+
+    monkeypatch.setattr(db_connection, "create_async_engine", capture)
+    engine = create_database_engine(configured())
     if fails:
         with pytest.raises(DatabaseConfigurationError) as error:
             asyncio.run(options["async_creator"]())
@@ -134,6 +140,7 @@ def test_async_creator_passes_safe_options_and_sanitizes_driver_errors(monkeypat
     assert kwargs["ssl"].verify_mode == ssl.CERT_REQUIRED
     assert kwargs["ssl"].check_hostname
     assert kwargs["local_infile"] is kwargs["autocommit"] is kwargs["echo"] is False
+    asyncio.run(engine.dispose())
 
 
 @pytest.mark.parametrize(

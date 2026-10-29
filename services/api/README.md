@@ -61,7 +61,24 @@ uv run --locked pytest tests/test_db_configuration.py
 
 첫 명령은 **오프라인 설정 진단**만 출력한다. 호스트·계정·비밀번호·DSN·내부 예외는 출력하지 않으며 연결/GRANT는 `NOT_RUN`이다. `DIT_API_ENVIRONMENT`는 기존처럼 필수다. 스키마 버전 원장의 테이블/권한/기대 버전이 아직 승인되지 않아 `BLOCKED_LEDGER_CONTRACT`로 표시한다. 임의의 원장 테이블을 조회하거나 현재 스키마를 최신으로 간주하지 않는다. 접속 승인 후 실제 MariaDB 11.4/utf8mb4/utf8mb4_unicode_ci·TLS·DML 최소 GRANT·스키마 버전 검사를 추가해야 하며, 그 전에는 운영 준비 완료로 표시할 수 없다.
 
-확인일 2026-10-30: [SQLAlchemy MariaDB·aiomysql 공식 문서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#module-sqlalchemy.dialects.mysql.aiomysql)는 async dialect를 제공하고, [aiomysql 연결 문서](https://aiomysql.readthedocs.io/en/stable/connection.html)는 SSLContext·connect_timeout·LOCAL INFILE 설정을 설명한다. 이는 실제 팀 VM과의 호환성 검증을 대체하지 않는다. 실제 사설망·양 계정 인증·SELECT·직접 GRANT·빈 스키마는 별도 읽기 전용 검사에서 확인했다. 엄격한 비동기 TLS 검증은 **BLOCKED_TLS**이며 CA·SAN 준비를 기다린다. 원격 DDL·seed·CRUD 쓰기는 0이고 사람 승인 전 자동 병합하지 않는다. 관련 요구사항: NFR-SEC-004/005, NFR-PRIV-003, NFR-OPS-001/002; 로컬 검증 ID: TC-DB-CONFIG.
+확인일 2026-10-30: [SQLAlchemy MariaDB·aiomysql 공식 문서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#module-sqlalchemy.dialects.mysql.aiomysql)는 async dialect를 제공하고, [aiomysql 연결 문서](https://aiomysql.readthedocs.io/en/stable/connection.html)는 SSLContext·connect_timeout·LOCAL INFILE 설정을 설명한다. 이는 실제 팀 VM과의 호환성 검증을 대체하지 않는다. 사설망·계정·GRANT 및 루프별 엄격 TLS 실험은 별도 [운영 검사](../../docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md) 기록을 따른다. 과거 BLOCKED_TLS의 원인을 모든 경우 인증서 실패로 간주하지 않는다. 원격 DDL·seed·CRUD 쓰기를 이 호환 보완에서 수행하지 않았으며 사람 승인 전 자동 병합하지 않는다. 관련 요구사항: NFR-SEC-004/005, NFR-PRIV-003, NFR-OPS-001/002; 로컬 검증 ID: TC-DB-CONFIG.
+
+## Windows 비동기 DB 호환 실행 — 승인 대기 보완
+
+root의 2026-10-30 별도 진단 보고에서 CA·호스트 검증을 유지한 TLS-only handshake는 성공했고 인증 패킷을 보내지 않았다. 기본 Proactor 실행 실패는 `OperationalError(2003) → OSError(22) → SSLWantReadError`로 분류되었으며 인증서 검증 오류와 구분한다. 같은 엄격 factory를 Selector 루프로 실행한 별도 실험에서는 DML 계정 인증·SELECT1이 성공했지만 안정 운영·동시성·업무 CRUD의 VERIFIED 판정은 아니다. 이 수정 작업자는 원격 접속·실제 비밀값 조회를 수행하지 않았다. 새 커밋의 실제 서버 재검증은 별도 승인된 운영자 작업이다.
+
+`app.core.event_loop.new_event_loop`는 Windows에서 Selector를, Unix에서 asyncio의 설정된 기본 루프를 생성한다. import 시 루프를 만들거나 전역 `set_event_loop_policy`를 변경하지 않는다. 설치된 Uvicorn 0.54.0의 custom loop 경로와 실제 `Config.get_loop_factory()` 반환 callable을 오프라인 테스트했다. [Uvicorn custom loop 안내](https://uvicorn.dev/concepts/event-loop/#custom-event-loop), [Python 3.13 Windows 제한](https://docs.python.org/3.13/library/asyncio-platforms.html#windows)을 확인했다(2026-10-30).
+
+```powershell
+# 기존 DIT_API_* 설정과 엄격한 CA/호스트 검증을 그대로 유지한다.
+uv run --locked uvicorn app.main:app --loop app.core.event_loop:new_event_loop --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
+```
+
+이는 개발/호환성용 단일 프로세스 실행 경로다. Windows Selector는 512 소켓 제한 및 subprocess/pipe 미지원 제약이 있어 대규모 동시성·다중 worker·reload·하위 프로세스 작업의 운영 준비를 주장하지 않는다. Linux 운영은 기존 기본 루프 경로를 유지한다. 실행 명령만으로 DB 어댑터·로그인·보호 라우트를 활성화하지 않는다.
+
+명시적 opt-in인 `python -m app.db.live_check`도 같은 loop factory를 사용하며 승인된 운영자만 실행한다. opt-in이 없으면 설정 조회·루프 생성·네트워크 없이 NOT_RUN이다. 조회는 버전/세션 정렬/DB명/스키마 이름 검사이며 원격 DDL·시드·업무 데이터 쓰기를 하지 않는다. 연결 성공과 16개 제안 테이블 준비·제약·권한·업무 승인 상태는 서로 별개다.
+
+SQLAlchemy MySQL dialect의 내부 `SET NAMES utf8mb4`가 드라이버 `init_command`의 collation을 덮어쓰는 것을 설치 소스로 확인했다. `db_connection.py`는 engine 생성 뒤 `connect` 리스너를 **append**하여 최종 `SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci`를 실행한다(`insert=True` 금지). 사용자 입력을 SQL에 넣지 않으며 테이블/지속 데이터 변경은 없다. 설정 실패 시 커서를 정리하고 비밀값 없는 오류로 연결 준비를 거부한다. [SQLAlchemy async 이벤트](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-events-with-the-asyncio-extension)·[연결 이벤트 순서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#changing-the-sql-mode)를 따른다. 실제 dialect listener 뒤에 정적 COLLATE 문이 실행되는 회귀와 실패 경로를 오프라인 검사한다. 기존 TLS capability·CERT_REQUIRED·check_hostname·LOCAL INFILE 금지·DML 계정 분리·비밀 로그 보호를 완화하지 않는다. 전체 연결/업무 SQL의 시간 제한과 다중 프로세스 안정성은 별도 검증 범위다.
 
 ## 공개 대학·학과 안내
 GET `/api/v1/public-campus`와 `/{record_id}`는 근거 7건을 자체 요약한 버전 스냅샷의 목록·정규화 검색·주제/출처 필터·상세를 제공한다. 새 앱 `/app/information`에 연결했다. 공식 게시물 동일성·실시간 최신성·학과 운영 업무 전체를 주장하지 않는다. 상세 범위와 출처는 [TASK-I](../../docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)를 본다. 쓰기·개인 신원·실DB 접근은 없다.
