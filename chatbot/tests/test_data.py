@@ -21,7 +21,9 @@ def _broken_copy(tmp_path: Path, mutate) -> Path:
     shutil.copy(FIXTURES / "buildings.json", tmp_path / "buildings.json")
     items = json.loads((FIXTURES / "facilities.json").read_text(encoding="utf-8"))
     mutate(items)
-    (tmp_path / "facilities.json").write_text(json.dumps(items, ensure_ascii=False))
+    (tmp_path / "facilities.json").write_text(
+        json.dumps(items, ensure_ascii=False), encoding="utf-8"
+    )
     return tmp_path
 
 

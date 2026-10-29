@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import CourseRow, EnrollmentRow, ExamRow, GraduationRuleRow, StudentRow
-from app.schemas import (
+from .models import CourseRow, EnrollmentRow, ExamRow, GraduationRuleRow, StudentRow
+from .schemas import (
     ClassSession,
     Course,
     Exam,

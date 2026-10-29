@@ -1,0 +1,42 @@
+name: 통합 RAG 회귀 검증
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chatbot:
+    name: RAG 패키지·기존 기능 회귀
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: chatbot
+    steps:
+      - name: 소스 확인
+        uses: actions/checkout@v4
+      - name: Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: 고정 uv 설치
+        run: python -m pip install uv==0.13.6
+      - name: 잠금 의존성 설치
+        run: uv sync --locked --all-extras
+      - name: 정적 검사
+        run: uv run --locked --all-extras ruff check .
+      - name: 포맷 검사
+        run: uv run --locked --all-extras ruff format --check .
+      - name: 외부 LLM·운영 DB 없는 회귀 테스트
+        run: uv run --locked --all-extras pytest
+      - name: 재사용 패키지 빌드
+        run: uv build
