@@ -68,6 +68,42 @@ GitHub의 `Python API 검증`은 잠금 설치·Ruff·pytest·앱 import/OpenAPI
 
 현재 계약에는 health 두 경로, 공개 시설 검색, 공개 대학·학과 안내 조회 두 경로와 공통 응답/오류가 있다. 인증·학생 CRUD가 아직 없으므로 생성 타입은 그것들의 동작을 주장하지 않는다. MariaDB·공통 세션 통합은 별도로 검증한다.
 
+## MariaDB 비연결 설정 기반 — TASK-DB-CONFIG
+
+MariaDB 11.4, 플랫폼 `ditnow`, 런타임 `ditnow_app`(DML 전용), 별도 `ditnow_migrator`라는 사용자 결정을 따른다. `.env.example`의 `DIT_API_DB_*`는 비밀값 없는 설명이며, 실제 사설 주소·비밀번호는 저장하지 않는다. 설정이 전혀 없으면 공개 API는 계속 실행할 수 있다. HOST/USER/PASSWORD 일부만 있거나 다른 DB·관리자 계정이면 설정 검증이 실패한다. 포트 기본값은 3307이다. 이 검증은 실제 GRANT 검사를 대신하지 않는다.
+
+`app/core/db_connection.py`는 SQLAlchemy async + aiomysql 엔진을 **생성만** 하며 앱 factory·라우터·readiness에 연결하지 않는다. 마이그레이터 자격 증명, DDL, 자동 스키마 생성, 인증 공급자 구현은 포함하지 않는다. TASK-N은 승인 대기 PR #19/26을 격리 조합하여 SQLAlchemy P0 저장소와 async `run_sync` 실행 경계를 작성한다. 라우터에 연결하지 않으며 실제 DB 적용 전에 독립 리뷰·사람 승인을 받는다. 한 서비스 트랜잭션은 하나의 async session에서 실행한다.
+
+이 엄격한 factory는 `DIT_API_DB_*`만 사용한다. PR39의 legacy `DIT_API_DATABASE_URL`/학번 원장 경로와 별개이며 해당 경로를 승인하거나 TLS factory로 자동 대체하지 않는다. legacy 원격 원장·시드 안전 차단 보완은 승인 대기 PR28에서 검토하므로, 그 경로를 공통 인증·실제 운영 준비로 사용하지 않는다.
+
+TLS 인증서와 호스트명 검증을 필수로 한다. 별도 CA가 없으면 시스템 신뢰 저장소를 사용하며 검증을 완화하지 않는다. aiomysql 0.3.2의 TLS 미지원 서버 fallback을 막기 위해 인증 직전의 private hook에서 TLS capability와 검증 설정을 검사한다. 따라서 드라이버 버전을 고정했으며 버전 변경 시 해당 hook 재검토와 핸드셰이크 테스트가 필요하다. 테스트는 가짜 연결에서 인증 위임 전 차단을 확인하며 실제 서버 TLS·인증 성공을 증명하지 않는다. LOCAL INFILE, autocommit, SQL echo는 비활성이다. 엔진 URL에는 자격 증명을 넣지 않는다.
+
+```text
+uv run --locked python -m app.core.db_connection
+uv run --locked pytest tests/test_db_configuration.py
+```
+
+첫 명령은 **오프라인 설정 진단**만 출력한다. 호스트·계정·비밀번호·DSN·내부 예외는 출력하지 않으며 연결/GRANT는 `NOT_RUN`이다. `DIT_API_ENVIRONMENT`는 기존처럼 필수다. 스키마 버전 원장의 테이블/권한/기대 버전이 아직 승인되지 않아 `BLOCKED_LEDGER_CONTRACT`로 표시한다. 임의의 원장 테이블을 조회하거나 현재 스키마를 최신으로 간주하지 않는다. 접속 승인 후 실제 MariaDB 11.4/utf8mb4/utf8mb4_unicode_ci·TLS·DML 최소 GRANT·스키마 버전 검사를 추가해야 하며, 그 전에는 운영 준비 완료로 표시할 수 없다.
+
+확인일 2026-10-30: [SQLAlchemy MariaDB·aiomysql 공식 문서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#module-sqlalchemy.dialects.mysql.aiomysql)는 async dialect를 제공하고, [aiomysql 연결 문서](https://aiomysql.readthedocs.io/en/stable/connection.html)는 SSLContext·connect_timeout·LOCAL INFILE 설정을 설명한다. 이는 실제 팀 VM과의 호환성 검증을 대체하지 않는다. 사설망·계정·GRANT 및 루프별 엄격 TLS 실험은 별도 [운영 검사](../../docs/dev-prep/07_DB_CONNECTIVITY_AND_ROLES.md) 기록을 따른다. 과거 BLOCKED_TLS의 원인을 모든 경우 인증서 실패로 간주하지 않는다. 원격 DDL·seed·CRUD 쓰기를 이 호환 보완에서 수행하지 않았으며 사람 승인 전 자동 병합하지 않는다. 관련 요구사항: NFR-SEC-004/005, NFR-PRIV-003, NFR-OPS-001/002; 로컬 검증 ID: TC-DB-CONFIG.
+
+## Windows 비동기 DB 호환 실행 — 승인 대기 보완
+
+root의 2026-10-30 별도 진단 보고에서 CA·호스트 검증을 유지한 TLS-only handshake는 성공했고 인증 패킷을 보내지 않았다. 기본 Proactor 실행 실패는 `OperationalError(2003) → OSError(22) → SSLWantReadError`로 분류되었으며 인증서 검증 오류와 구분한다. 같은 엄격 factory를 Selector 루프로 실행한 별도 실험에서는 DML 계정 인증·SELECT1이 성공했지만 안정 운영·동시성·업무 CRUD의 VERIFIED 판정은 아니다. 이 수정 작업자는 원격 접속·실제 비밀값 조회를 수행하지 않았다. 새 커밋의 실제 서버 재검증은 별도 승인된 운영자 작업이다.
+
+`app.core.event_loop.new_event_loop`는 Windows에서 Selector를, Unix에서 asyncio의 설정된 기본 루프를 생성한다. import 시 루프를 만들거나 전역 `set_event_loop_policy`를 변경하지 않는다. 설치된 Uvicorn 0.54.0의 custom loop 경로와 실제 `Config.get_loop_factory()` 반환 callable을 오프라인 테스트했다. [Uvicorn custom loop 안내](https://uvicorn.dev/concepts/event-loop/#custom-event-loop), [Python 3.13 Windows 제한](https://docs.python.org/3.13/library/asyncio-platforms.html#windows)을 확인했다(2026-10-30).
+
+```powershell
+# 기존 DIT_API_* 설정과 엄격한 CA/호스트 검증을 그대로 유지한다.
+uv run --locked uvicorn app.main:app --loop app.core.event_loop:new_event_loop --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
+```
+
+이는 개발/호환성용 단일 프로세스 실행 경로다. Windows Selector는 512 소켓 제한 및 subprocess/pipe 미지원 제약이 있어 대규모 동시성·다중 worker·reload·하위 프로세스 작업의 운영 준비를 주장하지 않는다. Linux 운영은 기존 기본 루프 경로를 유지한다. 실행 명령만으로 DB 어댑터·로그인·보호 라우트를 활성화하지 않는다.
+
+명시적 opt-in인 `python -m app.db.live_check`도 같은 loop factory를 사용하며 승인된 운영자만 실행한다. opt-in이 없으면 설정 조회·루프 생성·네트워크 없이 NOT_RUN이다. 조회는 버전/세션 정렬/DB명/스키마 이름 검사이며 원격 DDL·시드·업무 데이터 쓰기를 하지 않는다. 연결 성공과 16개 제안 테이블 준비·제약·권한·업무 승인 상태는 서로 별개다.
+
+SQLAlchemy MySQL dialect의 내부 `SET NAMES utf8mb4`가 드라이버 `init_command`의 collation을 덮어쓰는 것을 설치 소스로 확인했다. `db_connection.py`는 engine 생성 뒤 `connect` 리스너를 **append**하여 최종 `SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci`를 실행한다(`insert=True` 금지). 사용자 입력을 SQL에 넣지 않으며 테이블/지속 데이터 변경은 없다. 설정 실패 시 커서를 정리하고 비밀값 없는 오류로 연결 준비를 거부한다. [SQLAlchemy async 이벤트](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-events-with-the-asyncio-extension)·[연결 이벤트 순서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#changing-the-sql-mode)를 따른다. 실제 dialect listener 뒤에 정적 COLLATE 문이 실행되는 회귀와 실패 경로를 오프라인 검사한다. 기존 TLS capability·CERT_REQUIRED·check_hostname·LOCAL INFILE 금지·DML 계정 분리·비밀 로그 보호를 완화하지 않는다. 전체 연결/업무 SQL의 시간 제한과 다중 프로세스 안정성은 별도 검증 범위다.
+
 ## 공개 통합 검색
 
 GET `/api/v1/discovery`는 기존 공개 안내·시설 검색 서비스를 읽기 전용으로 조합한다. 정규화 검색·종류 필터·bounded 집계/페이지와 근거를 제공하며 개인정보·DB·LLM을 조회하지 않는다. 신규 앱 `/app/search`와 안내/시설 상세 링크에 연결했다. 전체 서비스 검색 완료를 뜻하지 않으며 [TASK-P](../../docs/dev-prep/TASK_PUBLIC_DISCOVERY_IMPLEMENTATION.md)를 따른다.
