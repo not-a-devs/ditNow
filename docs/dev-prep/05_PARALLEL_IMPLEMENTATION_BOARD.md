@@ -3,7 +3,22 @@
 2026-10-30 KST · TASK-ORCH-92 · 초기 기준 main `a86ec597`; 아래 후속 PR 상태는 2026-10-30 갱신.
 fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NFR-SEC/PRIV/REL/UX/OPS 및 각 TC-V1은 [기능 추적표](../v1-draft/09_FEATURE_TRACEABILITY.csv)에서 연결한다.
 
-## 최신 우선순위 — 실제 두 계정 통합 검증
+## 최신 실제 실행 — 승인된 P0 통합 검증
+
+사람 승인 **DITNOW-P0-DEMO-20261030**을 받아 main `9dc2c35cf073091a46d5ce2ad20d6ced365013d3`에서 실제 수행했다. [실행 기록](TASK_P0_APPROVED_LIVE_E2E.md)이 아래 승인 전 이력보다 최신이다.
+
+| 수직 흐름 | 실제 HTTP | 신규 앱390/1280 → FastAPI → strict TLS MariaDB → 재조회 |
+|---|---|---|
+| 공통 가상 로그인·현재 UUID·logout | PASS | PASS / PASS |
+| 익명 글 CRUD·익명 projection·B 수정/삭제 거부 | PASS | PASS / PASS |
+| 실명 모집 CRUD·논리 취소·B 변경 거부 | PASS | PASS / PASS |
+| 개인 기회 준비·체크 CRUD·계정 격리 | PASS | PASS / PASS |
+
+브라우저2회 각21단계 PASS, 캡처세션총36개 폐기 확인, 최종DB 테스트세션0·개인저장/체크0·승인된16행과 기존집계보존을 확인했다. 이는 **로컬 P0 수직 흐름4개**의 실제 통합 증거다. 가입·전 역할/학적 관리·모집 지원/승인·장애/운영배포 등 전체FR AC는 별도이므로 92행 전체 완료 수로 바꾸지 않는다.
+
+DB·비밀·실제 실행은 root 단독, A는 계정/HTTP 결과 독립읽기리뷰, F는 브라우저 독립리뷰와 하네스 재등록 정리 회귀 PR71, B는 PR71 CI에서 드러난 기존 careers 늦은응답 회귀 보완을 담당한다. 모두 별도 worktree·파일 소유 범위로 격리했다. 운영배포·외부공개·유료LLM은 NOT_RUN이며 별도 승인 게이트다.
+
+## 승인 전 사전 점검 이력 — 실제 두 계정 통합 검증 준비
 
 사용자 지시로 신규 기능 추가보다 신규 앱 → FastAPI → 원격 MariaDB의 실제 E2E를 우선한다. 기준 main은 `f8705eac26dc12960b2689e894497e9893371ca5`이며 다음 독립 작업을 완료했다. 아래 과거 기능/병렬 세션 기록과 현재 실검증 상태를 혼동하지 않는다.
 
@@ -14,9 +29,9 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 | B 배포 준비 | [PR #67](https://github.com/not-a-devs/ditNow/pull/67), `d42fdca73fcdee047e3a22ccdbc1c6d1ef44f231`. HTTPS·도메인·CORS·단일worker·Tailscale·비밀주입·운영rollback 절차, 독립리뷰·CI5. 실제호스팅/운영배포0 |
 | F 로컬 사전 점검 | [PR #68](https://github.com/not-a-devs/ditNow/pull/68), `c5ce5182419e136bd77a1efb3dba6da81b3d2c0b`. 실제 미인증 HTTP11·Chromium390/1280·preview 화면 검사와 하네스37 성공, 독립리뷰·CI5. 자기서버 종료, 실계정/DB업무0 |
 
-**현재 필수 승인 대기:** 신규 가상 학생 A/B와 지원 원장 총16행 생성, 성공 결과의 auditUUID2개를 검토한 로컬 업무 활성화, 격리된 로컬 검사 quota 및 HTTP/브라우저 CRUD·제한 정리 범위. 사용자에게 구체 실행 승인을 별도 요청했다. 승인 전에는 실제 계정 생성·승인 pin 주입·업무 쓰기를 실행하지 않는다.
+**당시 필수 승인 대기(이후 위 승인 참조로 제한 실행):** 신규 가상 학생 A/B와 지원 원장 총16행 생성, 성공 결과의 auditUUID2개를 검토한 로컬 업무 활성화, 격리된 로컬 검사 quota 및 HTTP/브라우저 CRUD·제한 정리 범위. 사용자에게 구체 실행 승인을 별도 요청했다. 승인 전에는 실제 계정 생성·승인 pin 주입·업무 쓰기를 실행하지 않는다.
 
-**실제 두 계정 로그인·익명·실명 모집·개인 기회 CRUD·재로그인·소유권 격리:** 모두 NOT_RUN이다. 공개/미인증 사전 점검과 단위·SQLite·모의 HTTP·하네스 성공을 대체 증거로 사용하지 않는다. 운영 배포·외부 공개는 별도 승인 대기다. 자세한 현재 상태는 [DB 재검증](TASK_MARIADB_LIVE_REVALIDATION.md), [계정 승인](TASK_DEMO_ACCOUNT_APPROVAL.md), [로컬 사전 점검](TASK_LOCAL_E2E_PREFLIGHT.md), [배포 준비](TASK_DEPLOYMENT_PREPARATION.md)를 따른다.
+**당시 실제 두 계정 로그인·익명·실명 모집·개인 기회 CRUD·재로그인·소유권 격리:** 모두 NOT_RUN이었다. 공개/미인증 사전 점검과 단위·SQLite·모의 HTTP·하네스 성공을 대체 증거로 사용하지 않는다. 운영 배포·외부 공개는 별도 승인 대기다. 자세한 현재 상태는 [DB 재검증](TASK_MARIADB_LIVE_REVALIDATION.md), [계정 승인](TASK_DEMO_ACCOUNT_APPROVAL.md), [로컬 사전 점검](TASK_LOCAL_E2E_PREFLIGHT.md), [배포 준비](TASK_DEPLOYMENT_PREPARATION.md)를 따른다.
 
 ## 최신 병합 상태 — 사용자 승인 반영
 
