@@ -1,4 +1,5 @@
 const symbols: Record<string, string> = {
+  login: 'M9 3H3v18h6m5-15 6 6-6 6m-8-6h14',
   home: 'M3 10 12 3l9 7v11h-6v-7H9v7H3Z',
   discovery: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
   academic: 'M3 5h18v16H3Zm0 5h18M8 3v4m8-4v4',

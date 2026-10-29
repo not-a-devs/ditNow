@@ -1,6 +1,7 @@
+import { useRequestLifetime } from '../../lib/useRequestLifetime';
 // FR-OPP-001(read)/003/004 · /app/opportunities. Every state comes from the server; there is no
 // local mock. Until root mounts API-OPP with auth and DB, requests fail and the error state shows.
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../lib/api';
 import * as api from './api';
 import {
@@ -69,14 +70,18 @@ function SourceBadges({ item }: { item: OpportunitySummary }) {
 
 function Detail({ id, saved, onSave }: { id: string; saved: boolean; onSave: (id: string) => void }) {
   const [detail, setDetail] = useState<Load<OpportunityDetail>>({ state: 'loading' });
-  const load = useCallback(() => {
+  const active = useRef<AbortController | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const load = () => setAttempt(value => value + 1);
+  useEffect(() => {
+    const controller = new AbortController(); active.current = controller;
     setDetail({ state: 'loading' });
-    api.getOpportunity(id).then(
-      (data) => setDetail({ state: 'ready', data }),
-      (error) => setDetail({ state: 'error', ...describeError(error) }),
+    api.getOpportunity(id, controller.signal).then(
+      data => { if (!controller.signal.aborted) setDetail({ state: 'ready', data }); },
+      error => { if (!controller.signal.aborted) setDetail({ state: 'error', ...describeError(error) }); },
     );
-  }, [id]);
-  useEffect(load, [load]);
+    return () => controller.abort();
+  }, [id, attempt]);
 
   if (detail.state === 'loading') return <p className="text-sm text-slate-500" aria-busy="true">공고를 불러오는 중…</p>;
   if (detail.state === 'error') return <ErrorBox message={detail.message} requestId={detail.requestId} onRetry={load} />;
@@ -227,6 +232,13 @@ function SavedCard({ saved, run, busy, draft, onDraft }: {
 
 export default function OpportunitiesPage() {
   const [filter, setFilter] = useState<OpportunityFilter>({ openOnly: true });
+  const alive = useRef(false), reads = useRef({ list: 0, saved: 0 });
+  const listRequest = useRef<AbortController | null>(null), savedRequest = useRef<AbortController | null>(null);
+  const lifetime = useRequestLifetime();
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; reads.current.list++; reads.current.saved++; listRequest.current?.abort(); savedRequest.current?.abort(); };
+  }, []);
   const [list, setList] = useState<Load<OpportunitySummary[]>>({ state: 'loading' });
   const [saved, setSaved] = useState<Load<SavedOpportunity[]>>({ state: 'loading' });
   const [selected, setSelected] = useState<string | null>(null);
@@ -234,54 +246,57 @@ export default function OpportunitiesPage() {
   const [notice, setNotice] = useState<{ ok: boolean; message: string; requestId?: string } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, CheckDraft>>({});
   const updateDraft = useCallback<UpdateDraft>(
-    (id, update) => setDrafts((all) => ({ ...all, [id]: update(all[id] ?? EMPTY_DRAFT) })),
+    (id, update) => { if (alive.current) setDrafts((all) => ({ ...all, [id]: update(all[id] ?? EMPTY_DRAFT) })); },
     [],
   );
 
   const loadList = useCallback(() => {
+    if (!alive.current) return;
+    listRequest.current?.abort(); const controller = new AbortController(); listRequest.current = controller;
+    const version = ++reads.current.list;
+    const current = () => alive.current && !controller.signal.aborted && version === reads.current.list;
     setList({ state: 'loading' });
-    api.listOpportunities(filter).then(
-      (page) => setList({ state: 'ready', data: page.items }),
-      (error) => setList({ state: 'error', ...describeError(error) }),
+    api.listOpportunities(filter, controller.signal).then(
+      page => { if (current()) setList({ state: 'ready', data: page.items }); },
+      error => { if (current()) setList({ state: 'error', ...describeError(error) }); },
     );
   }, [filter]);
-
-  const loadSaved = useCallback(() => {
+  const loadSaved = useCallback(async () => {
+    if (!alive.current) return;
+    savedRequest.current?.abort(); const controller = new AbortController(); savedRequest.current = controller;
+    const version = ++reads.current.saved;
+    const current = () => alive.current && !controller.signal.aborted && version === reads.current.saved;
     setSaved({ state: 'loading' });
-    return api.listSaved().then(
-      (data) => setSaved({ state: 'ready', data: data.items }),
-      (error) => setSaved({ state: 'error', ...describeError(error) }),
-    );
+    try { const data = await api.listSaved(controller.signal); if (current()) setSaved({ state: 'ready', data: data.items }); }
+    catch (error) { if (current()) setSaved({ state: 'error', ...describeError(error) }); }
   }, []);
-
   useEffect(loadList, [loadList]);
   useEffect(() => void loadSaved(), [loadSaved]);
 
-  // Mutations never update UI optimistically: the list is re-read from the server afterwards.
-  // Resolves true only when the server accepted the mutation.
-  const run = useCallback<Run>(
-    async (action) => {
-      setBusy(true);
-      setNotice(null);
-      let ok = false;
-      try {
-        await action();
-        ok = true;
-        setNotice({ ok: true, message: '서버가 요청을 처리했습니다. 아래 목록은 서버에서 다시 불러온 내용입니다.' });
-      } catch (error) {
-        setNotice({ ok: false, ...describeError(error) });
-      }
-      await loadSaved();
-      setBusy(false);
-      return ok;
-    },
-    [loadSaved],
-  );
+  // Only the mounted session may re-read after a mutation. A render is not a mutex.
+  const run: Run = async action => {
+    const request = lifetime.begin(); if (!request) return false;
+    setBusy(true); setNotice(null);
+    let ok = false;
+    try {
+      await action();
+      if (!request.current()) return false;
+      ok = true;
+      setNotice({ ok: true, message: '서버가 요청을 처리했습니다. 아래 목록은 서버에서 다시 불러온 내용입니다.' });
+    } catch (error) {
+      if (!request.current()) return false;
+      setNotice({ ok: false, ...describeError(error) });
+    } finally {
+      if (request.current()) { await loadSaved(); if (request.current()) setBusy(false); }
+      request.finish();
+    }
+    return ok && request.current();
+  };
 
   const savedIds = new Set(saved.state === 'ready' ? saved.data.map((s) => s.opportunity_id) : []);
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[1fr_1fr]">
+    <section className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[1fr_1fr]">
       <section aria-labelledby="opp-list" className="space-y-3">
         <h2 id="opp-list" className="text-xl font-semibold">장학금·공모전·기회</h2>
         <form className="flex flex-wrap gap-2 text-sm" onSubmit={(e) => { e.preventDefault(); loadList(); }}>
@@ -311,7 +326,7 @@ export default function OpportunitiesPage() {
             ))}
           </ul>
         )}
-        {selected && <Detail id={selected} saved={savedIds.has(selected)} onSave={(id) => void run(() => api.saveOpportunity(id))} />}
+        {selected && <Detail key={selected} id={selected} saved={savedIds.has(selected)} onSave={(id) => void run(() => api.saveOpportunity(id))} />}
       </section>
 
       <section aria-labelledby="opp-saved" className="space-y-3" aria-busy={busy}>
@@ -329,6 +344,6 @@ export default function OpportunitiesPage() {
           </ul>
         )}
       </section>
-    </main>
+    </section>
   );
 }
