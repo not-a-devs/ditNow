@@ -1,45 +1,359 @@
 [
   {
-    "course_id": "CS201", "name": "자료구조", "credits": 3, "professor": "정교수",
+    "course_id": "CS201",
+    "name": "자료구조",
+    "credits": 3,
+    "professor": "정교수",
     "sessions": [
-      { "day": "월", "start": "10:00", "end": "11:50", "building_id": "mirae", "room": "504호" },
-      { "day": "수", "start": "10:00", "end": "10:50", "building_id": "mirae", "room": "504호" }
+      {
+        "day": "월",
+        "start": "10:00",
+        "end": "11:50",
+        "building_id": "mirae",
+        "room": "504호"
+      },
+      {
+        "day": "수",
+        "start": "10:00",
+        "end": "10:50",
+        "building_id": "mirae",
+        "room": "504호"
+      }
     ]
   },
   {
-    "course_id": "CS205", "name": "웹프로그래밍", "credits": 3, "professor": "최교수",
+    "course_id": "CS205",
+    "name": "웹프로그래밍",
+    "credits": 3,
+    "professor": "최교수",
     "sessions": [
-      { "day": "화", "start": "13:00", "end": "15:50", "building_id": "mirae", "room": "401호" }
+      {
+        "day": "화",
+        "start": "13:00",
+        "end": "15:50",
+        "building_id": "mirae",
+        "room": "401호"
+      }
     ]
   },
   {
-    "course_id": "CS210", "name": "데이터베이스", "credits": 3, "professor": "한교수",
+    "course_id": "CS210",
+    "name": "데이터베이스",
+    "credits": 3,
+    "professor": "한교수",
     "sessions": [
-      { "day": "목", "start": "09:00", "end": "11:50", "building_id": "jeongbo", "room": "702호" }
+      {
+        "day": "목",
+        "start": "09:00",
+        "end": "11:50",
+        "building_id": "jeongbo",
+        "room": "702호"
+      }
     ]
   },
   {
-    "course_id": "GE101", "name": "대학생활과 진로", "credits": 2, "professor": "윤교수",
+    "course_id": "GE101",
+    "name": "대학생활과 진로",
+    "credits": 2,
+    "professor": "윤교수",
     "sessions": [
-      { "day": "금", "start": "14:00", "end": "15:50", "building_id": "bonkwan", "room": "301호" }
+      {
+        "day": "금",
+        "start": "14:00",
+        "end": "15:50",
+        "building_id": "bonkwan",
+        "room": "301호"
+      }
     ]
   },
   {
-    "course_id": "GE102", "name": "글쓰기와 표현", "credits": 2, "professor": "서교수",
+    "course_id": "GE102",
+    "name": "글쓰기와 표현",
+    "credits": 2,
+    "professor": "서교수",
     "sessions": [
-      { "day": "화", "start": "10:00", "end": "11:50", "building_id": "sanhak", "room": "201호" }
+      {
+        "day": "화",
+        "start": "10:00",
+        "end": "11:50",
+        "building_id": "sanhak",
+        "room": "201호"
+      }
     ]
   },
   {
-    "course_id": "NU101", "name": "기본간호학", "credits": 3, "professor": "강교수",
+    "course_id": "NU101",
+    "name": "기본간호학",
+    "credits": 3,
+    "professor": "강교수",
     "sessions": [
-      { "day": "월", "start": "09:00", "end": "11:50", "building_id": "hwangryeong", "room": "405호" }
+      {
+        "day": "월",
+        "start": "09:00",
+        "end": "11:50",
+        "building_id": "hwangryeong",
+        "room": "405호"
+      }
     ]
   },
   {
-    "course_id": "NU102", "name": "인체구조와 기능", "credits": 3, "professor": "오교수",
+    "course_id": "NU102",
+    "name": "인체구조와 기능",
+    "credits": 3,
+    "professor": "오교수",
     "sessions": [
-      { "day": "수", "start": "13:00", "end": "15:50", "building_id": "hwangryeong", "room": "302호" }
+      {
+        "day": "수",
+        "start": "13:00",
+        "end": "15:50",
+        "building_id": "hwangryeong",
+        "room": "302호"
+      }
     ]
+  },
+  {
+    "course_id": "CS101",
+    "name": "프로그래밍기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS102",
+    "name": "컴퓨터개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS103",
+    "name": "C언어",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS104",
+    "name": "이산수학",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS105",
+    "name": "운영체제개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS106",
+    "name": "네트워크기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS107",
+    "name": "자바프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS108",
+    "name": "파이썬프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS109",
+    "name": "리눅스실습",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS110",
+    "name": "웹기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS111",
+    "name": "알고리즘",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS112",
+    "name": "객체지향설계",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS113",
+    "name": "모바일프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS114",
+    "name": "정보보안개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS115",
+    "name": "클라우드기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS116",
+    "name": "소프트웨어공학",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS117",
+    "name": "인공지능개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS118",
+    "name": "캡스톤디자인1",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS119",
+    "name": "현장실습",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE001",
+    "name": "대학영어",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE002",
+    "name": "글로벌시민",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE003",
+    "name": "인성과리더십",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE004",
+    "name": "기초수학",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE005",
+    "name": "심리학의이해",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE006",
+    "name": "생활법률",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE007",
+    "name": "체육",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN001",
+    "name": "취업과진로",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN002",
+    "name": "봉사활동",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN003",
+    "name": "창업의이해",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN004",
+    "name": "금융생활",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN005",
+    "name": "외국어회화",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN006",
+    "name": "자기계발",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "NU001",
+    "name": "간호학개론",
+    "credits": 3,
+    "professor": "강교수",
+    "sessions": []
+  },
+  {
+    "course_id": "NU002",
+    "name": "기초의학",
+    "credits": 3,
+    "professor": "강교수",
+    "sessions": []
+  },
+  {
+    "course_id": "NU003",
+    "name": "간호윤리",
+    "credits": 3,
+    "professor": "강교수",
+    "sessions": []
   }
 ]

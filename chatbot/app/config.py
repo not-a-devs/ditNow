@@ -12,7 +12,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
     data_dir: Path = ROOT_DIR / "data"
-    mock_dir: Path = ROOT_DIR / "data" / "mock"  # 학생 개인 데이터 (시연용 목업)
+    mock_dir: Path = ROOT_DIR / "data" / "mock"  # DB 시드용 학생 목업
+
+    # 예: mysql+aiomysql://ditnow:ditnow@localhost:3306/ditnow?charset=utf8mb4
+    database_url: str = ""
+    db_auto_init: bool = True  # 시작 시 테이블 생성 + DB가 비어 있으면 목업 시드 (해커톤용)
+    current_semester: str = "2026-2"
 
     llm_provider: str = "openai"
     llm_model: str = ""

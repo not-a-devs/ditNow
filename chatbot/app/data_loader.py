@@ -8,10 +8,11 @@ from app.schemas import (
     Building,
     CampusData,
     Course,
+    Enrollment,
     Facility,
     GraduationRule,
-    Student,
-    StudentData,
+    MockData,
+    StudentRecord,
 )
 
 M = TypeVar("M", bound=BaseModel)
@@ -55,11 +56,18 @@ def load_data(data_dir: Path) -> CampusData:
     return CampusData(facilities=facilities, buildings=buildings)
 
 
-def load_student_data(mock_dir: Path, campus: CampusData) -> StudentData:
-    """학생 목업 데이터를 읽고 학과·강의·건물 참조를 검증한다."""
+def load_mock_data(mock_dir: Path, campus: CampusData) -> MockData:
+    """DB 시드용 학생 목업을 읽고 학과·강의·건물·수강 참조를 검증한다."""
     courses = _load_list(mock_dir / "courses.json", Course, "course_id")
     rules = _load_list(mock_dir / "graduation.json", GraduationRule, "dept_id")
-    students = _load_list(mock_dir / "students.json", Student, "student_id")
+    students = _load_list(mock_dir / "students.json", StudentRecord, "student_id")
+    path = mock_dir / "enrollments.json"
+    try:
+        raw: Any = json.loads(path.read_text(encoding="utf-8"))
+        enrollments = [Enrollment.model_validate(r) for r in raw]
+    except (OSError, ValueError) as e:  # ValidationError도 ValueError의 하위 클래스
+        raise DataError(f"{path.name}: {e}") from e
+
     for c in courses.values():
         for s in c.sessions:
             if s.building_id not in campus.buildings:
@@ -69,7 +77,10 @@ def load_student_data(mock_dir: Path, campus: CampusData) -> StudentData:
             raise DataError(
                 f"students.json [{st.student_id}]: 졸업 기준·학과가 없는 '{st.dept_id}'"
             )
-        missing = [c for c in st.enrollments if c not in courses]
-        if missing:
-            raise DataError(f"students.json [{st.student_id}]: 없는 강의 {missing}")
-    return StudentData(students=students, courses=courses, rules=rules)
+    seen: set[tuple[str, str, str]] = set()
+    for e in enrollments:
+        key = (e.student_id, e.course_id, e.semester)
+        if e.student_id not in students or e.course_id not in courses or key in seen:
+            raise DataError(f"enrollments.json {key}: 없는 학생·강의이거나 중복입니다")
+        seen.add(key)
+    return MockData(students=students, courses=courses, rules=rules, enrollments=enrollments)

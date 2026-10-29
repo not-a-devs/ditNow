@@ -7,10 +7,11 @@ from fastapi.testclient import TestClient
 from app.config import ROOT_DIR
 from app.intents import CAMPUS, INTENT_KEYWORDS, classify
 from app.personal import HANDLERS, KST, next_class, remaining_credits, today_classes
-from app.schemas import CampusData, StudentData
+from app.schemas import CampusData, Student, StudentData
 from tests.test_api import client  # noqa: F401  (픽스처 재사용)
 
 MON = datetime(2026, 10, 26, tzinfo=KST)  # 월요일
+Bundles = dict[str, tuple[Student, StudentData]]
 
 
 def _at(day_offset: int, hhmm: str) -> datetime:
@@ -67,40 +68,36 @@ def test_eval_questions_stay_campus() -> None:
     ],
 )
 def test_next_class(
-    student_data: StudentData, campus_data: CampusData, now: datetime, course: str, when: str
+    students: Bundles, campus_data: CampusData, now: datetime, course: str, when: str
 ) -> None:
-    [block], _ = next_class(student_data.students["20231001"], student_data, campus_data, now)
+    [block], _ = next_class(*students["20231001"], campus_data, now)
     assert block.startswith(f"[{course}] 다음 수업({when},")
 
 
-def test_next_class_none(student_data: StudentData, campus_data: CampusData) -> None:
+def test_next_class_none(students: Bundles, campus_data: CampusData) -> None:
     """수강 과목이 없으면 없다고 알려 준다."""
-    [block], _ = next_class(student_data.students["20221003"], student_data, campus_data, MON)
+    [block], _ = next_class(*students["20221003"], campus_data, MON)
     assert block.startswith("[my_timetable]")
 
 
-def test_today_classes(student_data: StudentData, campus_data: CampusData) -> None:
-    kim = student_data.students["20231001"]
-    blocks, _ = today_classes(kim, student_data, campus_data, _at(0, "08:00"))
+def test_today_classes(students: Bundles, campus_data: CampusData) -> None:
+    kim = students["20231001"]
+    blocks, _ = today_classes(*kim, campus_data, _at(0, "08:00"))
     assert [b.split("]")[0] for b in blocks] == ["[CS201"]
-    [none], _ = today_classes(kim, student_data, campus_data, _at(5, "08:00"))
+    [none], _ = today_classes(*kim, campus_data, _at(5, "08:00"))
     assert "수업이 없습니다" in none
 
 
-def test_remaining_credits(student_data: StudentData, campus_data: CampusData) -> None:
+def test_remaining_credits(students: Bundles, campus_data: CampusData) -> None:
     """졸업 80(전공 54·교양 12) - 취득 42(전공 30·교양 8·일반 4), 수강 중 11학점."""
-    [block], _ = remaining_credits(
-        student_data.students["20231001"], student_data, campus_data, MON
-    )
+    [block], _ = remaining_credits(*students["20231001"], campus_data, MON)
     assert "남은 학점: 총 38학점" in block
     assert "남은 전공: 24학점" in block and "남은 교양: 4학점" in block
     assert "모두 이수하면 남은 학점은 총 27학점" in block
 
 
-def test_remaining_credits_done(student_data: StudentData, campus_data: CampusData) -> None:
-    [block], _ = remaining_credits(
-        student_data.students["20221003"], student_data, campus_data, MON
-    )
+def test_remaining_credits_done(students: Bundles, campus_data: CampusData) -> None:
+    [block], _ = remaining_credits(*students["20221003"], campus_data, MON)
     assert "남은 학점: 총 0학점" in block and "남은 전공: 0학점 (충족)" in block
 
 
@@ -130,3 +127,11 @@ def test_personal_question_with_login(client: TestClient) -> None:  # noqa: F811
 def test_invalid_token_is_401(client: TestClient) -> None:  # noqa: F811
     res = client.post("/ask", json={"question": "학식"}, headers={"Authorization": "Bearer x"})
     assert res.status_code == 401
+
+
+def test_earned_credits_from_enrollments(students: Bundles) -> None:
+    """취득 학점은 수강 이력에서 계산한다. F(CS111)와 수강 중 과목은 빠진다."""
+    kim, data = students["20231001"]
+    assert kim.earned_credits == {"전공": 30, "교양": 8, "일반": 4}
+    assert kim.enrollments == ["CS201", "CS205", "CS210", "GE101"]
+    assert set(data.courses) == set(kim.enrollments)

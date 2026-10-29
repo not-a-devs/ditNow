@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from tests.conftest import FIXTURES
+from tests.conftest import FIXTURES, SQLITE_MEMORY
 
 
 @pytest.fixture
@@ -16,6 +16,7 @@ def client() -> Iterator[TestClient]:
         llm_provider="fake",
         data_dir=FIXTURES,
         mock_dir=FIXTURES / "mock",
+        database_url=SQLITE_MEMORY,  # 시작 시 테이블 생성 + 픽스처 목업 시드
         admin_token="secret",
         rate_limit_per_min=3,
     )

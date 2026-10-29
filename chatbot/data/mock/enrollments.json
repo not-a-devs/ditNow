@@ -1,0 +1,429 @@
+[
+  {
+    "student_id": "20231001",
+    "course_id": "CS101",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS102",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS103",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS104",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS105",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS106",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "C+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS107",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS108",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS109",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS110",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GE001",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GE002",
+    "semester": "2025-2",
+    "category": "교양",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GE003",
+    "semester": "2026-1",
+    "category": "교양",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GE004",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GN001",
+    "semester": "2025-1",
+    "category": "일반",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GN002",
+    "semester": "2025-2",
+    "category": "일반",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS111",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "F"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "NU001",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "NU002",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "NU003",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "GE001",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "GE002",
+    "semester": "2025-2",
+    "category": "교양",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "GE003",
+    "semester": "2026-1",
+    "category": "교양",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS101",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS102",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS103",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS104",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS105",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS106",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "C+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS107",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS108",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS109",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS110",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS111",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS112",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS113",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "C+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS114",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS115",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS116",
+    "semester": "2025-1",
+    "category": "전공",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS117",
+    "semester": "2025-2",
+    "category": "전공",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "CS118",
+    "semester": "2026-1",
+    "category": "전공",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE001",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE002",
+    "semester": "2025-2",
+    "category": "교양",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE003",
+    "semester": "2026-1",
+    "category": "교양",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE004",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE005",
+    "semester": "2025-2",
+    "category": "교양",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE006",
+    "semester": "2026-1",
+    "category": "교양",
+    "grade": "C+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GE007",
+    "semester": "2025-1",
+    "category": "교양",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN001",
+    "semester": "2025-1",
+    "category": "일반",
+    "grade": "A+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN002",
+    "semester": "2025-2",
+    "category": "일반",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN003",
+    "semester": "2026-1",
+    "category": "일반",
+    "grade": "B+"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN004",
+    "semester": "2025-1",
+    "category": "일반",
+    "grade": "B0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN005",
+    "semester": "2025-2",
+    "category": "일반",
+    "grade": "A0"
+  },
+  {
+    "student_id": "20221003",
+    "course_id": "GN006",
+    "semester": "2026-1",
+    "category": "일반",
+    "grade": "C+"
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS201",
+    "semester": "2026-2",
+    "category": "전공",
+    "grade": null
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS205",
+    "semester": "2026-2",
+    "category": "전공",
+    "grade": null
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "CS210",
+    "semester": "2026-2",
+    "category": "전공",
+    "grade": null
+  },
+  {
+    "student_id": "20231001",
+    "course_id": "GE101",
+    "semester": "2026-2",
+    "category": "교양",
+    "grade": null
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "NU101",
+    "semester": "2026-2",
+    "category": "전공",
+    "grade": null
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "NU102",
+    "semester": "2026-2",
+    "category": "전공",
+    "grade": null
+  },
+  {
+    "student_id": "20241002",
+    "course_id": "GE102",
+    "semester": "2026-2",
+    "category": "교양",
+    "grade": null
+  }
+]

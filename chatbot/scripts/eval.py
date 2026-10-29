@@ -11,11 +11,14 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.config import Settings, get_settings  # noqa: E402
-from app.data_loader import load_data, load_student_data  # noqa: E402
+from app.data_loader import load_data, load_mock_data  # noqa: E402
+from app.db import init_db, make_engine  # noqa: E402
 from app.llm import LLMClient, get_llm_client  # noqa: E402
 from app.llm.fake_client import FakeLLMClient  # noqa: E402
 from app.personal import KST  # noqa: E402
@@ -23,8 +26,10 @@ from app.prompt import NOT_FOUND_MARKER  # noqa: E402
 from app.rag import answer_question  # noqa: E402
 from app.retriever.keyword import KeywordRetriever  # noqa: E402
 from app.schemas import CampusData  # noqa: E402
+from app.student_repo import load_student  # noqa: E402
 
 RECALL_TARGET = 0.9
+SEMESTER = "2026-2"  # 목업 데이터의 이번 학기
 EVAL_NOW = datetime(
     2026, 10, 26, 9, 0, tzinfo=KST
 )  # 월요일 09:00 고정 (개인 질문 답이 시각에 따라 바뀜)
@@ -111,20 +116,25 @@ async def main(with_llm: bool) -> int:
 async def _eval_personal(
     llm: LLMClient | None, retriever: KeywordRetriever, data: CampusData, settings: Settings
 ) -> tuple[list[str], int, int, int]:
-    """개인 질문 평가. LLM이 없으면 FakeLLMClient로 의도·근거·로그인 처리만 본다."""
-    student_data = load_student_data(settings.mock_dir, data)
+    """개인 질문 평가. LLM이 없으면 FakeLLMClient로 의도·근거·로그인 처리만 본다.
+
+    개발 DB를 건드리지 않도록 data/mock을 시드한 SQLite 메모리 DB에서 학생을 읽는다.
+    """
+    engine = make_engine("sqlite+aiosqlite:///:memory:")
+    await init_db(engine, load_mock_data(settings.mock_dir, data))
+    db = async_sessionmaker(engine)()
     cases = json.loads((ROOT / "tests" / "eval_personal.json").read_text(encoding="utf-8"))
     rows: list[str] = []
     intent_ok = passed = mismatches = 0
     for c in cases:
-        student = student_data.students[c["student_id"]] if c["student_id"] else None
+        bundle = await load_student(db, c["student_id"], SEMESTER) if c["student_id"] else None
         res = await answer_question(
             c["question"],
             retriever=retriever,
             llm=llm or FakeLLMClient(),
             data=data,
-            student_data=student_data,
-            student=student,
+            student=bundle[0] if bundle else None,
+            student_data=bundle[1] if bundle else None,
             now=EVAL_NOW,
         )
         problems = []
@@ -132,7 +142,7 @@ async def _eval_personal(
             problems.append(f"의도 {res.intent}")
         else:
             intent_ok += 1
-        if student is None and not res.need_login:
+        if bundle is None and not res.need_login:
             problems.append("로그인 요구 안 함")
         if c["expect_ids"] and not set(c["expect_ids"]) & set(res.sources):
             problems.append(f"근거 {res.sources}")
@@ -149,6 +159,8 @@ async def _eval_personal(
             f"| {mark} | {c['student_id'] or '(비로그인)'} | {c['question']} | {res.intent} "
             f"| {', '.join(res.sources)} | {'; '.join(problems)} |"
         )
+    await db.close()
+    await engine.dispose()
     return rows, intent_ok, passed, mismatches
 
 

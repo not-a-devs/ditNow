@@ -1,9 +1,13 @@
+import asyncio
 import hashlib
 import hmac
 import secrets
-import time
+from datetime import UTC, datetime, timedelta
 
-from app.schemas import Student, StudentData
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import AuthSessionRow, StudentRow
 
 ITERATIONS = 100_000
 SESSION_TTL_SEC = 12 * 3600
@@ -32,37 +36,49 @@ def verify_password(password: str, stored: str) -> bool:
 _DUMMY_HASH = hash_password("dummy")
 
 
-def authenticate(data: StudentData, student_id: str, password: str) -> Student | None:
+def _now() -> datetime:
+    """DB에 저장하는 UTC 시각 (timezone 정보 없이)."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _token_hash(token: str) -> str:
+    """토큰 원문 대신 저장할 해시."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def authenticate(db: AsyncSession, student_id: str, password: str) -> StudentRow | None:
     """학번·초기 비밀번호(주민등록번호 뒷자리)로 로그인한다."""
-    student = data.students.get(student_id)
-    if student is None:
-        verify_password(password, _DUMMY_HASH)
+    row = await db.get(StudentRow, student_id)
+    stored = row.password_hash if row else _DUMMY_HASH
+    # PBKDF2는 수십 ms 걸리는 CPU 작업이라 이벤트 루프를 막지 않게 스레드에서 돌린다
+    ok = await asyncio.to_thread(verify_password, password, stored)
+    return row if row and ok else None
+
+
+async def issue_token(db: AsyncSession, student_id: str) -> str:
+    """새 토큰을 발급해 DB에 저장한다. 카카오 로그인도 학생을 찾은 뒤 이 함수를 쓴다."""
+    token = secrets.token_urlsafe(32)
+    await db.execute(delete(AuthSessionRow).where(AuthSessionRow.expires_at < _now()))
+    db.add(
+        AuthSessionRow(
+            token_hash=_token_hash(token),
+            student_id=student_id,
+            expires_at=_now() + timedelta(seconds=SESSION_TTL_SEC),
+        )
+    )
+    await db.commit()
+    return token
+
+
+async def resolve_token(db: AsyncSession, token: str) -> str | None:
+    """토큰의 학번을 돌려준다. 없거나 만료되면 None."""
+    row = await db.get(AuthSessionRow, _token_hash(token))
+    if row is None or row.expires_at < _now():
         return None
-    return student if verify_password(password, student.password_hash) else None
+    return row.student_id
 
 
-class SessionStore:
-    """로그인 토큰 → 학번. 카카오 로그인도 학생을 찾은 뒤 같은 issue()로 토큰을 발급한다."""
-
-    # shortcut: 메모리 보관이라 서버 재시작 시 모두 로그아웃되고 단일 워커 전제, 운영 시 JWT·Redis로
-    def __init__(self, ttl_sec: float = SESSION_TTL_SEC) -> None:
-        self.ttl_sec = ttl_sec
-        self._tokens: dict[str, tuple[str, float]] = {}
-
-    def issue(self, student_id: str) -> str:
-        """새 토큰을 발급한다."""
-        token = secrets.token_urlsafe(32)
-        self._tokens[token] = (student_id, time.monotonic() + self.ttl_sec)
-        return token
-
-    def resolve(self, token: str) -> str | None:
-        """토큰의 학번을 돌려준다. 없거나 만료되면 None."""
-        entry = self._tokens.get(token)
-        if entry is None or entry[1] < time.monotonic():
-            self._tokens.pop(token, None)
-            return None
-        return entry[0]
-
-    def revoke(self, token: str) -> None:
-        """토큰을 폐기한다 (로그아웃)."""
-        self._tokens.pop(token, None)
+async def revoke_token(db: AsyncSession, token: str) -> None:
+    """토큰을 폐기한다 (로그아웃)."""
+    await db.execute(delete(AuthSessionRow).where(AuthSessionRow.token_hash == _token_hash(token)))
+    await db.commit()

@@ -65,5 +65,222 @@
         "room": "301호"
       }
     ]
+  },
+  {
+    "course_id": "CS101",
+    "name": "프로그래밍기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS102",
+    "name": "컴퓨터개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS103",
+    "name": "C언어",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS104",
+    "name": "이산수학",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS105",
+    "name": "운영체제개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS106",
+    "name": "네트워크기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS107",
+    "name": "자바프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS108",
+    "name": "파이썬프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS109",
+    "name": "리눅스실습",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS110",
+    "name": "웹기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS111",
+    "name": "알고리즘",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS112",
+    "name": "객체지향설계",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS113",
+    "name": "모바일프로그래밍",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS114",
+    "name": "정보보안개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS115",
+    "name": "클라우드기초",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS116",
+    "name": "소프트웨어공학",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS117",
+    "name": "인공지능개론",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "CS118",
+    "name": "캡스톤디자인1",
+    "credits": 3,
+    "professor": "김교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE001",
+    "name": "대학영어",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE002",
+    "name": "글로벌시민",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE003",
+    "name": "인성과리더십",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE004",
+    "name": "기초수학",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE005",
+    "name": "심리학의이해",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE006",
+    "name": "생활법률",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GE007",
+    "name": "체육",
+    "credits": 2,
+    "professor": "이교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN001",
+    "name": "취업과진로",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN002",
+    "name": "봉사활동",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN003",
+    "name": "창업의이해",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN004",
+    "name": "금융생활",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN005",
+    "name": "외국어회화",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
+  },
+  {
+    "course_id": "GN006",
+    "name": "자기계발",
+    "credits": 2,
+    "professor": "박교수",
+    "sessions": []
   }
 ]

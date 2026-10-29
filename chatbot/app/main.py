@@ -9,16 +9,20 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.auth import SessionStore, authenticate
+from app.auth import authenticate, issue_token, resolve_token, revoke_token
 from app.config import Settings, get_settings
-from app.data_loader import DataError, load_data, load_student_data
-from app.intents import CAMPUS
+from app.data_loader import DataError, load_data, load_mock_data
+from app.db import init_db, make_engine
+from app.intents import CAMPUS, classify
 from app.llm import get_llm_client
 from app.prompt import LLM_FAILURE_ANSWER
 from app.rag import answer_question
 from app.retriever.keyword import KeywordRetriever, normalize
-from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse, Student
+from app.schemas import AskRequest, AskResponse, Facility, LoginRequest, LoginResponse
+from app.student_repo import load_student
 
 logger = logging.getLogger(__name__)
 CACHE_TTL_SEC = 600
@@ -30,10 +34,8 @@ Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 
 
 def _load_state(app: FastAPI, settings: Settings) -> None:
-    """데이터를 읽고 검색기를 만들어 app.state에 보관한다. 데이터가 틀리면 DataError."""
+    """교내 데이터를 읽고 검색기를 만들어 app.state에 보관한다. 데이터가 틀리면 DataError."""
     data = load_data(settings.data_dir)
-    # 둘 다 검증을 통과한 뒤에 바꿔야 reload 실패 시 기존 데이터가 반쯤 바뀌지 않는다
-    app.state.student_data = load_student_data(settings.mock_dir, data)
     app.state.data = data
     app.state.retriever = KeywordRetriever(list(data.facilities.values()), settings.min_score)
     app.state.cache = {}
@@ -48,8 +50,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _load_state(app, settings)
         app.state.llm = get_llm_client(settings)
         app.state.hits = defaultdict(deque)
-        app.state.sessions = SessionStore()
+        engine = make_engine(settings.database_url)
+        if settings.db_auto_init:
+            mock = load_mock_data(settings.mock_dir, app.state.data)
+            if await init_db(engine, mock):
+                logger.info("DB가 비어 있어 목업 데이터를 넣었습니다")
+        app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         yield
+        await engine.dispose()
 
     app = FastAPI(title="DIT NOW RAG", lifespan=lifespan)
     app.add_middleware(
@@ -58,6 +66,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
+
+    async def get_db() -> AsyncIterator[AsyncSession]:
+        """요청마다 DB 세션을 하나 연다."""
+        async with app.state.sessionmaker() as db:
+            yield db
+
+    DB = Annotated[AsyncSession, Depends(get_db)]
 
     def check_rate_limit(request: Request) -> None:
         """IP당 분당 요청 수를 제한한다 (시연 중 LLM 비용 폭주 방지)."""
@@ -72,41 +87,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         q.append(now)
 
     @app.post("/auth/login")
-    def login(body: LoginRequest, request: Request) -> LoginResponse:
+    async def login(body: LoginRequest, request: Request, db: DB) -> LoginResponse:
         """학번·초기 비밀번호(주민등록번호 뒷자리)로 로그인하고 토큰을 발급한다."""
         check_rate_limit(request)  # 비밀번호 대입 공격 완화
-        student = authenticate(app.state.student_data, body.student_id, body.password)
+        student = await authenticate(db, body.student_id, body.password)
         if student is None:
             raise HTTPException(401, "학번 또는 비밀번호가 올바르지 않아요.")
-        token = app.state.sessions.issue(student.student_id)
+        token = await issue_token(db, student.student_id)
         return LoginResponse(token=token, student_id=student.student_id, name=student.name)
 
     @app.post("/auth/logout")
-    def logout(creds: Credentials) -> dict[str, str]:
+    async def logout(creds: Credentials, db: DB) -> dict[str, str]:
         """토큰을 폐기한다."""
         if creds:
-            app.state.sessions.revoke(creds.credentials)
+            await revoke_token(db, creds.credentials)
         return {"status": "ok"}
 
     @app.get("/health")
-    def health() -> dict[str, object]:
-        """서버·데이터 로드 상태."""
-        return {"status": "ok", "facilities": len(app.state.data.facilities)}
+    async def health(db: DB) -> dict[str, object]:
+        """서버·데이터·DB 연결 상태."""
+        await db.execute(text("SELECT 1"))
+        return {"status": "ok", "facilities": len(app.state.data.facilities), "db": "ok"}
 
-    def current_student(creds: HTTPAuthorizationCredentials | None) -> Student | None:
-        """Bearer 토큰으로 학생을 찾는다. 토큰이 없으면 비로그인."""
+    async def current_student_id(
+        db: AsyncSession, creds: HTTPAuthorizationCredentials | None
+    ) -> str | None:
+        """Bearer 토큰의 학번. 토큰이 없으면 비로그인(None), 잘못됐거나 만료됐으면 401."""
         if creds is None:
             return None
-        student_id = app.state.sessions.resolve(creds.credentials)
-        student = app.state.student_data.students.get(student_id) if student_id else None
-        if student is None:
+        student_id = await resolve_token(db, creds.credentials)
+        if student_id is None:
             raise HTTPException(401, "로그인이 만료됐어요. 다시 로그인해 주세요.")
-        return student
+        return student_id
 
     @app.post("/ask")
-    async def ask(body: AskRequest, request: Request, creds: Credentials) -> AskResponse:
+    async def ask(body: AskRequest, request: Request, creds: Credentials, db: DB) -> AskResponse:
         """질문에 답한다. 개인 질문(시간표·학점)은 로그인 토큰이 필요하다."""
-        student = current_student(creds)
+        student_id = await current_student_id(db, creds)
+        # 교내 질문이면 학생 데이터를 읽지 않는다 (DB 조회 절약)
+        bundle = None
+        if student_id and classify(body.question) != CAMPUS:
+            bundle = await load_student(db, student_id, settings.current_semester)
         key = " ".join(normalize(body.question).split())
         if not key:
             raise HTTPException(422, "질문을 입력해 주세요.")
@@ -122,8 +143,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             data=app.state.data,
             top_k=settings.top_k,
             max_context_chars=settings.max_context_chars,
-            student_data=app.state.student_data,
-            student=student,
+            student=bundle[0] if bundle else None,
+            student_data=bundle[1] if bundle else None,
         )
         if res.intent == CAMPUS and res.answer != LLM_FAILURE_ANSWER:
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로

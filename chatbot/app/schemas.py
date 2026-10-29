@@ -62,7 +62,7 @@ class CampusData(BaseModel):
     buildings: dict[str, Building]
 
 
-# ── 학생 개인 데이터 (data/mock/*.json, 시연용 목업) ─────────
+# ── 학생 개인 데이터 (DB, 시드는 data/mock/*.json) ─────────
 
 
 Weekday = Literal["월", "화", "수", "목", "금", "토", "일"]
@@ -97,8 +97,8 @@ class GraduationRule(BaseModel):
     by_category: dict[str, int]  # 이수 구분(전공·교양) → 최소 학점
 
 
-class Student(BaseModel):
-    """학생 학적·수강 정보 (students.json)."""
+class StudentRecord(BaseModel):
+    """학생 학적 (students.json → DB students 테이블)."""
 
     student_id: str  # 학번 = 로그인 아이디
     name: str
@@ -106,14 +106,41 @@ class Student(BaseModel):
     grade: int
     password_hash: str  # 초기 비밀번호(주민등록번호 뒷자리)의 해시
     kakao_id: str | None = None  # 카카오 로그인 연동 시 채운다
-    earned_credits: dict[str, int]  # 이수 구분 → 지금까지 취득 학점
+
+
+class Enrollment(BaseModel):
+    """수강 이력 1건 (enrollments.json → DB enrollments 테이블)."""
+
+    student_id: str
+    course_id: str
+    semester: str = Field(pattern=r"^\d{4}-[12]$")  # 예: 2026-2
+    category: str  # 이수 구분: 전공·교양·일반
+    grade: str | None = None  # 성적. None이면 수강 중
+
+
+class MockData(BaseModel):
+    """DB에 넣을 목업 전체 (data/mock/*.json, 검증 완료)."""
+
+    students: dict[str, StudentRecord]
+    courses: dict[str, Course]
+    rules: dict[str, GraduationRule]
+    enrollments: list[Enrollment]
+
+
+class Student(BaseModel):
+    """처리기가 보는 학생 정보. DB의 수강 이력에서 계산해 만든다."""
+
+    student_id: str
+    name: str
+    dept_id: str
+    grade: int
+    earned_credits: dict[str, int]  # 이수 구분 → 취득 학점 (F 제외)
     enrollments: list[str]  # 이번 학기 수강 course_id
 
 
 class StudentData(BaseModel):
-    """로드·검증이 끝난 학생 개인 데이터."""
+    """처리기가 쓰는 강의·졸업 기준 (해당 학생에게 필요한 것만)."""
 
-    students: dict[str, Student]
     courses: dict[str, Course]
     rules: dict[str, GraduationRule]
 
