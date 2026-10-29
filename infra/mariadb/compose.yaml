@@ -1,0 +1,36 @@
+name: ditnow-db
+
+services:
+  db:
+    image: ${DB_IMAGE:-mariadb:11.4}
+    container_name: ${DB_CONTAINER_NAME:-ditnow-db}
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+      MARIADB_ROOT_HOST: localhost        # root only via socket inside the container
+      MARIADB_AUTO_UPGRADE: "1"
+      TZ: ${TZ:-Asia/Seoul}
+    volumes:
+      - ditnow_db_data:/var/lib/mysql
+      - ./conf/ditnow.cnf:/etc/mysql/conf.d/ditnow.cnf:ro
+    ports:
+      - "${DB_BIND_ADDR:-127.0.0.1}:${DB_HOST_PORT:-3307}:3306"   # host-local only
+    mem_limit: ${DB_MEM_LIMIT:-1536m}
+    networks: [ditnow_db]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  ditnow_db_data:
+    name: ditnow_db_data
+
+networks:
+  ditnow_db:
+    name: ditnow_db
+    ipam:
+      config:
+        - subnet: ${DB_SUBNET:-172.31.250.0/24}
