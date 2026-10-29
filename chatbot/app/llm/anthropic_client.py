@@ -3,7 +3,7 @@ import time
 
 import anthropic
 
-from app.llm.base import ChatMessage, LLMAuthError, LLMClient, LLMError
+from ..llm.base import ChatMessage, LLMAuthError, LLMClient, LLMError
 
 logger = logging.getLogger(__name__)
 

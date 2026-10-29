@@ -13,18 +13,18 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.auth import authenticate, issue_token, now_utc, resolve_token, revoke_token
-from app.config import Settings, get_settings
-from app.conversation import condense
-from app.data_loader import DataError, load_data, load_mock_data
-from app.db import init_db, make_engine
-from app.intents import CAMPUS, route
-from app.llm import get_llm_client
-from app.models import QuestionLogRow
-from app.prompt import LLM_FAILURE_ANSWER
-from app.rag import answer_question
-from app.retriever.keyword import KeywordRetriever, normalize
-from app.schemas import (
+from .auth import authenticate, issue_token, now_utc, resolve_token, revoke_token
+from .config import Settings, get_settings
+from .conversation import condense
+from .data_loader import DataError, load_data, load_mock_data
+from .db import init_db, make_engine
+from .intents import CAMPUS, route
+from .llm import get_llm_client
+from .models import QuestionLogRow
+from .prompt import LLM_FAILURE_ANSWER
+from .rag import answer_question
+from .retriever.keyword import KeywordRetriever, normalize
+from .schemas import (
     AskRequest,
     AskResponse,
     Facility,
@@ -32,7 +32,7 @@ from app.schemas import (
     LoginResponse,
     QuestionLogOut,
 )
-from app.student_repo import load_student
+from .student_repo import load_student
 
 logger = logging.getLogger(__name__)
 CACHE_TTL_SEC = 600

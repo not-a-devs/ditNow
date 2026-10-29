@@ -2,9 +2,9 @@
 
 import logging
 
-from app.llm import ChatMessage, LLMClient, LLMError
-from app.prompt import CONDENSE_PROMPT
-from app.schemas import Turn
+from .llm import ChatMessage, LLMClient, LLMError
+from .prompt import CONDENSE_PROMPT
+from .schemas import Turn
 
 logger = logging.getLogger(__name__)
 

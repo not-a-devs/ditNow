@@ -3,8 +3,8 @@ import unicodedata
 
 from rapidfuzz import fuzz
 
-from app.retriever.base import Retriever, SearchHit
-from app.schemas import Facility
+from ..retriever.base import Retriever, SearchHit
+from ..schemas import Facility
 
 _NON_WORD = re.compile(r"[^0-9a-z가-힣]+")
 _PARTICLE = re.compile(r"(에서|으로|은|는|이|가|을|를|에|로|도)$")

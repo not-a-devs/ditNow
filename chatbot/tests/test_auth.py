@@ -72,7 +72,9 @@ def test_mock_broken_enrollment(tmp_path: Path, campus_data: CampusData) -> None
         shutil.copy(f, tmp_path / f.name)
     rows = json.loads((tmp_path / "enrollments.json").read_text(encoding="utf-8"))
     rows[0]["course_id"] = "NOPE"
-    (tmp_path / "enrollments.json").write_text(json.dumps(rows, ensure_ascii=False))
+    (tmp_path / "enrollments.json").write_text(
+        json.dumps(rows, ensure_ascii=False), encoding="utf-8"
+    )
     with pytest.raises(DataError, match="NOPE"):
         load_mock_data(tmp_path, campus_data)
 

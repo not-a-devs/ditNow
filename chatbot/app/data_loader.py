@@ -4,7 +4,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from app.schemas import (
+from .schemas import (
     Building,
     CampusData,
     Course,
