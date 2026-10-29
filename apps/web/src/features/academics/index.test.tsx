@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, requestData } from '../../lib/api';
@@ -93,6 +94,21 @@ describe('academics first-pass screen', () => {
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     fireEvent.click(within(alert).getByRole('button', { name: '다시 확인' }));
     expect(await screen.findByRole('tablist')).toBeInTheDocument();
+  });
+
+  it('finishes a mutation under StrictMode like main.tsx', async () => {
+    render(<StrictMode><AcademicsPage /></StrictMode>);
+    fireEvent.click(await screen.findByRole('button', { name: '시연 수강 신청' }));
+    expect(await screen.findByText(/시연 수강 신청이 저장되었습니다/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '신청됨' })).toBeInTheDocument();
+  });
+
+  it.each([401, 403])('forwards %i from a mutation to the parent under StrictMode', async status => {
+    routes['/academics/enrollments'] = init => init?.method === 'POST' ? new ApiError(status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN', status) : [];
+    render(<StrictMode><AcademicsPage /></StrictMode>);
+    fireEvent.click(await screen.findByRole('button', { name: '시연 수강 신청' }));
+    expect(await screen.findByText(/개인 학사·출결 화면을 비웠습니다/)).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
 
   it('keeps request form input on failure, reuses the key for the same intent and rotates on change', async () => {

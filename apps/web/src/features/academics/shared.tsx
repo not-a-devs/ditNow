@@ -30,7 +30,11 @@ export function useAction(onAuth: OnAuthFailure) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // StrictMode runs setup → cleanup → setup on mount, so setup must restore the flag.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   async function run<T>(action: () => Promise<T>, onDone: (data: T) => void): Promise<boolean> {
     setBusy(true); setError('');
     try {

@@ -160,6 +160,12 @@ class AcademicsService:
     def enroll(self, actor: AcademicActor, body: EnrollInput, key: str) -> EnrollmentView:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
+            self._student(uow)
+            offering = uow.get_offering(body.offering_id)
+            if offering is None:
+                raise ApiError(ErrorCode.NOT_FOUND)
+            # Lock order: registration(actor, term) -> seat. Reads below must be current reads.
+            uow.lock_registration(offering.term_id)
             standing = self._student(uow)
             claim = claim_for(
                 actor.user_id, "/academics/enrollments", key, body.model_dump(mode="json"), uuid4()
@@ -167,9 +173,6 @@ class AcademicsService:
             replay = replayed_resource(uow.find_claim(claim.namespace), claim)
             if replay is not None:
                 return _enrollment_view(self._replayed(uow.get_my_enrollment(replay)))
-            offering = uow.get_offering(body.offering_id)
-            if offering is None:
-                raise ApiError(ErrorCode.NOT_FOUND)
             if offering.term_id not in standing.registration_term_ids:
                 raise ApiError(ErrorCode.FORBIDDEN)
             window = policy.registration_windows.get(offering.term_id)
@@ -215,6 +218,12 @@ class AcademicsService:
     ) -> EnrollmentView:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
+            self._student(uow)
+            located = uow.get_my_enrollment(enrollment_id)
+            if located is None:
+                raise ApiError(ErrorCode.NOT_FOUND)
+            # Same order as enroll: registration(actor, term) -> seat, then re-read current state.
+            uow.lock_registration(located.term_id)
             self._student(uow)
             row = uow.get_my_enrollment(enrollment_id)
             if row is None:
@@ -265,6 +274,13 @@ class AcademicsService:
             rows = sorted(uow.my_requests(), key=lambda row: row.created_at, reverse=True)
             return [_request_view(row) for row in rows]
 
+    @classmethod
+    def _lock_requests(cls, uow: AcademicsUnitOfWork) -> None:
+        # The actor's request aggregate guards the active-duplicate rule across different keys.
+        cls._student(uow)
+        uow.lock_requests()
+        cls._student(uow)
+
     @staticmethod
     def _check_references(uow: AcademicsUnitOfWork, actor_id: UUID, body) -> None:
         if body.target_term_id is not None and not uow.term_exists(body.target_term_id):
@@ -297,7 +313,7 @@ class AcademicsService:
     ) -> AcademicRequestView:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
-            self._student(uow)
+            self._lock_requests(uow)
             claim = claim_for(
                 actor.user_id, "/academics/requests", key, body.model_dump(mode="json"), uuid4()
             )
@@ -332,7 +348,7 @@ class AcademicsService:
     ) -> AcademicRequestView:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
-            self._student(uow)
+            self._lock_requests(uow)
             row = self._own_request(uow, request_id)
             if row.status != "DRAFT":
                 raise conflict("INVALID_STATE")
@@ -360,7 +376,7 @@ class AcademicsService:
     ) -> AcademicRequestView:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
-            self._student(uow)
+            self._lock_requests(uow)
             row = self._own_request(uow, request_id)
             if row.status != "DRAFT":
                 raise conflict("INVALID_STATE")
@@ -387,7 +403,7 @@ class AcademicsService:
     ) -> AcademicRequestView:
         self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
-            self._student(uow)
+            self._lock_requests(uow)
             row = self._own_request(uow, request_id)
             if row.status not in ACTIVE_REQUEST:
                 raise conflict("INVALID_STATE")
@@ -429,6 +445,9 @@ class AcademicsService:
         policy = self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
             self._grant(uow, offering_id, "teacher")
+            # Lock order: offering sessions -> session. Any co-teacher contends on the same lock.
+            uow.lock_offering_sessions(offering_id)
+            self._grant(uow, offering_id, "teacher")
             claim = claim_for(
                 actor.user_id,
                 f"/academics/attendance/offerings/{offering_id}/sessions",
@@ -455,10 +474,14 @@ class AcademicsService:
             uow.insert_session(row, claim)
             return _session_view(row, True)
 
+    @staticmethod
     def _session(
-        self, uow: AcademicsUnitOfWork, offering_id: UUID, session_id: UUID
+        uow: AcademicsUnitOfWork, offering_id: UUID, session_id: UUID, lock: bool = False
     ) -> SessionRecord:
-        row = uow.get_session(offering_id, session_id)
+        if lock:
+            row = uow.lock_session(offering_id, session_id)
+        else:
+            row = uow.get_session(offering_id, session_id)
         if row is None or row.offering_id != offering_id:
             raise ApiError(ErrorCode.NOT_FOUND)
         return row
@@ -469,7 +492,10 @@ class AcademicsService:
         self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
             self._grant(uow, offering_id, "teacher")
-            row = self._session(uow, offering_id, session_id)
+            uow.lock_offering_sessions(offering_id)
+            self._grant(uow, offering_id, "teacher")
+            # The session row lock orders this close against in-flight check-ins.
+            row = self._session(uow, offering_id, session_id, lock=True)
             if row.status != "OPEN":
                 raise conflict("INVALID_STATE")
             self._cas(row.revision, body.expected_revision)
@@ -502,7 +528,10 @@ class AcademicsService:
         mismatch = False
         with self.store.unit_of_work(actor.user_id) as uow:
             self._grant(uow, offering_id, "student")
-            session = self._session(uow, offering_id, session_id)
+            # Session row lock: commits before a close or sees CLOSED, and serializes this
+            # session's attempt counters. The record write below is still a CAS.
+            session = self._session(uow, offering_id, session_id, lock=True)
+            self._grant(uow, offering_id, "student")
             now = self._now()
             if session.status != "OPEN" or now >= session.check_in_closes_at:
                 raise conflict("SESSION_CLOSED")
@@ -701,13 +730,15 @@ class AcademicsService:
                 body.model_dump(mode="json"),
                 uuid4(),
             )
+            # The record row lock makes "one REQUESTED correction per record" hold across keys.
+            record = uow.lock_record(offering_id, record_id)
+            if record is None or record.student_id != actor.user_id:
+                raise ApiError(ErrorCode.NOT_FOUND)
+            self._grant(uow, offering_id, "student")
             replay = replayed_resource(uow.find_claim(claim.namespace), claim)
             if replay is not None:
                 row = self._replayed(uow.get_correction(offering_id, replay))
                 return self._correction_view(row, actor.user_id, {})
-            record = uow.get_record_by_id(offering_id, record_id)
-            if record is None or record.student_id != actor.user_id:
-                raise ApiError(ErrorCode.NOT_FOUND)
             if record.mark not in FINAL_MARKS:
                 raise conflict("INVALID_STATE")
             if any(
@@ -748,6 +779,14 @@ class AcademicsService:
         self._policy()
         with self.store.unit_of_work(actor.user_id) as uow:
             self._grant(uow, offering_id, "teacher")
+            located = uow.get_correction(offering_id, correction_id)
+            if located is None:
+                raise ApiError(ErrorCode.NOT_FOUND)
+            # Lock order: record -> correction (same as request_correction), then re-read.
+            record = uow.lock_record(offering_id, located.record_id)
+            if record is None:
+                raise ApiError(ErrorCode.NOT_FOUND)
+            self._grant(uow, offering_id, "teacher")
             row = uow.get_correction(offering_id, correction_id)
             if row is None:
                 raise ApiError(ErrorCode.NOT_FOUND)
@@ -756,9 +795,6 @@ class AcademicsService:
             self._cas(row.revision, body.expected_revision)
             now = self._now()
             if body.decision == "ACCEPTED":
-                record = uow.get_record_by_id(offering_id, row.record_id)
-                if record is None:
-                    raise ApiError(ErrorCode.NOT_FOUND)
                 self._apply_mark(
                     uow,
                     actor.user_id,

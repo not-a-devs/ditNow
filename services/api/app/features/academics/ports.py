@@ -15,6 +15,53 @@ by this module; unit tests only exercise a serialized in-memory fake):
   ``(student_id, offering_id)`` among ENROLLED rows.
 * ``update_*`` methods are CAS writes: they must raise ``ApiError(CONFLICT)`` when the stored
   revision differs from ``expected_revision`` and must store ``row.revision`` (= expected + 1).
+
+Aggregate locks (TASK-M review fix). Each ``lock_*`` takes an exclusive row lock that is held
+until commit/rollback, so a second transaction on the same aggregate blocks instead of deciding
+from the same stale state. The service always calls them in one global order, which prevents
+lock-order deadlocks between its own flows:
+
+  registration(actor, term) -> seat(offering)
+  student requests(actor)
+  offering sessions(offering) -> session(row) -> attendance record(row) -> correction(row)
+
+* ``lock_registration(term_id)`` locks the bound actor's registration aggregate for one term
+  (e.g. a ``(student_id, term_id)`` row read ``FOR UPDATE``). ``enroll`` and ``drop`` take it
+  before reading the active list, credit total and time conflicts, then take ``lock_seats``.
+  Two enrollments of the same student in *different* offerings therefore serialize; the seat
+  lock alone does not.
+* ``lock_requests()`` locks the bound actor's virtual-request aggregate. ``create/update/
+  submit/withdraw_request`` take it before the active-duplicate check. The duplicate key is the
+  existing policy key (kind, target_grade_id) among DRAFT/SUBMITTED; a unique index cannot
+  express it alone because MariaDB unique indexes accept repeated NULLs, so the lock is the
+  primary guard.
+* ``lock_offering_sessions(offering_id)`` locks the offering's attendance aggregate. ``open``
+  and ``close_session`` take it, so two teachers of the same offering cannot both open a
+  session. An adapter should additionally enforce "at most one OPEN session per offering"
+  (e.g. a unique index on a nullable generated ``open_offering_id``) as defense in depth.
+* ``lock_session(offering_id, session_id)`` is a locking read of the session row.
+  ``close_session`` (after the offering lock) and ``check_in`` take it, so a check-in either
+  commits before the close or reads the CLOSED state; per-session check-ins are serialized,
+  which also orders each student's failed-attempt counter increments. The record write itself
+  stays a CAS (``save_record``; first insert relies on unique ``(session_id, student_id)``), so
+  a concurrent teacher ``mark`` on the same record loses with CONFLICT rather than overwriting.
+* ``lock_record(offering_id, record_id)`` is a locking read of the attendance record row.
+  ``request_correction`` and ``resolve_correction`` take it before reading corrections, so one
+  record has at most one REQUESTED correction.
+
+Read consistency after a lock (an adapter contract, not a decided infrastructure policy):
+under MariaDB/InnoDB REPEATABLE READ the snapshot is fixed by the transaction's first
+consistent read, and a plain ``SELECT`` after acquiring a lock can still return that older
+snapshot. Every read that a decision depends on after a ``lock_*`` call (``standing``,
+``attendance_grant``, ``find_claim``, ``my_enrollments``, ``my_requests``, ``sessions``,
+``get_*``, ``corrections``, seat counts) must therefore be a current read: either run the unit
+at READ COMMITTED, or issue those reads as locking reads (``FOR UPDATE`` /
+``LOCK IN SHARE MODE``) so they see the latest committed rows. The service re-checks
+standing/grants after locking for this reason. Sources (checked 2026-10-30):
+https://mariadb.com/docs/server/reference/sql-statements/transactions/transactions-repeatable-read
+https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/for-update
+The isolation level and lock-row schema are not chosen yet; no real MariaDB run has verified
+this contract.
 * ``insert_*`` methods persist the row and its ``IdempotencyClaim`` atomically; the claim
   namespace is unique. Dropped/withdrawn rows and their claims are retained as tombstones.
 * Every ``my_*``/``get_*`` read is scoped to the bound actor (or the given offering for a
@@ -59,6 +106,17 @@ class AcademicsUnitOfWork(Protocol):
     def search_offerings(self, term_id: UUID | None, query: str, limit: int) -> list[Offering]: ...
 
     def get_offering(self, offering_id: UUID) -> Offering | None: ...
+
+    # Aggregate locks: held until the unit ends; see module docstring for order and reads.
+    def lock_registration(self, term_id: UUID) -> None: ...
+
+    def lock_requests(self) -> None: ...
+
+    def lock_offering_sessions(self, offering_id: UUID) -> None: ...
+
+    def lock_session(self, offering_id: UUID, session_id: UUID) -> SessionRecord | None: ...
+
+    def lock_record(self, offering_id: UUID, record_id: UUID) -> AttendanceRecord | None: ...
 
     # FR-ACA-004 registration
     def lock_seats(self, offering_id: UUID) -> SeatState | None: ...

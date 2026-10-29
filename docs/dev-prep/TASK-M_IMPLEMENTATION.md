@@ -10,8 +10,8 @@
 
 수정 파일(이 태스크 소유만):
 - `services/api/app/features/academics/`: `models.py`(입출력·출처), `policy.py`(DemoAcademicPolicy), `idempotency.py`, `ports.py`(repository/UOW Protocol), `service.py`, `router.py`
-- `services/api/tests/test_academics_support.py`(테스트 전용 fake), `test_academics_service.py`, `test_academics_http.py`
-- `apps/web/src/features/academics/`: `index.tsx`(default), `CoursesPanel.tsx`, `RequestsPanel.tsx`, `AttendancePanel.tsx`, `shared.tsx`, `api.ts`, `models.ts`, `academics.module.css`, `api.test.ts`, `index.test.tsx`
+- `services/api/tests/test_academics_support.py`(테스트 전용 fake 2종), `test_academics_service.py`, `test_academics_http.py`, `test_academics_concurrency.py`(리뷰 후속)
+- `apps/web/src/features/academics/`: `index.tsx`(default), `CoursesPanel.tsx`, `RequestsPanel.tsx`, `AttendancePanel.tsx`, `shared.tsx`, `api.ts`, `models.ts`, `academics.module.css`, `api.test.ts`, `index.test.tsx`, `shared.test.tsx`(리뷰 후속)
 - 이 문서
 
 공통 API router/factory/auth/DB models/migrations/pyproject/uv.lock/package/App/NAV/README/workflow/진행표 CSV/`mvp/`는 수정·복사하지 않았다. 진행표(06)·보드(05) 갱신은 ORCH 소유라 이 PR에 포함하지 않는다.
@@ -51,7 +51,47 @@
 - 재시도에서도 현재 자격/grant를 먼저 재검증한다(권한 폐기 후 replay 403 테스트).
 - 삭제 대신 tombstone: 수강 `DROPPED`, 요청 `WITHDRAWN`(사유 텍스트는 최소화로 null). 원 클레임 replay는 tombstone을 돌려주며 부활하지 않는다.
 - 상태 변경은 `expected_revision` CAS이고 불일치 409 `STALE_REVISION`. 출결 기록은 revision 0이 "아직 없음"이다.
-- **원자성은 실 DB 보장이 아니다.** `ports.py`가 어댑터 계약(같은 트랜잭션의 자격 재조회, `lock_seats` 행 잠금, 클레임+행 동시 저장, 예외 시 전체 rollback, ENROLLED 유일성)을 명시한다. 테스트 fake는 전역 잠금으로 직렬화하고 예외 시 snapshot으로 되돌릴 뿐이다. 체크인 코드 불일치는 시도 횟수를 commit한 뒤 400을 던진다.
+- **원자성은 실 DB 보장이 아니다.** `ports.py`가 어댑터 계약(같은 트랜잭션의 자격 재조회, `lock_seats` 행 잠금, aggregate 잠금과 순서, 잠금 후 current read, 클레임+행 동시 저장, 예외 시 전체 rollback, ENROLLED 유일성)을 명시한다. `FakeStore`는 전역 잠금으로 직렬화하므로 동시성 결함을 숨긴다. 경쟁 검증은 전역 잠금이 없는 `AggregateLockStore`로만 한다(아래). 체크인 코드 불일치는 시도 횟수를 commit한 뒤 400을 던진다.
+
+## 독립 리뷰 재현 결함 수정 (PR #34 후속, 2026-10-30)
+
+독립 Codex 리뷰가 `ditNow-browser-tools/review-academics-concurrency.py`(강좌별 seat lock만 있는 fake + read 후 barrier)와 StrictMode 스크립트로 재현한 P1 4건. 원인은 서비스가 aggregate를 **잠그기 전에** 목록을 읽었고, 기존 테스트 fake의 전역 잠금이 이를 가렸기 때문이다.
+
+### 잠금 계약 (`ports.py`, `service.py`)
+
+모든 흐름이 쓰는 단일 잠금 순서(교착 방지):
+`registration(actor, term) → seat(offering)` / `student requests(actor)` / `offering sessions(offering) → session(row) → attendance record(row) → correction(row)`.
+
+| 결함 | 수정 |
+| --- | --- |
+| 1. 같은 학생이 서로 다른 강좌를 동시 신청 → 학점 한도(3+3>3)·시간 충돌 우회 | `lock_registration(term_id)`(actor+term 행 `FOR UPDATE` 상당)을 활성 목록·학점·충돌·claim 조회 **전에** 획득 → 자격(`standing`) 재확인 → claim replay → 판정 → `lock_seats`. `drop`도 enrollment 위치 확인 → 같은 registration 잠금 → 자격·enrollment 재조회 → seat 잠금 순서 |
+| 2. 다른 key 두 개로 같은 종류 활성 휴학 요청 2건 | `lock_requests()`(학생 요청 aggregate)를 create/update/submit/withdraw 모두에서 중복 검사 전에 획득, 잠금 후 자격 재확인. 중복 규칙(종류+`target_grade_id`, DRAFT/SUBMITTED)은 그대로. nullable 컬럼 unique index는 MariaDB에서 NULL 반복을 허용하므로 잠금이 1차 보장임을 명시 |
+| 3. 서로 다른 담당 교수 둘이 같은 분반에 OPEN 세션 2개 | `lock_offering_sessions(offering_id)`를 open/close에서 획득, grant 재확인. 어댑터에 "분반당 OPEN 1개" 고유성(예: nullable generated column unique)을 방어선으로 요구 |
+| 3-a. 세션 종료와 체크인 경합 | `lock_session()` 잠금 조회를 close(분반 잠금 뒤)와 check-in이 획득 → 체크인은 종료 commit 전에 commit되거나 CLOSED를 읽는다 |
+| 3-b. 체크인 시도 카운터 | 같은 세션 체크인이 session 행 잠금으로 직렬화되고, 기록 쓰기는 기존 CAS(`save_record`, 최초 insert는 `(session_id, student_id)` 고유) 유지 → 교수 `mark` 동시 수정은 CONFLICT로 패배 |
+| 3-c. 같은 기록에 정정 요청 중복 | `lock_record()`를 request/resolve 모두 correction 조회 전에 획득(record → correction 순서), 잠금 후 grant·correction 재조회 |
+
+격리 수준 주의(계약이며 인프라 결정 아님): MariaDB/InnoDB REPEATABLE READ는 첫 consistent read로 snapshot을 정하므로 잠금 후 일반 `SELECT`가 이전 snapshot을 볼 수 있다. 따라서 잠금 뒤 판정에 쓰는 읽기는 READ COMMITTED 단위이거나 `FOR UPDATE`/`LOCK IN SHARE MODE` locking read여야 한다고 `ports.py`에 명시했다. 근거(확인 2026-10-30): [REPEATABLE READ](https://mariadb.com/docs/server/reference/sql-statements/transactions/transactions-repeatable-read), [FOR UPDATE](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/selecting-data/for-update). 실제 격리 수준·잠금 행 스키마는 미정이며 A(공통 DB) 소유 결정이다.
+
+### 회귀 fake와 테스트 (`test_academics_support.py`, `test_academics_concurrency.py`)
+
+- `AggregateLockStore`: 전역 잠금 없음. `lock_*`만 이름별 `Lock`을 unit 종료까지 보유(대기 5초 초과 시 교착 의심으로 실패). 각 adapter 호출은 짧은 latch로 원자적 1문장, 실패 unit은 undo log로 되돌림. 두 unit은 **첫 aggregate 읽기 직후** 또는 **첫 잠금 획득 직전** 중 먼저 오는 지점에서 barrier로 만난다 → 잠그기 전에 읽는 코드는 같은 상태를 읽은 채 경쟁이 강제된다. current read만 모델링하며 MVCC snapshot·dirty read 방지·gap lock·MariaDB 자체는 모델링하지 않는다.
+- 신규 9건: 다른 강좌 학점 한도, 시간 충돌, enroll/drop 잠금 순서 trace, 잠금 대기 중 자격 폐기 → 403, 다른 key 휴학 요청, create+update 같은 성적 대상, 두 교수 세션 개설, 종료 vs 체크인 commit 순서, 같은 기록 정정 요청 2건.
+- **수정 전 코드로 실행**(HEAD `service.py`를 임시 복원): 9건 중 8건 FAIL(학점 `ENROLLED×2`, 충돌 `ENROLLED×2`, 요청·세션·정정 중복 0회 거절, 자격 재확인 없음, 잠금 trace 없음). 종료 vs 체크인 1건은 수정 전에도 PASS — 잘못된 commit 순서가 스케줄링에 따라서만 발생해 이 fake로 결정적 반례를 만들지 못했다(불변식 검사로만 유지).
+- 수정 후 9건 PASS, 같은 9건을 25회 반복(225회) 실패 0.
+- 체크인 시도 카운터는 CAS로 이미 한도 초과가 불가능하여(수정 전후 모두 안전) 별도 경쟁 테스트를 추가하지 않았다.
+- 리뷰어 스크립트 자체는 자체 fake(aggregate 잠금 미구현)를 쓰므로 수정 확인용으로 재실행하지 않았다.
+
+### StrictMode `useAction` (`shared.tsx`)
+
+`mounted` ref를 cleanup에서 false로만 바꾸고 setup에서 복구하지 않아, `main.tsx`의 StrictMode setup→cleanup→setup 이후 mutation이 서버에서 처리돼도 `onDone` 미호출·`busy` 영구 true·401/403 상위 전달 누락이 발생했다. setup에서 true 복구, cleanup false 유지로 수정. 신규 테스트: `shared.test.tsx`(StrictMode harness 성공·실패·401·403, unmount 후 늦게 끝난 성공/실패/401 결과 무시 — 7건), `index.test.tsx`(StrictMode 페이지 수강신청 성공·401·403 — 3건). 수정 전 코드로 실행 시 harness 4건·페이지 3건 FAIL(버튼 disabled 고정, `onDone` 0회, `onAuth` 0회) 확인 후 수정 적용. unmount 뒤 늦은 성공은 `true`를 반환하되(서버 처리 가능성) 화면 상태·상위 콜백은 건드리지 않는다.
+
+### 이번 후속 실행 결과
+
+- `services/api`: `ruff check .` PASS, `ruff format --check .` PASS(76 files), `pytest` **446 passed**(신규 9). `uv sync`는 의존성 변경이 없어 재실행하지 않음.
+- `apps/web`: `typecheck` PASS, `npm test` **181 passed**(신규 10), `build` PASS, `api:types:check` PASS. `npm ci`/`npm audit`는 의존성 변경이 없어 이번에 NOT_RUN.
+- `check-agent-config.mjs` PASS, `check-feature-progress.mjs` errors [], `git diff --cached --check` PASS.
+- NOT_RUN: 실제 MariaDB에서의 잠금·격리 검증(TLS CA/SAN 대기로 BLOCKED_TLS, 원격 쓰기 0, 인증서 검증 완화 없음), 실브라우저 StrictMode 확인. fake 경쟁 성공을 실 DB 검증으로 간주하지 않는다.
 
 ## 프런트엔드
 
@@ -63,6 +103,7 @@
 | --- | --- | --- |
 | TC-V1-ACA-003 | 학기·검색어·limit 필터, 없는 강좌 404, DEMO/OFFICIAL_PUBLIC/UNKNOWN 출처 검증 | PASS(단위) |
 | TC-V1-ACA-004 / X07 | 멱등 replay·payload 충돌·타 actor 분리, 시간 충돌·학점 한도·정원·중복, UTC 반열림 기간, 자격 폐기 후 replay 403, **8명 병렬 정원 2 초과 없음**, 같은 학생 6중 병렬 1건, 취소 CAS·tombstone·좌석 반환 | PASS(fake 직렬화) |
+| TC-V1-ACA-004 / 006~009 / ATT-001~002 경쟁 | 다른 강좌 동시 신청 학점·충돌, 잠금 순서, 잠금 후 자격 재확인, 다른 key 요청 중복, 두 교수 세션, 종료 vs 체크인, 정정 중복 | PASS(`AggregateLockStore`, 전역 잠금 없음; 실 DB 아님) |
 | TC-V1-ACA-005 / X09 | 본인 성적만, 타 학생 성적/ID 미노출, 졸업 판정 미제공·공식 효력 NONE | PASS(단위) |
 | TC-V1-ACA-006~009 | 5종 대상 검증, 타인 성적/없는 학과·학기 404, 활성 중복 409, 종류 미주입 503, CAS·제출 기간·철회 tombstone·replay, 타 학생 404, UOW 예외 시 클레임·행 rollback | PASS(단위) |
 | TC-V1-ATT-001 | 교수만 세션 시작·종료, 코드 교수만 노출, 체크인 코드 불일치 시도 commit·한도 429, 창/종료 409, BLUETOOTH 400, 교수 표시 CAS·이력(행위자 ID 비노출), 교수 grant 폐기 403, 병렬 표시 1건 | PASS(단위) |
@@ -70,7 +111,7 @@
 | HTTP | 미설치 actor/service 503+no-store, 정책 미주입 503, 전역 앱 미mount, key 누락/형식 400, 위조 student_id/status/attachment 400, 규칙 코드, 404 동일 응답, 예외 비밀 미노출, OpenAPI 내부 record 비노출 | PASS(TestClient) |
 | FE | 11개 경로 단일 `/api/v1` prefix, ID 인코딩, guard 거부, 503/401/403 처리, key 재사용·회전, 폼 보존, 허위 성공 미표시, 정책 배너, 체크인 DEMO_CODE, 교수 전용 코드 | PASS(Vitest/RTL) |
 
-실행 명령과 결과:
+최초 PR 작성 시 실행 명령과 결과(후속 결과는 위 "이번 후속 실행 결과"):
 - `services/api`: `uv sync --locked` PASS, `uv run --locked ruff check .` PASS, `ruff format --check .` PASS(75 files), `uv run --locked pytest` **437 passed**(academics 신규 40, 기존 회귀 포함; TestClient deprecation 경고 1건 비차단).
 - `apps/web`: `npm ci` PASS, `npm run api:types:check` PASS(공개 스냅샷 불변), `npm run typecheck` PASS, `npm test` **171 passed**(academics 신규 31), `npm run build` PASS, `npm audit --audit-level=moderate` 0 vulnerabilities.
 - `node scripts/check-agent-config.mjs` PASS, `node scripts/check-feature-progress.mjs` errors [], `git diff --check` PASS.

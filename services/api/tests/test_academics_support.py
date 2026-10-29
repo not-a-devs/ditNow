@@ -1,15 +1,17 @@
-"""Test-only serialized in-memory unit of work for the academics feature.
+"""Test-only in-memory units of work for the academics feature.
 
-This fake is never installed by application code. It models the Protocol contract (actor-bound
-reads, CAS writes, claim+row in one unit, rollback on exception) so the service rules can be
-tested. It does NOT prove MariaDB locking, isolation or persistence.
+These fakes are never installed by application code. ``FakeStore`` serializes whole units of
+work with one global lock, so it tests service rules but hides concurrency bugs.
+``AggregateLockStore`` drops the global lock: units run concurrently and only the Protocol's
+``lock_*`` aggregate locks serialize them. Neither proves MariaDB locking, isolation or
+persistence.
 """
 
 import copy
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from threading import RLock
+from threading import Barrier, BrokenBarrierError, Event, Lock, RLock
 from uuid import UUID, uuid4
 
 from app.core.errors import ApiError
@@ -126,17 +128,39 @@ class FakeUow:
         self.d = data
         self.actor_id = actor_id
 
-    @staticmethod
-    def _cas(table: dict, row, expected: int) -> None:
+    # Every write goes through these two so AggregateLockStore can undo a failed unit.
+    def _put(self, table: dict, key, value) -> None:
+        table[key] = value
+
+    def _append(self, items: list, value) -> None:
+        items.append(value)
+
+    def _cas(self, table: dict, row, expected: int) -> None:
         stored = table.get(row.id)
         if stored is None or stored.revision != expected or row.revision != expected + 1:
             raise ApiError(ErrorCode.CONFLICT)
-        table[row.id] = row
+        self._put(table, row.id, row)
 
     def _claim(self, claim) -> None:
         if claim.actor_id != self.actor_id or claim.namespace in self.d.claims:
             raise ApiError(ErrorCode.CONFLICT)
-        self.d.claims[claim.namespace] = claim
+        self._put(self.d.claims, claim.namespace, claim)
+
+    # The global FakeStore lock already serializes units, so aggregate locks are no-ops here.
+    def lock_registration(self, term_id):
+        return None
+
+    def lock_requests(self):
+        return None
+
+    def lock_offering_sessions(self, offering_id):
+        return None
+
+    def lock_session(self, offering_id, session_id):
+        return self.get_session(offering_id, session_id)
+
+    def lock_record(self, offering_id, record_id):
+        return self.get_record_by_id(offering_id, record_id)
 
     def find_claim(self, namespace):
         return self.d.claims.get(namespace)
@@ -192,7 +216,7 @@ class FakeUow:
         ):
             raise ApiError(ErrorCode.CONFLICT)
         self._claim(claim)
-        self.d.enrollments[row.id] = row
+        self._put(self.d.enrollments, row.id, row)
 
     def update_enrollment(self, row, expected_revision):
         self._cas(self.d.enrollments, row, expected_revision)
@@ -209,7 +233,7 @@ class FakeUow:
 
     def insert_request(self, row, claim):
         self._claim(claim)
-        self.d.requests[row.id] = row
+        self._put(self.d.requests, row.id, row)
 
     def update_request(self, row, expected_revision):
         self._cas(self.d.requests, row, expected_revision)
@@ -232,7 +256,7 @@ class FakeUow:
 
     def insert_session(self, row, claim):
         self._claim(claim)
-        self.d.sessions[row.id] = row
+        self._put(self.d.sessions, row.id, row)
 
     def update_session(self, row, expected_revision):
         self._cas(self.d.sessions, row, expected_revision)
@@ -261,12 +285,12 @@ class FakeUow:
         if expected_revision == 0:
             if existing is not None or row.revision != 1:
                 raise ApiError(ErrorCode.CONFLICT)
-            self.d.records[row.id] = row
+            self._put(self.d.records, row.id, row)
         else:
             self._cas(self.d.records, row, expected_revision)
 
     def append_change(self, change):
-        self.d.changes.append(change)
+        self._append(self.d.changes, change)
 
     def changes(self, record_id):
         return [c for c in self.d.changes if c.record_id == record_id]
@@ -286,10 +310,167 @@ class FakeUow:
 
     def insert_correction(self, row, claim):
         self._claim(claim)
-        self.d.corrections[row.id] = row
+        self._put(self.d.corrections, row.id, row)
 
     def update_correction(self, row, expected_revision):
         self._cas(self.d.corrections, row, expected_revision)
+
+
+# -- aggregate-lock fake (no global lock) ------------------------------------------------------
+
+_MISSING = object()
+LOCK_WAIT_SECONDS = 5
+RENDEZVOUS_SECONDS = 1
+
+# Reads whose result decides an aggregate rule. A racing unit pauses right after the first of
+# these or right before its first lock_* acquisition, whichever comes first. If a flow reads the
+# aggregate before locking it, both units have read the same state before either can write, so
+# the race is forced instead of left to thread scheduling.
+RENDEZVOUS_READS = frozenset(
+    {"my_enrollments", "my_requests", "sessions", "get_session", "get_record", "corrections"}
+)
+
+
+class AggregateLockStore:
+    """Concurrent units guarded only by named aggregate locks held until the unit ends.
+
+    Each adapter call is one atomic statement (a short latch, never held across calls) and sees
+    the latest written state, i.e. this models current reads (READ COMMITTED / locking reads).
+    It does not model MVCC snapshots, dirty-read prevention, gap locks or MariaDB itself.
+    """
+
+    def __init__(self, data: Data | None = None):
+        self.data = data if data is not None else seeded_store().data
+        self.latch = RLock()
+        self.locks: dict = {}
+        self.barrier: Barrier | None = None
+        self.waiting = Event()
+        self.trace: list[tuple[UUID, str]] = []
+        self.commit_log: list[UUID] = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    def arm(self, parties: int = 2) -> None:
+        """Make the next ``parties`` units rendezvous before their first lock or aggregate read."""
+        self.barrier = Barrier(parties)
+
+    def named_lock(self, key) -> Lock:
+        with self.latch:
+            return self.locks.setdefault(key, Lock())
+
+    @contextmanager
+    def unit_of_work(self, actor_id: UUID):
+        uow = LockingUow(self, actor_id)
+        try:
+            yield uow
+        except BaseException:
+            with self.latch:
+                uow.undo()
+                self.rollbacks += 1
+            raise
+        else:
+            with self.latch:
+                self.commit_log.append(actor_id)
+                self.commits += 1
+        finally:
+            for lock in reversed(uow.held):
+                lock.release()
+
+
+class LockingUow(FakeUow):
+    def __init__(self, store: AggregateLockStore, actor_id: UUID):
+        super().__init__(store.data, actor_id)
+        self.store = store
+        self.held: list[Lock] = []
+        self.undo_log: list = []
+        self.depth = 0
+        self.met = store.barrier is None
+
+    def _put(self, table, key, value):
+        self.undo_log.append((table, key, table.get(key, _MISSING)))
+        table[key] = value
+
+    def _append(self, items, value):
+        self.undo_log.append((items, None, _MISSING))
+        items.append(value)
+
+    def undo(self) -> None:
+        for target, key, previous in reversed(self.undo_log):
+            if isinstance(target, list):
+                target.pop()
+            elif previous is _MISSING:
+                del target[key]
+            else:
+                target[key] = previous
+
+    def _rendezvous(self) -> None:
+        if self.met or self.depth:
+            return
+        self.met = True
+        try:
+            self.store.barrier.wait(timeout=RENDEZVOUS_SECONDS)
+        except BrokenBarrierError:
+            pass  # the other unit finished or failed early; continue unsynchronized
+
+    def _acquire(self, *key) -> None:
+        self._rendezvous()
+        with self.store.latch:
+            self.store.trace.append((self.actor_id, f"lock:{key[0]}"))
+        lock = self.store.named_lock(key)
+        if lock in self.held:
+            return
+        self.store.waiting.set()
+        if not lock.acquire(timeout=LOCK_WAIT_SECONDS):
+            raise AssertionError(f"lock wait timeout on {key[0]}: possible lock-order deadlock")
+        self.held.append(lock)
+
+    def _statement(self, name: str, *args):
+        with self.store.latch:
+            if self.depth == 0:
+                self.store.trace.append((self.actor_id, name))
+            self.depth += 1
+            try:
+                result = getattr(FakeUow, name)(self, *args)
+            finally:
+                self.depth -= 1
+        if name in RENDEZVOUS_READS:
+            self._rendezvous()  # after the read: the other unit then reads the same state
+        return result
+
+    def lock_registration(self, term_id):
+        self._acquire("registration", self.actor_id, term_id)
+
+    def lock_requests(self):
+        self._acquire("requests", self.actor_id)
+
+    def lock_offering_sessions(self, offering_id):
+        self._acquire("offering_sessions", offering_id)
+
+    def lock_session(self, offering_id, session_id):
+        self._acquire("session", session_id)
+        return self._statement("get_session", offering_id, session_id)
+
+    def lock_record(self, offering_id, record_id):
+        self._acquire("record", record_id)
+        return self._statement("get_record_by_id", offering_id, record_id)
+
+    def lock_seats(self, offering_id):
+        self._acquire("seat", offering_id)
+        with self.store.latch:
+            return FakeUow.lock_seats(self, offering_id)
+
+
+def _statement_method(name: str):
+    def method(self, *args):
+        return self._statement(name, *args)
+
+    method.__name__ = name
+    return method
+
+
+for _name in [n for n in vars(FakeUow) if not n.startswith("_")]:
+    if _name not in LockingUow.__dict__:
+        setattr(LockingUow, _name, _statement_method(_name))
 
 
 STUDENT_REF, OTHER_REF = uuid4(), uuid4()
@@ -336,7 +517,7 @@ def seeded_store() -> FakeStore:
     return store
 
 
-def make_service(store: FakeStore, policy="default", now=NOW) -> AcademicsService:
+def make_service(store, policy="default", now=NOW) -> AcademicsService:
     return AcademicsService(
         store,
         demo_policy() if policy == "default" else policy,
