@@ -1,0 +1,43 @@
+from contextlib import AbstractContextManager
+from typing import Protocol
+from uuid import UUID
+
+from app.features.online_learning.models import (
+    AttemptRecord,DemoLearningPolicy,EnrollmentGrant,ExamRecord,OfferingRef,ProgressRecord,Unit,
+)
+
+
+class LearningTransaction(Protocol):
+    """One offering/actor scoped UOW, not an installed DB implementation.
+
+    Re-read current account, term/offering/enrollment grant and policy inside this transaction.
+    Lock enrollment/policy/parent unit or exam and actor aggregate before limits/CAS/write.
+    At most one active attempt; count all actor+exam attempts atomically. Start/submit/progress
+    row+event+replay ledger commit together or roll back together. UNIQUE(actor,offering,
+    operation/resource,key), canonical body hash; changed hash conflicts. Never delete replay
+    tombstones or revive missing resources. Replays recheck current grant/parent/owner.
+    Never expose question keys/rubric/other students to responses, logs, search or AI.
+    The real adapter must use existing enrollment IDs; fake locks do not prove MariaDB behavior.
+    """
+    offering: OfferingRef
+    grant: EnrollmentGrant
+    policy: DemoLearningPolicy | None
+
+    def units(self) -> list[Unit]: ...
+    def unit(self,id:UUID) -> Unit | None: ...
+    def progress(self,unit_id:UUID) -> ProgressRecord | None: ...
+    def exams(self) -> list[ExamRecord]: ...
+    def exam(self,id:UUID) -> ExamRecord | None: ...
+    def attempts(self) -> list[AttemptRecord]: ...
+    def attempt(self,id:UUID) -> AttemptRecord | None: ...
+    def replay(self,operation:str,key:str,body_hash:str) -> UUID | None: ...
+    def save_progress(self,row:ProgressRecord,expected_revision:int,operation:str,
+                      key:str,body_hash:str) -> ProgressRecord: ...
+    def start(self,row:AttemptRecord,operation:str,key:str,body_hash:str) -> AttemptRecord: ...
+    def submit(self,row:AttemptRecord,expected_revision:int,operation:str,
+               key:str,body_hash:str) -> AttemptRecord: ...
+
+
+class LearningStore(Protocol):
+    def my_offering_ids(self,user_id:UUID,limit:int) -> list[UUID]: ...
+    def transaction(self,user_id:UUID,offering_id:UUID) -> AbstractContextManager[LearningTransaction]: ...
