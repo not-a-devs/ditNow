@@ -60,6 +60,8 @@ jobs:
           node-version: '22'
       - name: 탐색 지도와 스킬 검사
         run: node scripts/check-agent-config.mjs
+      - name: 전체 92개 구현 추적 검사
+        run: node scripts/check-feature-progress.mjs
       - name: 프런트 타입 생성 도구 설치
         working-directory: mvp
         run: npm ci
