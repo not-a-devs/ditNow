@@ -37,6 +37,8 @@ def visible_channels(actor: CampusActor, channels: Iterable[Channel]) -> list[Ch
 
 def can_author(actor: CampusActor, audience: Audience) -> bool:
     # Exact scope match only. Department scope does not silently imply grade scopes.
+    # Scopes come from the shared auth layer; this module never maps professor/assistant
+    # role names to scopes (unapproved policy, kept blocked until the auth owner signs off).
     return audience in actor.notice_author_scopes
 
 

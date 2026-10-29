@@ -4,9 +4,12 @@ import {
   MESSAGE_MAX_LENGTH,
   NOTICE_STATUS_LABEL,
   formatDateTime,
-  newClientNonce,
+  intentAfterFailure,
+  intentFor,
+  isUncertainSendFailure,
   toErrorView,
   validateMessage,
+  type PendingSend,
 } from "./model";
 import { EmptyView, ErrorView, LoadingView } from "./StatusView";
 import type { CampusErrorView, Channel, ChatMessage, LoadState } from "./types";
@@ -61,8 +64,11 @@ export function ChatPanel({ departmentId, onOpenNotice }: Props) {
 function MessageThread({ channelId, onOpenNotice }: { channelId: string; onOpenNotice: Props["onOpenNotice"] }) {
   const [messages, setMessages] = useState<LoadState<ChatMessage[]>>({ status: "loading" });
   const [draft, setDraft] = useState("");
-  // Kept across retries so a resend after a network failure is deduplicated by the server.
-  const [nonce, setNonce] = useState(newClientNonce);
+  // The (body, nonce) pair of the last unconfirmed send. Retrying the same body reuses the
+  // nonce so the server replays instead of duplicating; an edited body is a new intent.
+  const [pending, setPending] = useState<PendingSend | null>(null);
+  // Set after a failure where the server may already have stored the previous body.
+  const [maybeSent, setMaybeSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<CampusErrorView | string | null>(null);
 
@@ -82,23 +88,30 @@ function MessageThread({ channelId, onOpenNotice }: { channelId: string; onOpenN
       setSendError(problem);
       return;
     }
+    const intent = intentFor(pending, draft.trim());
+    setPending(intent);
     setSending(true);
     setSendError(null);
     try {
-      const result = await sendMessage(channelId, draft.trim(), nonce);
+      const result = await sendMessage(channelId, intent.body, intent.nonce);
       setMessages((current) => {
         if (current.status !== "ready") return current;
         if (current.data.some((m) => m.id === result.message.id)) return current;
         return { status: "ready", data: [...current.data, result.message] };
       });
       setDraft("");
-      setNonce(newClientNonce());
+      setPending(null);
+      setMaybeSent(false);
     } catch (error) {
+      setPending(intentAfterFailure(intent, error));
+      setMaybeSent(isUncertainSendFailure(error));
       setSendError(toErrorView(error));
     } finally {
       setSending(false);
     }
   }
+
+  const editedAfterUncertainFailure = maybeSent && pending !== null && pending.body !== draft.trim();
 
   return (
     <section aria-label="메시지" className="flex min-w-0 flex-1 flex-col rounded-lg border border-slate-200">
@@ -151,6 +164,13 @@ function MessageThread({ channelId, onOpenNotice }: { channelId: string; onOpenN
         {sendError && (
           <p role="alert" className="text-sm text-red-700">
             {typeof sendError === "string" ? sendError : `${sendError.title} — ${sendError.detail}`}
+          </p>
+        )}
+        {maybeSent && (
+          <p role="note" className="text-xs text-amber-800">
+            {editedAfterUncertainFailure
+              ? "이전 메시지가 이미 전송되었을 수 있습니다. 수정한 내용은 새 메시지로 보내지므로 새로고침으로 먼저 확인하세요."
+              : "전송 여부를 확인하지 못했습니다. 같은 내용으로 다시 보내면 중복 없이 처리됩니다."}
           </p>
         )}
         <button

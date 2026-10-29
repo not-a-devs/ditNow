@@ -1,6 +1,7 @@
 """HTTP contract and fail-closed checks for the campus router (not mounted in the real app)."""
 
-from uuid import uuid4
+from datetime import UTC, date, datetime
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,8 +10,11 @@ from test_campus_support import DEPT_A, DEPT_B, World, assistant, student
 from app.core.config import Settings
 from app.factory import create_app
 from app.features.campus import CampusRuntime, build_campus_router, router
+from app.features.campus.domain import AcademicEvent, SourceKind
 
 PREFIX = "/api/v1"
+REV1 = {"expected_revision": 1}
+REV2 = {"expected_revision": 2}
 
 
 class HeaderActorResolver:
@@ -67,8 +71,8 @@ PROTECTED = [
     ),
     ("GET", f"/notices/{uuid4()}", None),
     ("PATCH", f"/notices/{uuid4()}", {"title": "t", "body": "b", "expected_revision": 1}),
-    ("POST", f"/notices/{uuid4()}/publish", None),
-    ("POST", f"/notices/{uuid4()}/archive", None),
+    ("POST", f"/notices/{uuid4()}/publish", {"expected_revision": 1}),
+    ("POST", f"/notices/{uuid4()}/archive", {"expected_revision": 1}),
     ("GET", "/academic/terms", None),
     ("GET", f"/academic/terms/{uuid4()}/events", None),
 ]
@@ -149,7 +153,9 @@ def test_notice_flow_over_http(setup):
     assert created.json()["resource_version"] == 1
     assert client.get(f"{PREFIX}/notices/{notice_id}", headers=as_("a2")).status_code == 404
     for _ in range(3):
-        published = client.post(f"{PREFIX}/notices/{notice_id}/publish", headers=as_("ta"))
+        published = client.post(
+            f"{PREFIX}/notices/{notice_id}/publish", json=REV1, headers=as_("ta")
+        )
         assert published.status_code == 200
     assert published.json()["data"]["delivery"]["created_count"] == 0
     revised = client.patch(
@@ -170,9 +176,48 @@ def test_notice_flow_over_http(setup):
     view = client.get(f"{PREFIX}/notices/{notice_id}", headers=as_("a2")).json()["data"]
     assert view["revision"] == 2 and view["can_manage"] is False
     assert client.get(f"{PREFIX}/notices/{notice_id}", headers=as_("b2")).status_code == 403
-    assert client.post(f"{PREFIX}/notices/{notice_id}/archive", headers=as_("a2")).status_code == (
-        403
+    archive_url = f"{PREFIX}/notices/{notice_id}/archive"
+    assert client.post(archive_url, json=REV2, headers=as_("a2")).status_code == 403
+    assert client.post(archive_url, json=REV1, headers=as_("ta")).status_code == 409
+    assert world.notices.rows[UUID(notice_id)].status.value == "PUBLISHED"
+    assert client.post(archive_url, json=REV2, headers=as_("ta")).status_code == 200
+
+
+def _draft(client) -> str:
+    audience = {"type": "DEPARTMENT_GRADE", "department_id": str(DEPT_A), "grade": 2}
+    created = client.post(
+        f"{PREFIX}/notices",
+        json={"audience": audience, "title": "가상 공지", "body": "본문"},
+        headers=as_("ta"),
     )
+    return created.json()["data"]["id"]
+
+
+@pytest.mark.parametrize("action", ["publish", "archive"])
+@pytest.mark.parametrize("body", [None, {}, {"expected_revision": 0}, {"expected_revision": "x"}])
+def test_transition_requires_expected_revision(setup, action, body):
+    client, world, _ = setup
+    notice_id = _draft(client)
+    response = client.post(f"{PREFIX}/notices/{notice_id}/{action}", json=body, headers=as_("ta"))
+    assert response.status_code == 400
+    assert world.notices.rows[UUID(notice_id)].status.value == "DRAFT"
+    assert world.messages.rows == []
+
+
+def test_publish_of_stale_revision_is_409_and_releases_nothing(setup):
+    client, world, _ = setup
+    notice_id = _draft(client)
+    client.patch(
+        f"{PREFIX}/notices/{notice_id}",
+        json={"title": "다른 편집자 v2", "body": "b", "expected_revision": 1},
+        headers=as_("ta"),
+    )
+    stale = client.post(f"{PREFIX}/notices/{notice_id}/publish", json=REV1, headers=as_("ta"))
+    assert stale.status_code == 409 and stale.json()["code"] == "CONFLICT"
+    assert world.notices.rows[UUID(notice_id)].status.value == "DRAFT"
+    assert world.messages.rows == []
+    ok = client.post(f"{PREFIX}/notices/{notice_id}/publish", json=REV2, headers=as_("ta"))
+    assert ok.status_code == 200 and ok.json()["resource_version"] == 2
 
 
 def test_student_cannot_create_official_notice(setup):
@@ -225,6 +270,35 @@ def test_academic_calendar_over_http(setup):
         headers=as_("a2"),
     )
     assert bad.status_code == 400
+
+
+def test_official_event_without_safe_citation_is_served_as_unknown(setup):
+    """Review repro: OFFICIAL_PUBLIC + javascript: URL / no checked_at was linkable."""
+    client, world, _ = setup
+    checked = datetime(2026, 10, 1, 0, 0, tzinfo=UTC)
+    rows = [
+        ("링크 위조", "javascript:alert(document.cookie)", checked),
+        ("확인일 없음", "https://www.example.ac.kr/calendar", None),
+        ("정상 인용", "https://www.example.ac.kr/calendar", checked),
+    ]
+    world.calendar.events = [
+        AcademicEvent(
+            uuid4(), world.term.id, title, date(2026, 9, 2), date(2026, 9, 2),
+            SourceKind.OFFICIAL_PUBLIC, url, at,
+        )
+        for title, url, at in rows
+    ]  # fmt: skip
+    response = client.get(f"{PREFIX}/academic/terms/{world.term.id}/events", headers=as_("a2"))
+    assert response.status_code == 200
+    assert "javascript:" not in response.text
+    by_title = {e["title"]: e for e in response.json()["data"]["items"]}
+    for title in ("링크 위조", "확인일 없음"):
+        assert by_title[title]["source_kind"] == "UNKNOWN"
+        assert by_title[title]["source_url"] is None and by_title[title]["checked_at"] is None
+    cited = by_title["정상 인용"]
+    assert cited["source_kind"] == "OFFICIAL_PUBLIC"
+    assert cited["source_url"] == "https://www.example.ac.kr/calendar"
+    assert cited["checked_at"].startswith("2026-10-01T00:00:00")
 
 
 def test_mounted_router_produces_typed_openapi():

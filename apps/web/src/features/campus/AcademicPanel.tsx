@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { listTermEvents, listTerms } from "./api";
-import { SOURCE_LABEL, toErrorView } from "./model";
+import { SOURCE_LABEL, citationOf, formatDateTime, toErrorView } from "./model";
 import { EmptyView, ErrorView, LoadingView } from "./StatusView";
 import type { AcademicEventList, AcademicTerm, LoadState } from "./types";
 
-// FR-ACA-001 read-only calendar. Records are DEMO or cited public snapshots, never school ledgers.
+// FR-ACA-001 read-only calendar. Records are DEMO, UNKNOWN, or cited public snapshots, never
+// school ledgers. Links render only through citationOf's http(s) allowlist.
 export function AcademicPanel() {
   const [terms, setTerms] = useState<LoadState<AcademicTerm[]>>({ status: "loading" });
   const [termId, setTermId] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export function AcademicPanel() {
         >
           {terms.data.map((term) => (
             <option key={term.id} value={term.id}>
-              {term.name}
+              {term.name} ({SOURCE_LABEL[citationOf(term).kind]})
             </option>
           ))}
         </select>
@@ -64,26 +65,29 @@ function TermEvents({ termId }: { termId: string }) {
 
   return (
     <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
-      {state.data.items.map((event) => (
-        <li key={event.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-medium text-slate-900">{event.title}</span>
-          <span className="text-slate-600">
-            {event.starts_on === event.ends_on ? event.starts_on : `${event.starts_on} ~ ${event.ends_on}`}
-          </span>
-          <span className="text-xs text-slate-500">
-            {SOURCE_LABEL[event.source_kind]}
-            {event.source_url && (
-              <>
-                {" · "}
-                <a href={event.source_url} target="_blank" rel="noopener noreferrer" className="underline">
-                  출처
-                </a>
-              </>
-            )}
-            {event.checked_at && ` · 확인 ${event.checked_at}`}
-          </span>
-        </li>
-      ))}
+      {state.data.items.map((event) => {
+        const source = citationOf(event);
+        return (
+          <li key={event.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-medium text-slate-900">{event.title}</span>
+            <span className="text-slate-600">
+              {event.starts_on === event.ends_on ? event.starts_on : `${event.starts_on} ~ ${event.ends_on}`}
+            </span>
+            <span className="text-xs text-slate-500">
+              {SOURCE_LABEL[source.kind]}
+              {source.url && (
+                <>
+                  {" · "}
+                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="underline">
+                    출처
+                  </a>
+                </>
+              )}
+              {source.checkedAt && ` · 확인 ${formatDateTime(source.checkedAt)}`}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

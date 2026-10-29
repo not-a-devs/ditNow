@@ -125,8 +125,12 @@ class DeliveryResult:
 
 
 class SourceKind(StrEnum):
+    # Cited public snapshot. Shown only with an http(s) source_url and checked_at.
     OFFICIAL_PUBLIC = "OFFICIAL_PUBLIC"
+    # Fictional demo record. Never presented as school data.
     DEMO = "DEMO"
+    # Legacy/uncited record whose provenance cannot be shown. Neither official nor demo.
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +140,8 @@ class AcademicTerm:
     starts_on: date
     ends_on: date
     source_kind: SourceKind
+    source_url: str | None = None
+    checked_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,4 +153,4 @@ class AcademicEvent:
     ends_on: date
     source_kind: SourceKind
     source_url: str | None = None
-    checked_at: date | None = None
+    checked_at: datetime | None = None

@@ -3,20 +3,29 @@
 TC-V1-DEPT-001/002/005, TC-V1-NOT-001/002, TC-V1-ACA-001.
 """
 
-from datetime import date
+from dataclasses import replace
+from datetime import UTC, date, datetime
+from uuid import uuid4
 
 import pytest
-from test_campus_support import DEPT_A, DEPT_B, World, assistant, student
+from test_campus_support import DEPT_A, DEPT_B, FakeCalendar, World, assistant, student
 
 from app.core.errors import ApiError
 from app.features.campus.domain import (
+    AcademicEvent,
     Audience,
     AudienceType,
     CampusActor,
     MessageKind,
     NoticeStatus,
+    SourceKind,
 )
-from app.features.campus.services import AcademicService, ChatService, NoticeService
+from app.features.campus.services import (
+    AcademicService,
+    ChatService,
+    NoticeService,
+    safe_source_url,
+)
 from app.schemas.common import ErrorCode
 
 GRADE2 = Audience(AudienceType.DEPARTMENT_GRADE, DEPT_A, 2)
@@ -77,8 +86,6 @@ def test_other_department_and_grade_denied(world):
 
 
 def test_unknown_channel_is_not_found(world):
-    from uuid import uuid4
-
     assert code_of(lambda: chat(world).list_messages(student(DEPT_A, 2), uuid4(), None, 10)) == (
         ErrorCode.NOT_FOUND
     )
@@ -136,11 +143,11 @@ def test_publish_creates_one_card_and_repeat_delivery_is_idempotent(world):
     ta = assistant(DEPT_A, 2)
     service = notices(world)
     draft = service.create_draft(ta, GRADE2, "가상 MT 안내", "본문")
-    notice, first = service.publish(ta, draft.id)
+    notice, first = service.publish(ta, draft.id, 1)
     assert notice.status is NoticeStatus.PUBLISHED and notice.published_at is not None
     assert first.channel_ids == (world.a_2.id,) and first.created_count == 1
     # Same publish event processed three times in total (TC-V1-NOT-002).
-    _, second = service.publish(ta, draft.id)
+    _, second = service.publish(ta, draft.id, 1)
     third = service.deliver(draft.id)
     assert second.created_count == 0 and third.created_count == 0
     cards = [m for m in world.messages.rows if m.kind is MessageKind.NOTICE_CARD]
@@ -151,7 +158,7 @@ def test_card_shows_latest_original_and_is_isolated(world):
     ta = assistant(DEPT_A, 2)
     service = notices(world)
     draft = service.create_draft(ta, GRADE2, "v1 제목", "본문")
-    service.publish(ta, draft.id)
+    service.publish(ta, draft.id, 1)
     revised = service.revise(ta, draft.id, "v2 제목", "수정 본문", expected_revision=1)
     assert revised.revision == 2
     page = chat(world).list_messages(student(DEPT_A, 2), world.a_2.id, None, 10)
@@ -170,10 +177,10 @@ def test_department_notice_goes_to_department_channel_and_school_to_none(world):
     staff = CampusActor(assistant(DEPT_A, 2).user_id, (), scopes)
     service = notices(world)
     dept = service.create_draft(staff, Audience(AudienceType.DEPARTMENT, DEPT_A), "학과", "b")
-    _, result = service.publish(staff, dept.id)
+    _, result = service.publish(staff, dept.id, 1)
     assert result.channel_ids == (world.a_all.id,)
     school = service.create_draft(staff, Audience(AudienceType.SCHOOL), "전체", "b")
-    _, result = service.publish(staff, school.id)
+    _, result = service.publish(staff, school.id, 1)
     assert result.channel_ids == () and result.created_count == 0
 
 
@@ -182,7 +189,7 @@ def test_missing_channel_is_reported_not_faked(world):
     staff = CampusActor(assistant(DEPT_B, 1).user_id, (), frozenset({scope}))
     service = notices(world)
     draft = service.create_draft(staff, scope, "t", "b")
-    notice, result = service.publish(staff, draft.id)
+    notice, result = service.publish(staff, draft.id, 1)
     assert notice.status is NoticeStatus.PUBLISHED
     assert result.channel_ids == () and len(result.missing_targets) == 1
 
@@ -205,11 +212,11 @@ def test_non_author_cannot_manage_and_drafts_are_hidden(world):
     draft = service.create_draft(ta, GRADE2, "t", "b")
     a2 = student(DEPT_A, 2)
     assert code_of(lambda: service.get(a2, draft.id)) == ErrorCode.NOT_FOUND
-    assert code_of(lambda: service.publish(a2, draft.id)) == ErrorCode.NOT_FOUND
+    assert code_of(lambda: service.publish(a2, draft.id, 1)) == ErrorCode.NOT_FOUND
     assert service.list_for(a2, 20) == []
-    service.publish(ta, draft.id)
+    service.publish(ta, draft.id, 1)
     assert code_of(lambda: service.revise(a2, draft.id, "x", "y", 1)) == ErrorCode.FORBIDDEN
-    assert code_of(lambda: service.archive(a2, draft.id)) == ErrorCode.FORBIDDEN
+    assert code_of(lambda: service.archive(a2, draft.id, 1)) == ErrorCode.FORBIDDEN
     assert [n.id for n in service.list_for(a2, 20)] == [draft.id]
     assert service.list_for(student(DEPT_B, 2), 20) == []
 
@@ -220,13 +227,87 @@ def test_revision_conflict_and_archive_lifecycle(world):
     draft = service.create_draft(ta, GRADE2, "t", "b")
     service.revise(ta, draft.id, "t2", "b2", 1)
     assert code_of(lambda: service.revise(ta, draft.id, "t3", "b3", 1)) == ErrorCode.CONFLICT
-    service.publish(ta, draft.id)
-    archived = service.archive(ta, draft.id)
+    service.publish(ta, draft.id, 2)
+    archived = service.archive(ta, draft.id, 2)
     assert archived.status is NoticeStatus.ARCHIVED
-    assert service.archive(ta, draft.id).status is NoticeStatus.ARCHIVED
-    assert code_of(lambda: service.publish(ta, draft.id)) == ErrorCode.CONFLICT
+    assert service.archive(ta, draft.id, 2).status is NoticeStatus.ARCHIVED
+    assert code_of(lambda: service.publish(ta, draft.id, 2)) == ErrorCode.CONFLICT
     assert code_of(lambda: service.revise(ta, draft.id, "t", "b", 2)) == ErrorCode.CONFLICT
     assert code_of(lambda: service.deliver(draft.id)) == ErrorCode.CONFLICT
+
+
+# --- revision compare-and-set (publish/archive) ------------------------------------
+
+
+def test_publish_and_archive_reject_stale_revision_without_side_effects(world):
+    ta = assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    service.revise(ta, draft.id, "v2", "b2", 1)
+    # Author reviewed v1; publishing it must not release v2 that they never saw.
+    assert code_of(lambda: service.publish(ta, draft.id, 1)) == ErrorCode.CONFLICT
+    assert world.notices.rows[draft.id].status is NoticeStatus.DRAFT
+    assert world.messages.rows == []
+    service.publish(ta, draft.id, 2)
+    assert code_of(lambda: service.archive(ta, draft.id, 1)) == ErrorCode.CONFLICT
+    assert world.notices.rows[draft.id].status is NoticeStatus.PUBLISHED
+
+
+def test_revision_committed_between_read_and_publish_is_conflict(world):
+    ta, other_editor = assistant(DEPT_A, 2), assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    world.notices.interleave = lambda: service.revise(other_editor, draft.id, "v2", "b2", 1)
+    assert code_of(lambda: service.publish(ta, draft.id, 1)) == ErrorCode.CONFLICT
+    stored = world.notices.rows[draft.id]
+    assert (stored.status, stored.revision, stored.title) == (NoticeStatus.DRAFT, 2, "v2")
+    assert world.messages.rows == []
+
+
+def test_revision_committed_between_read_and_archive_is_conflict(world):
+    ta, other_editor = assistant(DEPT_A, 2), assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    service.publish(ta, draft.id, 1)
+    world.notices.interleave = lambda: service.revise(other_editor, draft.id, "v2", "b2", 1)
+    assert code_of(lambda: service.archive(ta, draft.id, 1)) == ErrorCode.CONFLICT
+    assert world.notices.rows[draft.id].status is NoticeStatus.PUBLISHED
+
+
+def test_concurrent_archive_is_not_overwritten_by_revise(world):
+    ta, other_editor = assistant(DEPT_A, 2), assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    service.publish(ta, draft.id, 1)
+    world.notices.interleave = lambda: service.archive(other_editor, draft.id, 1)
+    assert code_of(lambda: service.revise(ta, draft.id, "v2", "b2", 1)) == ErrorCode.CONFLICT
+    stored = world.notices.rows[draft.id]
+    assert (stored.status, stored.revision) == (NoticeStatus.ARCHIVED, 1)
+
+
+def test_concurrent_publish_of_same_revision_is_idempotent(world):
+    ta, other_editor = assistant(DEPT_A, 2), assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    world.notices.interleave = lambda: service.publish(other_editor, draft.id, 1)
+    notice, _ = service.publish(ta, draft.id, 1)
+    assert notice.status is NoticeStatus.PUBLISHED and notice.revision == 1
+    assert len([m for m in world.messages.rows if m.kind is MessageKind.NOTICE_CARD]) == 1
+
+
+def test_card_reflects_archive_and_stays_inside_audience(world):
+    ta = assistant(DEPT_A, 2)
+    service = notices(world)
+    draft = service.create_draft(ta, GRADE2, "v1", "b")
+    service.publish(ta, draft.id, 1)
+    service.archive(ta, draft.id, 1)
+    card = chat(world).list_messages(student(DEPT_A, 2), world.a_2.id, None, 10).items[0]
+    assert card.notice is not None and card.notice.status is NoticeStatus.ARCHIVED
+    # Leaving the grade (current membership re-read) hides the channel and the card.
+    assert (
+        code_of(lambda: chat(world).list_messages(student(DEPT_A, 3), world.a_2.id, None, 10))
+        == ErrorCode.FORBIDDEN
+    )
 
 
 def test_notice_title_rejects_newline(world):
@@ -251,8 +332,6 @@ def test_academic_terms_and_events(world):
 
 
 def test_academic_range_validation_and_unknown_term(world):
-    from uuid import uuid4
-
     service = AcademicService(world.calendar)
     a2 = student(DEPT_A, 2)
     assert (
@@ -266,3 +345,94 @@ def test_academic_range_validation_and_unknown_term(world):
         == ErrorCode.VALIDATION
     )
     assert code_of(lambda: service.list_events(a2, uuid4())) == ErrorCode.NOT_FOUND
+
+
+# --- academic provenance (OFFICIAL_PUBLIC must be cited) -------------------------------
+
+CHECKED = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
+OFFICIAL_URL = "https://www.example.ac.kr/academic/calendar"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://www.example.ac.kr/a?b=1",
+        "http://example.ac.kr",
+    ],
+)
+def test_safe_source_url_accepts_plain_http_urls(url):
+    assert safe_source_url(url) == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "javascript:alert(1)",
+        "JAVASCRIPT:alert(1)",
+        "data:text/html,<b>x</b>",
+        "vbscript:msgbox",
+        "//example.ac.kr/path",
+        "/relative/path",
+        "https://",
+        "https://user:pw@example.ac.kr/",
+        "https://example.ac.kr/\nx",
+        " https://example.ac.kr/",
+        "https://exa mple.ac.kr/",
+        "https://[::1/",
+        "https://example.ac.kr/" + "a" * 2048,
+        "",
+    ],
+)
+def test_safe_source_url_rejects_unsafe_values(url):
+    assert safe_source_url(url) is None
+
+
+def _calendar_with(world: World, **fields) -> AcademicService:
+    event = AcademicEvent(
+        uuid4(), world.term.id, "공식 개강", date(2026, 9, 1), date(2026, 9, 1), **fields
+    )
+    return AcademicService(FakeCalendar([world.term], [event]))
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"source_url": "javascript:alert(1)", "checked_at": CHECKED},
+        {"source_url": OFFICIAL_URL, "checked_at": None},
+        {"source_url": None, "checked_at": CHECKED},
+        {"source_url": OFFICIAL_URL, "checked_at": datetime(2026, 10, 1, 9, 0)},
+    ],
+)
+def test_uncited_official_record_is_downgraded_to_unknown(world, fields):
+    service = _calendar_with(world, source_kind=SourceKind.OFFICIAL_PUBLIC, **fields)
+    _, (event,) = service.list_events(student(DEPT_A, 2), world.term.id)
+    assert event.source_kind is SourceKind.UNKNOWN
+    assert event.source_url is None and event.checked_at is None
+
+
+def test_cited_official_record_keeps_source(world):
+    service = _calendar_with(
+        world, source_kind=SourceKind.OFFICIAL_PUBLIC, source_url=OFFICIAL_URL, checked_at=CHECKED
+    )
+    _, (event,) = service.list_events(student(DEPT_A, 2), world.term.id)
+    assert (event.source_kind, event.source_url, event.checked_at) == (
+        SourceKind.OFFICIAL_PUBLIC,
+        OFFICIAL_URL,
+        CHECKED,
+    )
+
+
+@pytest.mark.parametrize("kind", [SourceKind.DEMO, SourceKind.UNKNOWN])
+def test_non_official_records_never_carry_a_link(world, kind):
+    service = _calendar_with(world, source_kind=kind, source_url=OFFICIAL_URL, checked_at=CHECKED)
+    _, (event,) = service.list_events(student(DEPT_A, 2), world.term.id)
+    assert (event.source_kind, event.source_url, event.checked_at) == (kind, None, None)
+
+
+def test_terms_are_normalized_too(world):
+    bad = replace(world.term, source_kind=SourceKind.OFFICIAL_PUBLIC, source_url="javascript:x")
+    service = AcademicService(FakeCalendar([bad], []))
+    (term,) = service.list_terms(student(DEPT_A, 2))
+    assert term.source_kind is SourceKind.UNKNOWN and term.source_url is None
+    listed_term, _ = service.list_events(student(DEPT_A, 2), bad.id)
+    assert listed_term.source_kind is SourceKind.UNKNOWN

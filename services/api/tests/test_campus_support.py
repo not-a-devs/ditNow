@@ -102,6 +102,14 @@ class FakeMessages:
 class FakeNotices:
     def __init__(self) -> None:
         self.rows: dict[UUID, Notice] = {}
+        # Runs once just before the next conditional write, simulating another writer that
+        # committed between the service's read and its compare-and-set.
+        self.interleave = None
+
+    def _race(self) -> None:
+        hook, self.interleave = self.interleave, None
+        if hook is not None:
+            hook()
 
     def get(self, notice_id):
         return self.rows.get(notice_id)
@@ -113,16 +121,29 @@ class FakeNotices:
         self.rows[notice.id] = notice
         return notice
 
-    def save_revision(self, notice, expected_revision):
-        current = self.rows.get(notice.id)
-        if current is None or current.revision != expected_revision:
-            return None
-        self.rows[notice.id] = notice
-        return notice
-
-    def transition(self, notice_id, from_status, to_status, at):
+    def save_revision(self, notice_id, expected_revision, expected_status, title, body, at):
+        self._race()
         current = self.rows.get(notice_id)
-        if current is None or current.status is not from_status:
+        if (
+            current is None
+            or current.revision != expected_revision
+            or current.status is not expected_status
+        ):
+            return None
+        saved = replace(
+            current, title=title, body=body, revision=expected_revision + 1, updated_at=at
+        )
+        self.rows[notice_id] = saved
+        return saved
+
+    def transition(self, notice_id, from_status, to_status, expected_revision, at):
+        self._race()
+        current = self.rows.get(notice_id)
+        if (
+            current is None
+            or current.status is not from_status
+            or current.revision != expected_revision
+        ):
             return None
         published_at = at if to_status is NoticeStatus.PUBLISHED else current.published_at
         moved = replace(current, status=to_status, updated_at=at, published_at=published_at)

@@ -139,6 +139,12 @@ class NoticeRevise(ApiModel):
     expected_revision: int = Field(ge=1)
 
 
+class NoticeTransition(ApiModel):
+    """Publish/archive apply only to the revision the author last saw (409 otherwise)."""
+
+    expected_revision: int = Field(ge=1)
+
+
 class NoticeOut(ApiModel):
     id: UUID
     audience: AudienceModel
@@ -196,15 +202,20 @@ class AcademicTermOut(ApiModel):
     starts_on: date
     ends_on: date
     source_kind: SourceKind
+    source_url: str | None
+    checked_at: AwareDatetime | None
 
     @classmethod
     def of(cls, term: AcademicTerm) -> Self:
+        """Callers pass records already normalized by ``services.cited``."""
         return cls(
             id=term.id,
             name=term.name,
             starts_on=term.starts_on,
             ends_on=term.ends_on,
             source_kind=term.source_kind,
+            source_url=term.source_url,
+            checked_at=term.checked_at,
         )
 
 
@@ -219,10 +230,11 @@ class AcademicEventOut(ApiModel):
     ends_on: date
     source_kind: SourceKind
     source_url: str | None
-    checked_at: date | None
+    checked_at: AwareDatetime | None
 
     @classmethod
     def of(cls, event: AcademicEvent) -> Self:
+        """Callers pass records already normalized by ``services.cited``."""
         return cls(
             id=event.id,
             title=event.title,

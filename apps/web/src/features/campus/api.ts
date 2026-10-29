@@ -1,5 +1,6 @@
-// Campus API client. Depends on the shared src/lib/api.ts (being written on another branch):
-// requestData<T>(path, init?) returns success.data and throws ApiError(code/status/requestId).
+// Campus API client over the shared src/lib/api.ts: requestData<T>(path, init?) resolves `path`
+// against VITE_API_BASE_URL (default /api/v1), returns success.data and throws
+// ApiError(code/status/requestId).
 import { requestData } from "../../lib/api";
 import type {
   AcademicEventList,
@@ -10,8 +11,9 @@ import type {
   Notice,
 } from "./types";
 
-// Assumption: root mounts the campus router under /api/v1 and requestData takes absolute paths.
-const BASE = "/api/v1";
+// Paths are relative to the shared base. requestData already prefixes /api/v1, so adding it
+// here produced /api/v1/api/v1/... (see api.test.ts).
+const BASE = "";
 
 const enc = encodeURIComponent;
 

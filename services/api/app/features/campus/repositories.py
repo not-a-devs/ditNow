@@ -68,12 +68,29 @@ class NoticeRepository(Protocol):
 
     def create(self, notice: Notice) -> Notice: ...
 
-    # Compare-and-set on revision. Returns None when the stored revision differs.
-    def save_revision(self, notice: Notice, expected_revision: int) -> Notice | None: ...
+    # Single conditional UPDATE of title/body/updated_at with revision = expected_revision + 1,
+    # WHERE id AND revision = expected_revision AND status = expected_status. Never writes
+    # status, so a concurrent archive/publish cannot be overwritten. None when no row matched.
+    def save_revision(
+        self,
+        notice_id: UUID,
+        expected_revision: int,
+        expected_status: NoticeStatus,
+        title: str,
+        body: str,
+        at: datetime,
+    ) -> Notice | None: ...
 
-    # Compare-and-set on status. Returns None when the stored status differs.
+    # Single conditional UPDATE of status (and published_at when publishing)
+    # WHERE id AND status = from_status AND revision = expected_revision.
+    # None when another writer changed status or content first.
     def transition(
-        self, notice_id: UUID, from_status: NoticeStatus, to_status: NoticeStatus, at: datetime
+        self,
+        notice_id: UUID,
+        from_status: NoticeStatus,
+        to_status: NoticeStatus,
+        expected_revision: int,
+        at: datetime,
     ) -> Notice | None: ...
 
     # Only PUBLISHED/ARCHIVED rows whose audience is in ``audiences``; newest first.

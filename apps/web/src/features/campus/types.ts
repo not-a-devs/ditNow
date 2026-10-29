@@ -63,7 +63,7 @@ export interface Notice {
   published_at: string | null;
 }
 
-export type SourceKind = "OFFICIAL_PUBLIC" | "DEMO";
+export type SourceKind = "OFFICIAL_PUBLIC" | "DEMO" | "UNKNOWN";
 
 export interface AcademicTerm {
   id: string;
@@ -71,6 +71,8 @@ export interface AcademicTerm {
   starts_on: string;
   ends_on: string;
   source_kind: SourceKind;
+  source_url: string | null;
+  checked_at: string | null;
 }
 
 export interface AcademicEvent {

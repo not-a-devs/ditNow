@@ -39,6 +39,7 @@ from app.features.campus.schemas import (
     NoticeOut,
     NoticePublishData,
     NoticeRevise,
+    NoticeTransition,
 )
 from app.features.campus.services import (
     AcademicService,
@@ -176,9 +177,9 @@ def build_campus_router(provider: RuntimeProvider | None = None) -> APIRouter:
 
     @router.post("/notices/{notice_id}/publish", response_model=SuccessResponse[NoticePublishData])
     def publish_notice(
-        notice_id: UUID, me: Actor, rt: Runtime
+        notice_id: UUID, payload: NoticeTransition, me: Actor, rt: Runtime
     ) -> SuccessResponse[NoticePublishData]:
-        notice, delivery = notices(rt).publish(me, notice_id)
+        notice, delivery = notices(rt).publish(me, notice_id, payload.expected_revision)
         return SuccessResponse(
             data=NoticePublishData(
                 notice=NoticeOut.of(notice, can_manage=True), delivery=DeliveryOut.of(delivery)
@@ -187,8 +188,10 @@ def build_campus_router(provider: RuntimeProvider | None = None) -> APIRouter:
         )
 
     @router.post("/notices/{notice_id}/archive", response_model=SuccessResponse[NoticeOut])
-    def archive_notice(notice_id: UUID, me: Actor, rt: Runtime) -> SuccessResponse[NoticeOut]:
-        notice = notices(rt).archive(me, notice_id)
+    def archive_notice(
+        notice_id: UUID, payload: NoticeTransition, me: Actor, rt: Runtime
+    ) -> SuccessResponse[NoticeOut]:
+        notice = notices(rt).archive(me, notice_id, payload.expected_revision)
         return SuccessResponse(
             data=NoticeOut.of(notice, can_manage=True), resource_version=notice.revision
         )
