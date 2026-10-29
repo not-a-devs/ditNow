@@ -45,17 +45,27 @@ function isCampusSearchData(value: unknown): value is CampusSearchData {
 
 /** 신규 플랫폼 화면. 기존 MVP 및 챗봇의 별도 로그인 화면을 사용하지 않는다. */
 export default function CampusAssistantPage() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => {
+    const value = new URLSearchParams(window.location.search).get('q')?.trim() ?? '';
+    return value.length <= 200 && /[\p{L}\p{N}]/u.test(value) && !/[\p{Cc}\p{Cf}]/u.test(value) ? value : '';
+  });
   const [result, setResult] = useState<CampusSearchData | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const controller = useRef<AbortController | null>(null);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    if (query) void searchQuery(query);
+    return () => controller.current?.abort();
+  }, []);
 
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmed = query.trim();
+    await searchQuery(query);
+  }
+
+  async function searchQuery(value: string) {
+    const trimmed = value.trim();
     if (!trimmed || trimmed.length > 200) return;
     controller.current?.abort();
     const current = new AbortController();

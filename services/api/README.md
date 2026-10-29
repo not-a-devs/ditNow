@@ -104,6 +104,10 @@ uv run --locked uvicorn app.main:app --loop app.core.event_loop:new_event_loop -
 
 SQLAlchemy MySQL dialect의 내부 `SET NAMES utf8mb4`가 드라이버 `init_command`의 collation을 덮어쓰는 것을 설치 소스로 확인했다. `db_connection.py`는 engine 생성 뒤 `connect` 리스너를 **append**하여 최종 `SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci`를 실행한다(`insert=True` 금지). 사용자 입력을 SQL에 넣지 않으며 테이블/지속 데이터 변경은 없다. 설정 실패 시 커서를 정리하고 비밀값 없는 오류로 연결 준비를 거부한다. [SQLAlchemy async 이벤트](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-events-with-the-asyncio-extension)·[연결 이벤트 순서](https://docs.sqlalchemy.org/en/20/dialects/mysql.html#changing-the-sql-mode)를 따른다. 실제 dialect listener 뒤에 정적 COLLATE 문이 실행되는 회귀와 실패 경로를 오프라인 검사한다. 기존 TLS capability·CERT_REQUIRED·check_hostname·LOCAL INFILE 금지·DML 계정 분리·비밀 로그 보호를 완화하지 않는다. 전체 연결/업무 SQL의 시간 제한과 다중 프로세스 안정성은 별도 검증 범위다.
 
+## 공개 통합 검색
+
+GET `/api/v1/discovery`는 기존 공개 안내·시설 검색 서비스를 읽기 전용으로 조합한다. 정규화 검색·종류 필터·bounded 집계/페이지와 근거를 제공하며 개인정보·DB·LLM을 조회하지 않는다. 신규 앱 `/app/search`와 안내/시설 상세 링크에 연결했다. 전체 서비스 검색 완료를 뜻하지 않으며 [TASK-P](../../docs/dev-prep/TASK_PUBLIC_DISCOVERY_IMPLEMENTATION.md)를 따른다.
+
 ## 공개 대학·학과 안내
 GET `/api/v1/public-campus`와 `/{record_id}`는 근거 7건을 자체 요약한 버전 스냅샷의 목록·정규화 검색·주제/출처 필터·상세를 제공한다. 새 앱 `/app/information`에 연결했다. 공식 게시물 동일성·실시간 최신성·학과 운영 업무 전체를 주장하지 않는다. 상세 범위와 출처는 [TASK-I](../../docs/dev-prep/TASK_PUBLIC_CAMPUS_IMPLEMENTATION.md)를 본다. 쓰기·개인 신원·실DB 접근은 없다.
 

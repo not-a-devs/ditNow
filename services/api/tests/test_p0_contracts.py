@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import Depends, Request
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -305,15 +306,26 @@ def test_inactive_test_principal_is_rejected():
 def test_proposed_models_and_dependencies_are_not_live_api_routes():
     app = create_app(Settings(environment="test"))
     schema = app.openapi()
-    assert set(schema["paths"]) == {
-        "/health",
-        "/api/v1/health",
-        "/api/v1/ai/campus/search",
-        # DEC-020 routes already on main; they do not mount the proposed P0 provider/DB seam.
-        "/api/v1/ai/ask",
-        "/api/v1/auth/login",
-        "/api/v1/auth/logout",
-        "/api/v1/public-campus",
-        "/api/v1/public-campus/{record_id}",
-    }
-    assert "Identity" not in schema["components"]["schemas"]
+    # Public API growth and DEC-020 legacy routes are checked by the OpenAPI snapshot.
+    # This test guards the still-unapproved P0 security seam, not a public-path count.
+    assert not {"Identity", "VerifiedSubject", "VerifiedPrincipal", "AnonymousPostPrivate"} & set(
+        schema["components"]["schemas"]
+    )
+    protected = (
+        "/api/v1/community",
+        "/api/v1/anonymous-posts",
+        "/api/v1/recruitments",
+        "/api/v1/opportunities",
+        "/api/v1/me/saved-opportunities",
+    )
+    assert not any(path.startswith(protected) for path in schema["paths"])
+
+    def dependency_calls(dependant):
+        return {dependant.call} | set().union(
+            *(dependency_calls(child) for child in dependant.dependencies)
+        )
+
+    calls = set().union(
+        *(dependency_calls(route.dependant) for route in app.routes if isinstance(route, APIRoute))
+    )
+    assert not {get_identity_provider, get_authorization_policy} & calls
