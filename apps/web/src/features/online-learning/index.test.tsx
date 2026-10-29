@@ -18,6 +18,21 @@ async function loaded(){render(<OnlineLearningPage/>);await screen.findByText('�
 async function open(){await loaded();fireEvent.click(screen.getByRole('button',{name:'가상 응시 시작'}));await screen.findByText('가상 선택 질문');}
 
 describe('학생 공개 계약',()=>{
+ it('서버와 같은 Unicode 문자 수로 제목·학습 단계·문항·선택지의 경계를 허용한다',()=>{
+  expect(api.isOffering({...offering,title:'🙂'.repeat(160),section:'🙂'.repeat(40)})).toBe(true);
+  expect(api.isWorkspace({...workspace,units:[{...workspace.units[0],title:'🙂'.repeat(160),steps:[{id:STEP,text:'🙂'.repeat(2000)}]}]})).toBe(true);
+  expect(api.isExam({...exam,title:'🙂'.repeat(160),questions:[{...exam.questions[0],prompt:'🙂'.repeat(1000),options:[{id:A,text:'🙂'.repeat(400)},{id:B,text:'선택 B'}]}]})).toBe(true);
+ });
+ it('Unicode와 ASCII 모두 문자 수 상한을 넘거나 공백뿐인 응답은 거부한다',()=>{
+  for(const character of ['🙂','가','a']){
+   expect(api.isOffering({...offering,title:character.repeat(161)})).toBe(false);
+   expect(api.isOffering({...offering,section:character.repeat(41)})).toBe(false);
+   expect(api.isWorkspace({...workspace,units:[{...workspace.units[0],steps:[{id:STEP,text:character.repeat(2001)}]}]})).toBe(false);
+   expect(api.isExam({...exam,questions:[{...exam.questions[0],prompt:character.repeat(1001)}]})).toBe(false);
+   expect(api.isExam({...exam,questions:[{...exam.questions[0],options:[{id:A,text:character.repeat(401)},{id:B,text:'선택 B'}]}]})).toBe(false);
+  }
+  expect(api.isOffering({...offering,title:'   '})).toBe(false);
+ });
  it('출처·기간·부모·정답·평가 유출 응답을 거부한다',()=>{
   expect(api.isWorkspace(workspace)).toBe(true);expect(api.isExam(exam)).toBe(true);expect(api.isAttempt(started)).toBe(true);
   expect(api.isWorkspace({...workspace,offering:{...offering,source_kind:'OFFICIAL_PUBLIC'}})).toBe(false);

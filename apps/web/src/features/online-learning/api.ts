@@ -12,7 +12,8 @@ export interface Attempt { id:string;exam_id:string;exam_revision:number;state:'
 export interface Workspace {offering:Offering;policy:Policy;units:Unit[];progress:Progress[];exams:ExamSummary[];attempts:Attempt[];source_kind:'DEMO'}
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const only=(v:Record<string,unknown>,keys:string[])=>Object.keys(v).every(k=>keys.includes(k));
-const text=(v:unknown,max:number):v is string=>typeof v==='string'&&v.trim().length>0&&v.length<=max;
+// Pydantic string limits count Unicode code points, not UTF-16 code units.
+const text=(v:unknown,max:number):v is string=>typeof v==='string'&&v.length<=max*2&&v.trim().length>0&&Array.from(v).length<=max;
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const int=(v:unknown,min=1,max=1000000):v is number=>Number.isInteger(v)&&Number(v)>=min&&Number(v)<=max;
 const date=(v:unknown):v is string=>typeof v==='string'&&/T.*(?:Z|[+-]\d\d:\d\d)$/.test(v)&&Number.isFinite(Date.parse(v));
