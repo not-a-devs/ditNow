@@ -15,6 +15,8 @@ export interface PostSummary {
   title: string;
   excerpt: string;
   comment_count: number;
+  /** The caller's own bookmark state for this post. */
+  bookmarked: boolean;
   created_at: string;
 }
 

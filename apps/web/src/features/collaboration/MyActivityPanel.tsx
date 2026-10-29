@@ -1,3 +1,4 @@
+import { BookmarkButton } from "./AnonymousPanel";
 import { collaborationApi } from "./api";
 import { REPORT_REASONS } from "./types";
 import { RemoteView, formatTime, useRemote } from "./ui";
@@ -6,8 +7,8 @@ const REASON_LABEL = Object.fromEntries(REPORT_REASONS) as Record<string, string
 
 // Personal views: only the caller's own bookmarks and report receipts.
 export function MyActivityPanel() {
-  const bookmarks = useRemote(() => collaborationApi.listBookmarks(), "bookmarks");
-  const reports = useRemote(() => collaborationApi.listReports(), "reports");
+  const bookmarks = useRemote(signal => collaborationApi.listBookmarks(signal), "bookmarks");
+  const reports = useRemote(signal => collaborationApi.listReports(signal), "reports");
   return (
     <div className="space-y-6">
       <section aria-labelledby="my-bookmarks" className="space-y-2">
@@ -20,6 +21,7 @@ export function MyActivityPanel() {
                   <p className="font-medium">{item.post.title}</p>
                   <p className="text-slate-600">{item.post.excerpt}</p>
                   <p className="text-xs text-slate-500">저장 {formatTime(item.bookmarked_at)}</p>
+                  <BookmarkButton postId={item.post.id} initial={item.post.bookmarked} />
                 </li>
               ))}
             </ul>

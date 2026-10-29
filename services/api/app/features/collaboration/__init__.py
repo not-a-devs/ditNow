@@ -7,7 +7,11 @@ owner. Operator report review, sanctions, user blocking and appeals are BLOCKED 
 """
 
 from app.features.collaboration.domain import CollaborationActor, ParticipationGrant
-from app.features.collaboration.ports import CollaborationStore, CollaborationUnitOfWork
+from app.features.collaboration.ports import (
+    CollaborationStore,
+    CollaborationUnitOfWork,
+    StoreConflict,
+)
 from app.features.collaboration.router import (
     CollaborationDependencies,
     create_collaboration_router,
@@ -22,6 +26,7 @@ __all__ = [
     "CollaborationStore",
     "CollaborationUnitOfWork",
     "ParticipationGrant",
+    "StoreConflict",
     "create_collaboration_router",
     "router",
 ]

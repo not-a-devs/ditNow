@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../lib/api';
-import { collaborationApi, createKeyTracker, describeError } from './api';
-import { isComment, isGroup, safeLink } from './guards';
+import { SecureContextRequiredError, collaborationApi, createKeyTracker, describeError } from './api';
+import { isBookmarkState, isComment, isGroup, isPostSummary, safeLink } from './guards';
 
 const PAGE = { items: [], limit: 20, offset: 0, has_more: false };
+const POST = { id: 'p1', display_name: '익명', title: 't', excerpt: 'e', comment_count: 0, bookmarked: false, created_at: '2026-10-30T00:00:00Z' };
 const COMMENT = {
   id: 'c1', post_id: 'p1', display_name: '익명', body: 'x', is_mine: true, revision: 1,
   created_at: '2026-10-30T00:00:00Z', updated_at: '2026-10-30T00:00:00Z',
@@ -100,13 +101,44 @@ describe('collaboration API paths through the shared client', () => {
     expect(calls(fetch)[0].url).toBe('https://api.example.test/api/v1/me/reports?limit=50');
   });
 
-  it('encodes path segments so an id cannot change the route', async () => {
+  it.each([
+    ['.'], ['..'], ['../me/reports'], ['%2e%2e'], ['%2E'], ['a%2Fb'], ['a/b'], ['a\\b'], ['a b'], [''], ['x'.repeat(65)],
+  ])('refuses the path id %j before any request so it cannot change the route', async bad => {
     const fetch = stubFetch();
-    // The encoded slash is refused by the shared client before any request is made.
-    await expect(collaborationApi.listComments('../me/reports')).rejects.toMatchObject({ code: 'CONFIGURATION' });
+    await expect(collaborationApi.listComments(bad)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(collaborationApi.requestJoin(bad, 'key-00000001')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(collaborationApi.createSpacePost(bad, 'x', 'key-00000002')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(collaborationApi.deleteComment('p1', bad, 1)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(collaborationApi.decideJoin('g1', bad, 'approve', 1)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     expect(fetch).not.toHaveBeenCalled();
-    await collaborationApi.listComments('a b');
-    expect(calls(fetch)[0].url).toContain('/api/v1/anonymous-posts/a%20b/comments');
+  });
+
+  it('accepts server-pattern ids up to 64 characters', async () => {
+    const fetch = stubFetch();
+    const longest = 'A'.repeat(32) + 'z_9-'.repeat(8);
+    await collaborationApi.listComments(longest);
+    await collaborationApi.getGroup('3f2a_b-C');
+    expect(calls(fetch).map(c => new URL(c.url).pathname)).toEqual([
+      `/api/v1/anonymous-posts/${longest}/comments`,
+      '/api/v1/groups/3f2a_b-C',
+    ]);
+  });
+
+  it.each([['.'], ['..'], ['a/b'], ['%2e']])('response guards refuse the id %j', bad => {
+    expect(isComment({ ...COMMENT, id: bad })).toBe(false);
+    expect(isComment({ ...COMMENT, post_id: bad })).toBe(false);
+    expect(isGroup({ ...GROUP, id: bad })).toBe(false);
+    expect(isPostSummary({ ...POST, id: bad })).toBe(false);
+    expect(isBookmarkState({ post_id: bad, bookmarked: true })).toBe(false);
+  });
+
+  it('checks the anonymous bookmark state with an exact key set', () => {
+    expect(isBookmarkState({ post_id: 'p1', bookmarked: true })).toBe(true);
+    expect(isBookmarkState({ post_id: 'p1', bookmarked: true, user_id: 'u1' })).toBe(false);
+    expect(isBookmarkState({ post_id: 'p1', bookmarked: true, display_name: '가상학생B' })).toBe(false);
+    expect(isPostSummary(POST)).toBe(true);
+    expect(isPostSummary({ ...POST, author_id: 'u1' })).toBe(false);
+    expect(isPostSummary({ ...POST, bookmarked: 'yes' })).toBe(false);
   });
 
   it('sends Idempotency-Key only on creates and a reason-only report body', async () => {
@@ -146,6 +178,17 @@ describe('idempotency key tracker', () => {
 
   it('defaults to random UUIDs accepted by the server key pattern', () => {
     expect(createKeyTracker().keyFor({})).toMatch(/^[!-~]{8,128}$/);
+  });
+
+  it.each([[{}], [undefined]])('refuses to invent a key without crypto.randomUUID (%o)', crypto => {
+    vi.stubGlobal('crypto', crypto);
+    const keys = createKeyTracker();
+    expect(() => keys.keyFor({ text: 'a' })).toThrow(SecureContextRequiredError);
+    // Nothing weak was cached for a later retry either.
+    expect(() => keys.keyFor({ text: 'a' })).toThrow(SecureContextRequiredError);
+    const issue = describeError(new SecureContextRequiredError());
+    expect(issue).toEqual({ kind: 'error', message: expect.stringContaining('보안 컨텍스트가 필요합니다') });
+    expect(issue.message).not.toMatch(/로그인|서버/);
   });
 });
 

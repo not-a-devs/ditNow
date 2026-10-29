@@ -10,6 +10,7 @@ import {
   isGroup,
   isJoinRequest,
   isMembership,
+  isOpaqueId,
   isPostSummary,
   isReport,
   isSpacePost,
@@ -17,7 +18,12 @@ import {
 } from "./guards";
 import type { GroupInput, GroupKind, ReportReason, ReportTargetType } from "./types";
 
-const id = encodeURIComponent;
+// Only server-pattern IDs become path segments; "." / ".." would otherwise be normalized by URL
+// resolution into another route. Refused before any request, as an invalid server value.
+const id = (value: string) => {
+  if (!isOpaqueId(value)) throw new ApiError("INVALID_RESPONSE", 0);
+  return encodeURIComponent(value);
+};
 
 const json = (method: string, body: unknown, headers: Record<string, string> = {}): RequestInit => ({
   method,
@@ -28,9 +34,11 @@ const json = (method: string, body: unknown, headers: Record<string, string> = {
 // Create POSTs require a key; an unchanged retry reuses it so the server replays, not duplicates.
 const created = (body: unknown, key: string) => json("POST", body, { "Idempotency-Key": key });
 
-const get = async <T,>(path: string, check: (value: unknown) => T) => check(await requestData<unknown>(path));
-const send = async <T,>(path: string, init: RequestInit, check: (value: unknown) => T) =>
-  check(await requestData<unknown>(path, init));
+// Paths are built lazily so an invalid ID rejects the returned promise instead of throwing.
+const get = async <T,>(path: () => string, check: (value: unknown) => T, signal?: AbortSignal) =>
+  check(await requestData<unknown>(path(), signal ? { signal } : {}));
+const send = async <T,>(path: () => string, init: RequestInit, check: (value: unknown) => T) =>
+  check(await requestData<unknown>(path(), init));
 
 const query = (params: Record<string, string | undefined>) => {
   const search = new URLSearchParams();
@@ -39,55 +47,70 @@ const query = (params: Record<string, string | undefined>) => {
 };
 
 export const collaborationApi = {
-  searchPosts: (q: string) =>
-    get(`/search/anonymous-posts?${query({ q, limit: "20" })}`, ensure(pageOf(isPostSummary))),
-  listComments: (postId: string) =>
-    get(`/anonymous-posts/${id(postId)}/comments?limit=50`, ensure(pageOf(isComment))),
+  searchPosts: (q: string, signal?: AbortSignal) =>
+    get(() => `/search/anonymous-posts?${query({ q, limit: "20" })}`, ensure(pageOf(isPostSummary)), signal),
+  listComments: (postId: string, signal?: AbortSignal) =>
+    get(() => `/anonymous-posts/${id(postId)}/comments?limit=50`, ensure(pageOf(isComment)), signal),
   createComment: (postId: string, body: string, key: string) =>
-    send(`/anonymous-posts/${id(postId)}/comments`, created({ body }, key), ensure(isComment)),
+    send(() => `/anonymous-posts/${id(postId)}/comments`, created({ body }, key), ensure(isComment)),
   deleteComment: (postId: string, commentId: string, revision: number) =>
     send(
-      `/anonymous-posts/${id(postId)}/comments/${id(commentId)}?revision=${revision}`,
+      () => `/anonymous-posts/${id(postId)}/comments/${id(commentId)}?revision=${revision}`,
       { method: "DELETE" },
       ensure(isDeleted),
     ),
-  listBookmarks: () => get("/me/bookmarks?limit=50", ensure(pageOf(isBookmark))),
+  listBookmarks: (signal?: AbortSignal) => get(() => "/me/bookmarks?limit=50", ensure(pageOf(isBookmark)), signal),
   addBookmark: (postId: string) =>
-    send(`/me/bookmarks/${id(postId)}`, { method: "PUT" }, ensure(isBookmarkState)),
+    send(() => `/me/bookmarks/${id(postId)}`, { method: "PUT" }, ensure(isBookmarkState)),
   removeBookmark: (postId: string) =>
-    send(`/me/bookmarks/${id(postId)}`, { method: "DELETE" }, ensure(isBookmarkState)),
+    send(() => `/me/bookmarks/${id(postId)}`, { method: "DELETE" }, ensure(isBookmarkState)),
   createReport: (target_type: ReportTargetType, target_id: string, reason: ReportReason, key: string) =>
-    send("/reports", created({ target_type, target_id, reason }, key), ensure(isReport)),
-  listReports: () => get("/me/reports?limit=50", ensure(pageOf(isReport))),
-  listGroups: (kind?: GroupKind, q?: string) =>
-    get(`/groups?${query({ kind, q, limit: "20" })}`, ensure(pageOf(isGroup))),
-  getGroup: (groupId: string) => get(`/groups/${id(groupId)}`, ensure(isGroup)),
-  createGroup: (input: GroupInput, key: string) => send("/groups", created(input, key), ensure(isGroup)),
+    send(() => "/reports", created({ target_type, target_id, reason }, key), ensure(isReport)),
+  listReports: (signal?: AbortSignal) => get(() => "/me/reports?limit=50", ensure(pageOf(isReport)), signal),
+  listGroups: (kind?: GroupKind, q?: string, signal?: AbortSignal) =>
+    get(() => `/groups?${query({ kind, q, limit: "20" })}`, ensure(pageOf(isGroup)), signal),
+  getGroup: (groupId: string, signal?: AbortSignal) => get(() => `/groups/${id(groupId)}`, ensure(isGroup), signal),
+  createGroup: (input: GroupInput, key: string) => send(() => "/groups", created(input, key), ensure(isGroup)),
   requestJoin: (groupId: string, key: string) =>
-    send(`/groups/${id(groupId)}/join-requests`, { method: "POST", headers: { "Idempotency-Key": key } }, ensure(isMembership)),
-  listJoinRequests: (groupId: string) =>
-    get(`/groups/${id(groupId)}/join-requests?limit=50`, ensure(pageOf(isJoinRequest))),
+    send(() => `/groups/${id(groupId)}/join-requests`, { method: "POST", headers: { "Idempotency-Key": key } }, ensure(isMembership)),
+  listJoinRequests: (groupId: string, signal?: AbortSignal) =>
+    get(() => `/groups/${id(groupId)}/join-requests?limit=50`, ensure(pageOf(isJoinRequest)), signal),
   decideJoin: (groupId: string, membershipId: string, decision: "approve" | "reject", revision: number) =>
     send(
-      `/groups/${id(groupId)}/join-requests/${id(membershipId)}/decision`,
+      () => `/groups/${id(groupId)}/join-requests/${id(membershipId)}/decision`,
       json("POST", { decision, revision }),
       ensure(isJoinRequest),
     ),
   leaveGroup: (groupId: string, revision: number) =>
-    send(`/groups/${id(groupId)}/membership/leave`, json("POST", { revision }), ensure(isMembership)),
-  listSpacePosts: (groupId: string) =>
-    get(`/groups/${id(groupId)}/space/posts?limit=50`, ensure(pageOf(isSpacePost))),
+    send(() => `/groups/${id(groupId)}/membership/leave`, json("POST", { revision }), ensure(isMembership)),
+  listSpacePosts: (groupId: string, signal?: AbortSignal) =>
+    get(() => `/groups/${id(groupId)}/space/posts?limit=50`, ensure(pageOf(isSpacePost)), signal),
   createSpacePost: (groupId: string, body: string, key: string) =>
-    send(`/groups/${id(groupId)}/space/posts`, created({ body }, key), ensure(isSpacePost)),
+    send(() => `/groups/${id(groupId)}/space/posts`, created({ body }, key), ensure(isSpacePost)),
   deleteSpacePost: (groupId: string, postId: string, revision: number) =>
-    send(`/groups/${id(groupId)}/space/posts/${id(postId)}?revision=${revision}`, { method: "DELETE" }, ensure(isDeleted)),
+    send(() => `/groups/${id(groupId)}/space/posts/${id(postId)}?revision=${revision}`, { method: "DELETE" }, ensure(isDeleted)),
 };
+
+/** Raised when the page is not a secure context (no crypto.randomUUID); nothing is sent. */
+export class SecureContextRequiredError extends Error {
+  constructor() {
+    super("SECURE_CONTEXT_REQUIRED");
+    this.name = "SecureContextRequiredError";
+  }
+}
+
+// No weaker fallback (Math.random, timestamps): a guessable key could collide across requests.
+export function secureRandomKey(): string {
+  const source = globalThis.crypto as Crypto | undefined;
+  if (typeof source?.randomUUID !== "function") throw new SecureContextRequiredError();
+  return source.randomUUID();
+}
 
 /**
  * One key per logical submission. An unchanged retry after a failure keeps the key, any change
  * to the intent rotates it, and a confirmed success (reset) starts a new one.
  */
-export function createKeyTracker(generate: () => string = () => crypto.randomUUID()) {
+export function createKeyTracker(generate: () => string = secureRandomKey) {
   let last: { intent: string; key: string } | null = null;
   return {
     keyFor(intent: unknown): string {
@@ -113,6 +136,8 @@ export const isAuthIssue = (issue: Issue) => issue.kind === "unauthenticated" ||
 
 // Fixed Korean messages only; server-provided text is never shown.
 export function describeError(error: unknown): Issue {
+  if (error instanceof SecureContextRequiredError)
+    return { kind: "error", message: "보안 연결(HTTPS)에서만 요청할 수 있습니다. 보안 컨텍스트가 필요합니다." };
   if (!(error instanceof ApiError)) return { kind: "unavailable", message: "서버에 연결할 수 없습니다. 연결 준비 중입니다." };
   const requestId = error.requestId;
   if (error.status === 401) return { kind: "unauthenticated", message: "로그인이 필요합니다." };

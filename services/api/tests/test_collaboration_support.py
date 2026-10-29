@@ -2,10 +2,19 @@
 
 A global RLock serializes transactions and every table dict is snapshotted on entry and restored
 on any exception, so the fake honours the ``ports.py`` contract (all-or-nothing, claim + resource
-in one transaction). It is NOT evidence of MariaDB atomicity, isolation, locking or GRANTs and is
-never installed in application runtime.
+in one transaction, UNIQUE violations raised as ``StoreConflict``). It is NOT evidence of MariaDB
+atomicity, isolation, locking or GRANTs and is never installed in application runtime.
+
+Interleavings are injected, not produced by real concurrency:
+
+- ``races[op]`` runs once right before ``op`` and commits rows "from another transaction"
+  (``commit_elsewhere``). Those rows survive this transaction's rollback and, as under a
+  REPEATABLE READ snapshot, stay invisible to this transaction's plain reads; only
+  ``for_update=True`` reads (and the UNIQUE checks) see them.
+- ``conflicts[op] = n`` raises ``StoreConflict`` (lock wait timeout / deadlock) the next n times.
 """
 
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -16,7 +25,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import Settings
 from app.factory import create_app
-from app.features.collaboration import CollaborationActor, ParticipationGrant
+from app.features.collaboration import CollaborationActor, ParticipationGrant, StoreConflict
 from app.features.collaboration.domain import (
     NO_GROUP_GRANT,
     GroupGrant,
@@ -71,18 +80,36 @@ class FakeStore:
         self.names = dict(NAMES)
         self.fail_on: str | None = None
         self.transactions = 0
+        self.races: dict[str, Callable[[FakeStore], None]] = {}
+        self.conflicts: dict[str, int] = {}
+        self.locking_reads: list[str] = []
+        self._elsewhere: list[tuple[str, object, object]] = []
 
     @contextmanager
     def transaction(self, actor_id: str):
         with self.lock:
             self.transactions += 1
             snapshot = {name: dict(getattr(self, name)) for name in _TABLES}
+            self._elsewhere = []
             try:
                 yield FakeUnitOfWork(self, actor_id)
             except BaseException:
                 for name, table in snapshot.items():
                     setattr(self, name, table)
+                # Rows another transaction committed are not undone by our rollback.
+                for table, key, value in self._elsewhere:
+                    getattr(self, table)[key] = value
                 raise
+            finally:
+                self._elsewhere = []
+
+    def commit_elsewhere(self, table: str, key, value) -> None:
+        getattr(self, table)[key] = value
+        self._elsewhere.append((table, key, value))
+
+    def hidden(self, table: str, key) -> bool:
+        """Committed by another transaction after this one's snapshot (plain reads miss it)."""
+        return any(t == table and k == key for t, k, _ in self._elsewhere)
 
     # ---------------------------------------------------------------- seeding helpers
 
@@ -141,7 +168,26 @@ class FakeUnitOfWork:
             self.s.fail_on = None
             raise InjectedFailure(op)
 
+    def _interleave(self, op: str):
+        race = self.s.races.pop(op, None)
+        if race is not None:
+            race(self.s)
+        if self.s.conflicts.get(op, 0) > 0:
+            self.s.conflicts[op] -= 1
+            raise StoreConflict()
+
+    def _read(self, table: str, key, for_update: bool, op: str):
+        if for_update:
+            self.s.locking_reads.append(op)
+        elif self.s.hidden(table, key):
+            return None
+        return getattr(self.s, table).get(key)
+
+    def participation_of(self, user_id):
+        return ParticipationGrant(active=self.s.participation.get(user_id, False))
+
     def claim(self, record):
+        self._interleave("claim")
         stored = self.s.claims.get(record.scope)
         if stored is not None:
             return stored
@@ -168,7 +214,7 @@ class FakeUnitOfWork:
                 if row.status is PostStatus.ACTIVE
                 and (needle in row.title.casefold() or needle in row.body.casefold())
             ),
-            key=lambda row: row.created_at,
+            key=lambda row: (row.created_at, row.id),
             reverse=True,
         )
         return rows[offset : offset + limit]
@@ -181,11 +227,12 @@ class FakeUnitOfWork:
         )
         return rows[offset : offset + limit]
 
-    def get_comment(self, comment_id):
-        return self.s.comments.get(comment_id)
+    def get_comment(self, comment_id, *, for_update=False):
+        return self._read("comments", comment_id, for_update, "get_comment")
 
     def insert_comment(self, record):
         self._maybe_fail("insert_comment")
+        self._interleave("insert_comment")
         self.s.comments[record.id] = record
         post = self.s.posts[record.post_id]
         self.s.posts[post.id] = replace(post, comment_count=post.comment_count + 1)
@@ -195,8 +242,8 @@ class FakeUnitOfWork:
         if current is None or current.revision != expected_revision:
             return False
         self.s.comments[record.id] = record
-        if record.status == "deleted" and current.status == "active":
-            post = self.s.posts[record.post_id]
+        post = self.s.posts.get(record.post_id)
+        if record.status == "deleted" and current.status == "active" and post is not None:
             self.s.posts[post.id] = replace(post, comment_count=post.comment_count - 1)
         return True
 
@@ -215,23 +262,36 @@ class FakeUnitOfWork:
         )
         return rows[offset : offset + limit]
 
+    def bookmarked_among(self, user_id, post_ids):
+        return {pid for pid in post_ids if (user_id, pid) in self.s.bookmarks}
+
     # reports
-    def find_report(self, reporter_id, target_type, target_id):
+    def find_report(self, reporter_id, target_type, target_id, *, for_update=False):
+        if for_update:
+            self.s.locking_reads.append("find_report")
         return next(
             (
                 r
-                for r in self.s.reports.values()
+                for rid, r in self.s.reports.items()
                 if (r.reporter_id, r.target_type, r.target_id)
                 == (reporter_id, target_type, target_id)
+                and (for_update or not self.s.hidden("reports", rid))
             ),
             None,
         )
 
-    def get_report(self, report_id):
-        return self.s.reports.get(report_id)
+    def get_report(self, report_id, *, for_update=False):
+        return self._read("reports", report_id, for_update, "get_report")
 
     def insert_report(self, record):
         self._maybe_fail("insert_report")
+        self._interleave("insert_report")
+        if any(
+            (r.reporter_id, r.target_type, r.target_id)
+            == (record.reporter_id, record.target_type, record.target_id)
+            for r in self.s.reports.values()
+        ):
+            raise StoreConflict()  # UNIQUE(reporter_id, target_type, target_id)
         self.s.reports[record.id] = record
 
     def list_reports(self, reporter_id, *, limit, offset):
@@ -250,6 +310,8 @@ class FakeUnitOfWork:
         return rows[offset : offset + limit]
 
     def get_group(self, group_id, *, for_update=False):
+        if for_update:
+            self._interleave("lock_group")  # others may commit while we wait for the row lock
         return self.s.groups.get(group_id)
 
     def insert_group(self, record):
@@ -275,22 +337,28 @@ class FakeUnitOfWork:
             return NO_GROUP_GRANT
         return GroupGrant(role=row.role, active=True)
 
-    def memberships_of(self, user_id, group_ids):
+    def memberships_of(self, user_id, group_ids, *, for_update=False):
+        if for_update:
+            self.s.locking_reads.append("memberships_of")
         wanted = set(group_ids)
         return {
             m.group_id: m
-            for m in self.s.memberships.values()
-            if m.user_id == user_id and m.group_id in wanted
+            for mid, m in self.s.memberships.items()
+            if m.user_id == user_id
+            and m.group_id in wanted
+            and (for_update or not self.s.hidden("memberships", mid))
         }
 
-    def get_membership(self, membership_id):
-        return self.s.memberships.get(membership_id)
+    def get_membership(self, membership_id, *, for_update=False):
+        return self._read("memberships", membership_id, for_update, "get_membership")
 
     def insert_membership(self, record):
-        assert not any(
+        self._interleave("insert_membership")
+        if any(
             (m.group_id, m.user_id) == (record.group_id, record.user_id)
             for m in self.s.memberships.values()
-        ), "UNIQUE(group_id, user_id)"
+        ):
+            raise StoreConflict()  # UNIQUE(group_id, user_id)
         self.s.memberships[record.id] = record
 
     def cas_membership(self, record, expected_revision):
@@ -326,8 +394,8 @@ class FakeUnitOfWork:
         )
         return [p for p in rows if p.status == "active"][offset : offset + limit]
 
-    def get_space_post(self, post_id):
-        return self.s.space_posts.get(post_id)
+    def get_space_post(self, post_id, *, for_update=False):
+        return self._read("space_posts", post_id, for_update, "get_space_post")
 
     def insert_space_post(self, record):
         self.s.space_posts[record.id] = record

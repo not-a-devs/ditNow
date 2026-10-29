@@ -124,13 +124,17 @@ class Page[T](ApiModel):
 
 
 class PostSummary(ApiModel):
-    """Public projection of a community anonymous post; reuses its ID, never its author."""
+    """Public projection of a community anonymous post; reuses its ID, never its author.
+
+    ``bookmarked`` is only the caller's own bookmark state for this post.
+    """
 
     id: str
     display_name: str = ANONYMOUS_DISPLAY_NAME
     title: str
     excerpt: str
     comment_count: int
+    bookmarked: bool
     created_at: AwareDatetime
 
 

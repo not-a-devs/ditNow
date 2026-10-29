@@ -25,6 +25,7 @@ from app.features.collaboration import (
     create_collaboration_router,
     router,
 )
+from app.features.community.domain import PostStatus
 
 ERROR_KEYS = {"code", "message", "field_errors", "retryable", "request_id"}
 API = "/api/v1"
@@ -241,6 +242,40 @@ def test_comments_on_hidden_or_missing_post_are_404(client, store):
         assert comment(client, post=post).status_code == 404
 
 
+@pytest.mark.parametrize("status", ["hidden", "deleted"])
+def test_author_can_tombstone_own_comment_after_post_is_hidden(client, store, status):
+    cid = comment(client, user=USER_A, post="post-2", body="지우고 싶은 가상 댓글").json()["data"][
+        "id"
+    ]
+    other = comment(client, user=USER_C, post="post-2", key="comment-key-0002").json()["data"]["id"]
+    store.hide_post("post-2", PostStatus(status))
+    url = f"{API}/anonymous-posts/post-2/comments/{cid}"
+    # Create/update/list keep requiring an active parent.
+    assert (
+        client.get(f"{API}/anonymous-posts/post-2/comments", headers=as_user(USER_A)).status_code
+        == 404
+    )
+    assert (
+        client.patch(url, json={"revision": 1, "body": "수정"}, headers=as_user(USER_A)).status_code
+        == 404
+    )
+    assert comment(client, user=USER_A, post="post-2", key="comment-key-0003").status_code == 404
+    # Delete still checks author, parent ID, status and revision.
+    assert client.delete(f"{url}?revision=1", headers=as_user(USER_B)).status_code == 404
+    wrong_parent = f"{API}/anonymous-posts/post-1/comments/{cid}?revision=1"
+    assert client.delete(wrong_parent, headers=as_user(USER_A)).status_code == 404
+    assert client.delete(f"{url}?revision=9", headers=as_user(USER_A)).status_code == 409
+    store.participation[USER_A] = False
+    assert client.delete(f"{url}?revision=1", headers=as_user(USER_A)).status_code == 403
+    store.participation[USER_A] = True
+    deleted = client.delete(f"{url}?revision=1", headers=as_user(USER_A))
+    assert deleted.status_code == 200 and deleted.json()["data"] == {"id": cid, "deleted": True}
+    assert store.comments[cid].body == "" and store.comments[cid].status == "deleted"
+    assert client.delete(f"{url}?revision=2", headers=as_user(USER_A)).status_code == 404
+    # Other comments under the hidden post are untouched.
+    assert store.comments[other].status == "active"
+
+
 # ---------------------------------------------------------------- FR-COM-002 bookmarks/search
 
 
@@ -277,9 +312,23 @@ def test_search_uses_public_projection_only(client, store):
         "title",
         "excerpt",
         "comment_count",
+        "bookmarked",
         "created_at",
     }
+    assert items[0]["bookmarked"] is False
     assert not leaks_identity(found.json())
+
+
+def test_search_and_bookmark_list_report_the_callers_own_bookmark_state(client, store):
+    client.put(f"{API}/me/bookmarks/post-1", headers=as_user(USER_B))
+    search = f"{API}/search/anonymous-posts?q=스터디"
+    mine = client.get(search, headers=as_user(USER_B)).json()["data"]["items"]
+    assert [(item["id"], item["bookmarked"]) for item in mine] == [("post-1", True)]
+    # Another user's bookmark never shows up as someone else's state.
+    other = client.get(search, headers=as_user(USER_C)).json()["data"]["items"]
+    assert [(item["id"], item["bookmarked"]) for item in other] == [("post-1", False)]
+    listed = client.get(f"{API}/me/bookmarks", headers=as_user(USER_B)).json()["data"]["items"]
+    assert [item["post"]["bookmarked"] for item in listed] == [True]
 
 
 @pytest.mark.parametrize("q", ["a", " a ", "a\x07b", "x" * 51])
@@ -440,6 +489,25 @@ def test_stale_decision_revision_is_409(client, store):
         headers=as_user(USER_A),
     )
     assert stale.status_code == 409 and store.memberships[mid].status == "pending"
+
+
+def test_approval_rechecks_the_applicants_current_participation(client, store):
+    gid = make_group(client).json()["data"]["id"]
+    mid = client.post(
+        f"{API}/groups/{gid}/join-requests", headers=as_user(USER_B, "join-key-0001")
+    ).json()["data"]["id"]
+    decision = f"{API}/groups/{gid}/join-requests/{mid}/decision"
+    store.participation[USER_B] = False  # revoked after requesting
+    refused = client.post(
+        decision, json={"decision": "approve", "revision": 1}, headers=as_user(USER_A)
+    )
+    assert refused.status_code == 409
+    assert store.memberships[mid].status == "pending" and store.groups[gid].member_count == 1
+    assert USER_B not in json.dumps(refused.json())
+    rejected = client.post(
+        decision, json={"decision": "reject", "revision": 1}, headers=as_user(USER_A)
+    )
+    assert rejected.status_code == 200 and store.memberships[mid].status == "rejected"
 
 
 def test_rejected_cannot_rerequest_and_capacity_is_enforced(client, store):

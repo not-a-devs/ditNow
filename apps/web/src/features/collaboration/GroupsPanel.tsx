@@ -12,7 +12,7 @@ export function GroupsPanel() {
   const [kind, setKind] = useState<GroupKind | "">("");
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
-  const { state, reload } = useRemote(() => collaborationApi.listGroups(kind || undefined), `${kind}:${version}`);
+  const { state, reload } = useRemote(signal => collaborationApi.listGroups(kind || undefined, undefined, signal),`${kind}:${version}`);
 
   return (
     <div className="space-y-6">
@@ -118,7 +118,7 @@ function SourceLabel({ group }: { group: Group }) {
 
 function GroupDetail({ groupId, onChanged }: { groupId: string; onChanged: () => void }) {
   const [version, setVersion] = useState(0);
-  const { state, reload } = useRemote(() => collaborationApi.getGroup(groupId), `${groupId}:${version}`);
+  const { state, reload } = useRemote(signal => collaborationApi.getGroup(groupId, signal),`${groupId}:${version}`);
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState<Issue | null>(null);
   const keys = useMemo(() => createKeyTracker(), []);
@@ -174,7 +174,7 @@ function GroupDetail({ groupId, onChanged }: { groupId: string; onChanged: () =>
 }
 
 function JoinRequests({ groupId, onDecided }: { groupId: string; onDecided: () => void }) {
-  const { state, reload } = useRemote(() => collaborationApi.listJoinRequests(groupId), groupId);
+  const { state, reload } = useRemote(signal => collaborationApi.listJoinRequests(groupId, signal),groupId);
   const [issue, setIssue] = useState<Issue | null>(null);
   const handle = useIssueHandler();
   const decide = async (id: string, decision: "approve" | "reject", revision: number) => {
@@ -210,7 +210,7 @@ function JoinRequests({ groupId, onDecided }: { groupId: string; onDecided: () =
 
 function Space({ groupId }: { groupId: string }) {
   const [version, setVersion] = useState(0);
-  const { state, reload } = useRemote(() => collaborationApi.listSpacePosts(groupId), `${groupId}:${version}`);
+  const { state, reload } = useRemote(signal => collaborationApi.listSpacePosts(groupId, signal),`${groupId}:${version}`);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState<Issue | null>(null);

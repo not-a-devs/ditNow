@@ -27,6 +27,12 @@ const oneOf = (...values: string[]) => (v: unknown) => str(v) && values.includes
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+// Same as the server's ID_PATTERN (schemas.py): 1-64 of [A-Za-z0-9_-]. Rejects ".", "..",
+// separators and percent-encodings, so an ID can never become a different URL path segment.
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const isOpaqueId = (v: unknown): v is string => str(v) && ID_PATTERN.test(v);
+const oid = isOpaqueId;
+
 function shape<T>(fields: Shape): Guard<T> {
   return (value: unknown): value is T =>
     isRecord(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
@@ -43,27 +49,27 @@ function exact<T>(fields: Shape): Guard<T> {
 const name = shape<{ display_name: string | null }>({ display_name: nullable(str) });
 
 export const isPostSummary = exact<PostSummary>({
-  id: str, display_name: str, title: str, excerpt: str, comment_count: int, created_at: date,
+  id: oid, display_name: str, title: str, excerpt: str, comment_count: int, bookmarked: bool, created_at: date,
 });
 export const isComment = exact<Comment>({
-  id: str, post_id: str, display_name: str, body: str, is_mine: bool, revision: int,
+  id: oid, post_id: oid, display_name: str, body: str, is_mine: bool, revision: int,
   created_at: date, updated_at: date,
 });
 export const isBookmark = exact<Bookmark>({ post: isPostSummary, bookmarked_at: date });
-export const isBookmarkState = shape<BookmarkState>({ post_id: str, bookmarked: bool });
+export const isBookmarkState = exact<BookmarkState>({ post_id: oid, bookmarked: bool });
 export const isReport = exact<Report>({
-  id: str,
+  id: oid,
   target_type: oneOf("anonymous_post", "anonymous_comment"),
-  target_id: str,
+  target_id: oid,
   reason: oneOf("spam", "abuse", "hate", "sexual", "privacy", "misinformation", "other"),
   status: oneOf("submitted"),
   created_at: date,
 });
 export const isMembership = shape<MyMembership>({
-  id: str, role: oneOf("leader", "member"), status: oneOf("pending", "active", "rejected", "left"), revision: int,
+  id: oid, role: oneOf("leader", "member"), status: oneOf("pending", "active", "rejected", "left"), revision: int,
 });
 export const isGroup = shape<Group>({
-  id: str,
+  id: oid,
   kind: oneOf("study", "club"),
   name: str,
   description: str,
@@ -85,13 +91,13 @@ export const isGroup = shape<Group>({
   updated_at: date,
 });
 export const isJoinRequest = shape<JoinRequest>({
-  id: str, group_id: str, applicant: name, status: oneOf("pending", "active", "rejected", "left"),
+  id: oid, group_id: oid, applicant: name, status: oneOf("pending", "active", "rejected", "left"),
   revision: int, created_at: date,
 });
 export const isSpacePost = shape<SpacePost>({
-  id: str, group_id: str, author: name, is_mine: bool, body: str, revision: int, created_at: date,
+  id: oid, group_id: oid, author: name, is_mine: bool, body: str, revision: int, created_at: date,
 });
-export const isDeleted = shape<Deleted>({ id: str, deleted: bool });
+export const isDeleted = shape<Deleted>({ id: oid, deleted: bool });
 
 export function pageOf<T>(item: Guard<T>): Guard<Page<T>> {
   return (value: unknown): value is Page<T> =>

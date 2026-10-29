@@ -4,12 +4,17 @@ Order inside every transaction: participation grant (403) -> parent scope/visibi
 ownership/group grant (404, never confirming another user's resource) -> idempotency claim ->
 state/revision checks (409) -> write. Because the grant is re-read on every request, a replay
 after revocation is refused before the stored record is consulted.
+
+Every public method runs in at most ``MAX_TX_ATTEMPTS`` transactions: an adapter
+``StoreConflict`` (UNIQUE violation, lock wait timeout, deadlock; see ``ports.py``) re-runs the
+whole request once in a fresh transaction, and a repeated conflict is a plain 409.
 """
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime
+from functools import wraps
 from uuid import uuid4
 
 from app.core.errors import ApiError
@@ -41,7 +46,11 @@ from app.features.collaboration.domain import (
     require_aware_utc,
 )
 from app.features.collaboration.idempotency import new_record, replayed_resource
-from app.features.collaboration.ports import CollaborationStore, CollaborationUnitOfWork
+from app.features.collaboration.ports import (
+    CollaborationStore,
+    CollaborationUnitOfWork,
+    StoreConflict,
+)
 from app.features.collaboration.schemas import (
     BookmarkPublic,
     BookmarkState,
@@ -73,9 +82,25 @@ IdFactory = Callable[[], str]
 # are not approved for this platform (BLOCKED_POLICY), so such catalog entries are info-only.
 JOINABLE_SOURCES = frozenset({SourceKind.DEMO, SourceKind.USER_DEMO})
 
+# One retry in a new transaction; the second attempt sees the competing commit.
+MAX_TX_ATTEMPTS = 2
+
 
 def new_id() -> str:
     return str(uuid4())
+
+
+def _retry_store_conflict[**P, R](method: Callable[P, R]) -> Callable[P, R]:
+    @wraps(method)
+    def run(*args: P.args, **kwargs: P.kwargs) -> R:
+        for _ in range(MAX_TX_ATTEMPTS):
+            try:
+                return method(*args, **kwargs)
+            except StoreConflict:
+                continue  # already rolled back by the adapter; no driver text is kept
+        raise ApiError(ErrorCode.CONFLICT)
+
+    return run
 
 
 def _page(limit: int, offset: int) -> tuple[int, int]:
@@ -84,13 +109,15 @@ def _page(limit: int, offset: int) -> tuple[int, int]:
     return limit, offset
 
 
-def _summary(row: AnonymousPostPublicRow) -> PostSummary:
-    # Field-by-field from the public projection; it has no author value to copy.
+def _summary(row: AnonymousPostPublicRow, *, bookmarked: bool) -> PostSummary:
+    # Field-by-field from the public projection; it has no author value to copy. ``bookmarked``
+    # is the caller's own bookmark state, never another user's.
     return PostSummary(
         id=row.id,
         title=row.title,
         excerpt=excerpt(row.body),
         comment_count=row.comment_count,
+        bookmarked=bookmarked,
         created_at=row.created_at,
     )
 
@@ -180,14 +207,16 @@ class CollaborationService:
 
     # ================================================================ FR-COM-002 search
 
+    @_retry_store_conflict
     def search_posts(
         self, actor: CollaborationActor, text: str, *, limit: int, offset: int
     ) -> Page[PostSummary]:
         limit, offset = _page(limit, offset)
         with self._tx(actor) as uow:
             rows = uow.search_posts(text, limit=limit + 1, offset=offset)
+            marked = uow.bookmarked_among(actor.user_id, [row.id for row in rows[:limit]])
         return Page(
-            items=[_summary(row) for row in rows[:limit]],
+            items=[_summary(row, bookmarked=row.id in marked) for row in rows[:limit]],
             limit=limit,
             offset=offset,
             has_more=len(rows) > limit,
@@ -195,6 +224,7 @@ class CollaborationService:
 
     # ================================================================ FR-COM-002 comments
 
+    @_retry_store_conflict
     def list_comments(
         self, actor: CollaborationActor, post_id: str, *, limit: int, offset: int
     ) -> Page[CommentPublic]:
@@ -210,6 +240,7 @@ class CollaborationService:
             has_more=len(rows) > limit,
         )
 
+    @_retry_store_conflict
     def create_comment(
         self, actor: CollaborationActor, post_id: str, payload: CommentCreate, key: str
     ) -> tuple[CommentPublic, bool]:
@@ -236,7 +267,8 @@ class CollaborationService:
                 resource_id=record.id,
             )
             if previous is not None:
-                stored = uow.get_comment(previous)
+                # Locking read: the winner may have committed after this snapshot began.
+                stored = uow.get_comment(previous, for_update=True)
                 # Tombstone: a deleted comment is never recreated by a replay.
                 if (
                     stored is None
@@ -249,6 +281,7 @@ class CollaborationService:
             uow.insert_comment(record)
             return _comment(record, actor), False
 
+    @_retry_store_conflict
     def update_comment(
         self,
         actor: CollaborationActor,
@@ -258,6 +291,7 @@ class CollaborationService:
     ) -> CommentPublic:
         now = self._now()
         with self._tx(actor) as uow:
+            self._active_post(uow, post_id)
             current = self._own_comment(uow, actor, post_id, comment_id)
             updated = replace(
                 current, body=payload.body, revision=current.revision + 1, updated_at=now
@@ -265,11 +299,14 @@ class CollaborationService:
             self._cas(current.revision, payload.revision, uow.cas_comment, updated)
             return _comment(updated, actor)
 
+    @_retry_store_conflict
     def delete_comment(
         self, actor: CollaborationActor, post_id: str, comment_id: str, revision: int
     ) -> str:
         now = self._now()
         with self._tx(actor) as uow:
+            # No active-post check: an author can still erase their own text after the post was
+            # hidden or deleted. Participation, parent ID, author, status and revision still hold.
             current = self._own_comment(uow, actor, post_id, comment_id)
             # Soft delete keeps a body-less tombstone so idempotency replays cannot revive it.
             tombstone = replace(
@@ -289,8 +326,7 @@ class CollaborationService:
         post_id: str,
         comment_id: str,
     ) -> CommentRecord:
-        self._active_post(uow, post_id)
-        record = uow.get_comment(comment_id)
+        record = uow.get_comment(comment_id, for_update=True)
         if (
             record is None
             or record.post_id != post_id
@@ -307,6 +343,7 @@ class CollaborationService:
 
     # ================================================================ FR-COM-002 bookmarks
 
+    @_retry_store_conflict
     def add_bookmark(self, actor: CollaborationActor, post_id: str) -> BookmarkState:
         now = self._now()
         with self._tx(actor) as uow:
@@ -314,12 +351,14 @@ class CollaborationService:
             uow.add_bookmark(BookmarkRecord(user_id=actor.user_id, post_id=post_id, created_at=now))
         return BookmarkState(post_id=post_id, bookmarked=True)
 
+    @_retry_store_conflict
     def remove_bookmark(self, actor: CollaborationActor, post_id: str) -> BookmarkState:
         # Scoped to the caller's own rows; allowed even after the post was deleted.
         with self._tx(actor) as uow:
             uow.remove_bookmark(actor.user_id, post_id)
         return BookmarkState(post_id=post_id, bookmarked=False)
 
+    @_retry_store_conflict
     def list_bookmarks(
         self, actor: CollaborationActor, *, limit: int, offset: int
     ) -> Page[BookmarkPublic]:
@@ -328,7 +367,9 @@ class CollaborationService:
             rows = uow.list_bookmarks(actor.user_id, limit=limit + 1, offset=offset)
             visible = uow.active_posts([row.post_id for row in rows[:limit]])
         items = [
-            BookmarkPublic(post=_summary(visible[row.post_id]), bookmarked_at=row.created_at)
+            BookmarkPublic(
+                post=_summary(visible[row.post_id], bookmarked=True), bookmarked_at=row.created_at
+            )
             for row in rows[:limit]
             if row.user_id == actor.user_id and row.post_id in visible
         ]
@@ -336,6 +377,7 @@ class CollaborationService:
 
     # ================================================================ FR-COM-003 reports
 
+    @_retry_store_conflict
     def create_report(
         self, actor: CollaborationActor, payload: ReportCreate, key: str
     ) -> tuple[ReportPublic, bool]:
@@ -362,13 +404,16 @@ class CollaborationService:
                 resource_id=record.id,
             )
             if previous is not None:
-                stored = uow.get_report(previous)
+                stored = uow.get_report(previous, for_update=True)
                 if stored is None or stored.reporter_id != actor.user_id:
                     raise ApiError(ErrorCode.NOT_FOUND)
                 return _report(stored), True
-            if uow.find_report(actor.user_id, payload.target_type, payload.target_id):
+            if uow.find_report(
+                actor.user_id, payload.target_type, payload.target_id, for_update=True
+            ):
                 # One report per reporter and target; raising also rolls back the claim.
                 raise ApiError(ErrorCode.CONFLICT)
+            # A concurrent different-key report surfaces here as StoreConflict -> retry -> 409.
             uow.insert_report(record)
             return _report(record), False
 
@@ -389,6 +434,7 @@ class CollaborationService:
         self._active_post(uow, comment.post_id)
         return comment.author_id == actor.user_id
 
+    @_retry_store_conflict
     def list_my_reports(
         self, actor: CollaborationActor, *, limit: int, offset: int
     ) -> Page[ReportPublic]:
@@ -405,6 +451,7 @@ class CollaborationService:
 
     # ================================================================ FR-COM-006 groups
 
+    @_retry_store_conflict
     def list_groups(
         self,
         actor: CollaborationActor,
@@ -422,12 +469,14 @@ class CollaborationService:
             items = self._present_groups(uow, actor, page, now)
         return Page(items=items, limit=limit, offset=offset, has_more=len(rows) > limit)
 
+    @_retry_store_conflict
     def get_group(self, actor: CollaborationActor, group_id: str) -> GroupPublic:
         now = self._now()
         with self._tx(actor) as uow:
             group = self._visible_group(uow, actor, group_id)
             return self._present_groups(uow, actor, [group], now)[0]
 
+    @_retry_store_conflict
     def create_group(
         self, actor: CollaborationActor, payload: GroupCreate, key: str
     ) -> tuple[GroupPublic, bool]:
@@ -459,8 +508,8 @@ class CollaborationService:
                 resource_id=group.id,
             )
             if previous is not None:
-                stored = self._visible_group(uow, actor, previous)
-                return self._present_groups(uow, actor, [stored], now)[0], True
+                stored = self._visible_group(uow, actor, previous, for_update=True)
+                return self._present_groups(uow, actor, [stored], now, current=True)[0], True
             uow.insert_group(group)
             uow.insert_membership(
                 MembershipRecord(
@@ -476,13 +525,15 @@ class CollaborationService:
             )
             return self._present_groups(uow, actor, [group], now)[0], False
 
+    @_retry_store_conflict
     def request_join(
         self, actor: CollaborationActor, group_id: str, key: str
     ) -> tuple[MyMembership, bool]:
         now = self._now()
         with self._tx(actor) as uow:
             group = self._visible_group(uow, actor, group_id, for_update=True)
-            existing = uow.memberships_of(actor.user_id, [group_id]).get(group_id)
+            # Current read under the group lock; a stale snapshot would miss a committed row.
+            existing = uow.memberships_of(actor.user_id, [group_id], for_update=True).get(group_id)
             # Re-joining after leaving reuses the UNIQUE(group_id, user_id) row, so the claim
             # must point at that row for later replays.
             membership_id = existing.id if existing is not None else self._new_id()
@@ -496,7 +547,7 @@ class CollaborationService:
                 resource_id=membership_id,
             )
             if previous is not None:
-                stored = uow.get_membership(previous)
+                stored = uow.get_membership(previous, for_update=True)
                 if stored is None or stored.group_id != group_id or stored.user_id != actor.user_id:
                     raise ApiError(ErrorCode.NOT_FOUND)
                 return MyMembership(
@@ -525,6 +576,7 @@ class CollaborationService:
                     created_at=now,
                     updated_at=now,
                 )
+                # A concurrent different-key insert surfaces as StoreConflict -> retry -> 409.
                 uow.insert_membership(record)
             else:
                 record = replace(
@@ -540,6 +592,7 @@ class CollaborationService:
                 id=record.id, role=record.role, status=record.status, revision=record.revision
             ), False
 
+    @_retry_store_conflict
     def list_join_requests(
         self, actor: CollaborationActor, group_id: str, *, limit: int, offset: int
     ) -> Page[JoinRequestPublic]:
@@ -564,6 +617,7 @@ class CollaborationService:
         ]
         return Page(items=items, limit=limit, offset=offset, has_more=len(rows) > limit)
 
+    @_retry_store_conflict
     def decide_join(
         self,
         actor: CollaborationActor,
@@ -574,7 +628,7 @@ class CollaborationService:
         now = self._now()
         with self._tx(actor) as uow:
             group = self._leader_scope(uow, actor, group_id, for_update=True)
-            current = uow.get_membership(membership_id)
+            current = uow.get_membership(membership_id, for_update=True)
             if current is None or current.group_id != group_id:
                 raise ApiError(ErrorCode.NOT_FOUND)
             if current.status is not MembershipStatus.PENDING:
@@ -586,6 +640,10 @@ class CollaborationService:
             )
             if target is MembershipStatus.ACTIVE:
                 if group.status is not GroupStatus.OPEN:
+                    raise ApiError(ErrorCode.CONFLICT)
+                # The applicant's entitlement may have been revoked since the request; it is
+                # re-read now. Rejecting such a request stays allowed so it can be cleared.
+                if not uow.participation_of(current.user_id).active:
                     raise ApiError(ErrorCode.CONFLICT)
                 self._take_seat(uow, group, now)
             updated = replace(current, status=target, revision=current.revision + 1, updated_at=now)
@@ -600,6 +658,7 @@ class CollaborationService:
             created_at=updated.created_at,
         )
 
+    @_retry_store_conflict
     def leave_group(
         self, actor: CollaborationActor, group_id: str, payload: MembershipLeave
     ) -> MyMembership:
@@ -607,7 +666,7 @@ class CollaborationService:
         with self._tx(actor) as uow:
             group = uow.get_group(group_id, for_update=True)
             grant = uow.group_grant(group_id, actor.user_id) if group else None
-            current = uow.memberships_of(actor.user_id, [group_id]).get(group_id)
+            current = uow.memberships_of(actor.user_id, [group_id], for_update=True).get(group_id)
             if (
                 group is None
                 or current is None
@@ -697,11 +756,13 @@ class CollaborationService:
         actor: CollaborationActor,
         groups: list[GroupRecord],
         now: datetime,
+        *,
+        current: bool = False,
     ) -> list[GroupPublic]:
         ids = [group.id for group in groups]
         leaders = uow.leader_ids(ids)
         names = uow.display_names(set(leaders.values()))
-        mine = uow.memberships_of(actor.user_id, ids)
+        mine = uow.memberships_of(actor.user_id, ids, for_update=current)
         result = []
         for group in groups:
             source = normalize_source(group.source, now)
@@ -730,6 +791,7 @@ class CollaborationService:
 
     # ================================================================ FR-COM-007 team space
 
+    @_retry_store_conflict
     def list_space_posts(
         self, actor: CollaborationActor, group_id: str, *, limit: int, offset: int
     ) -> Page[SpacePostPublic]:
@@ -750,6 +812,7 @@ class CollaborationService:
             has_more=len(rows) > limit,
         )
 
+    @_retry_store_conflict
     def create_space_post(
         self, actor: CollaborationActor, group_id: str, payload: SpacePostCreate, key: str
     ) -> tuple[SpacePostPublic, bool]:
@@ -776,7 +839,7 @@ class CollaborationService:
                 resource_id=record.id,
             )
             if previous is not None:
-                stored = uow.get_space_post(previous)
+                stored = uow.get_space_post(previous, for_update=True)
                 if (
                     stored is None
                     or stored.group_id != group_id
@@ -791,13 +854,14 @@ class CollaborationService:
             names = uow.display_names({actor.user_id})
             return self._space_post(record, actor, names), replayed
 
+    @_retry_store_conflict
     def delete_space_post(
         self, actor: CollaborationActor, group_id: str, post_id: str, revision: int
     ) -> str:
         now = self._now()
         with self._tx(actor) as uow:
             self._member_scope(uow, actor, group_id)
-            current = uow.get_space_post(post_id)
+            current = uow.get_space_post(post_id, for_update=True)
             if (
                 current is None
                 or current.group_id != group_id

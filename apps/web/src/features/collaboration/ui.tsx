@@ -19,24 +19,36 @@ export function useIssueHandler() {
 
 export type Remote<T> = { status: "loading" } | { status: "issue"; issue: Issue } | { status: "ready"; data: T };
 
-// Server data only; there is no local, mock or cached fallback.
-export function useRemote<T>(load: () => Promise<T>, reloadKey: string) {
+// Server data only; there is no local, mock or cached fallback. Each load is one generation with
+// its own AbortController: a newer load, a key change or unmount aborts it, and a superseded
+// generation's result or error (including 401/403) is dropped instead of overwriting state or
+// lifting an auth issue.
+export function useRemote<T>(load: (signal: AbortSignal) => Promise<T>, reloadKey: string) {
   const [state, setState] = useState<Remote<T>>({ status: "loading" });
   const loadRef = useRef(load);
   loadRef.current = load;
+  const current = useRef<AbortController | null>(null);
   const handle = useIssueHandler();
 
   const reload = useCallback(async () => {
+    current.current?.abort();
+    const generation = new AbortController();
+    current.current = generation;
     setState({ status: "loading" });
     try {
-      setState({ status: "ready", data: await loadRef.current() });
+      const data = await loadRef.current(generation.signal);
+      if (current.current === generation) setState({ status: "ready", data });
     } catch (error) {
-      setState({ status: "issue", issue: handle(error) });
+      if (current.current === generation) setState({ status: "issue", issue: handle(error) });
     }
   }, [handle]);
 
   useEffect(() => {
     void reload();
+    return () => {
+      current.current?.abort();
+      current.current = null;
+    };
   }, [reload, reloadKey]);
 
   return { state, reload };

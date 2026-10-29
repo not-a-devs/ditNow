@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import CollaborationFeature from './index';
 import type { Comment, Group, PostSummary } from './types';
@@ -24,7 +25,7 @@ const posts = (fetch: ReturnType<typeof stub>, suffix: string) =>
     .filter(([url, init]) => (init?.method ?? 'GET') === 'POST' && new URL(String(url)).pathname.endsWith(suffix))
     .map(([, init]) => ({ key: (init?.headers as Record<string, string>)['Idempotency-Key'], body: init?.body ? JSON.parse(String(init.body)) : undefined }));
 
-const POST: PostSummary = { id: 'p1', display_name: '익명', title: '알고리즘 스터디 후기', excerpt: '가상 본문', comment_count: 1, created_at: '2026-10-30T00:00:00Z' };
+const POST: PostSummary = { id: 'p1', display_name: '익명', title: '알고리즘 스터디 후기', excerpt: '가상 본문', comment_count: 1, bookmarked: false, created_at: '2026-10-30T00:00:00Z' };
 const COMMENT: Comment = {
   id: 'c1', post_id: 'p1', display_name: '익명', body: '<img src=x onerror=alert(1)>', is_mine: false, revision: 1,
   created_at: '2026-10-30T00:00:00Z', updated_at: '2026-10-30T00:00:00Z',
@@ -155,6 +156,121 @@ describe('anonymous search and comments', () => {
     fails = false;
     fireEvent.click(screen.getByRole('button', { name: '북마크' }));
     expect(await screen.findByRole('button', { name: '북마크 해제' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('starts the bookmark button from the server state of each search result', async () => {
+    stub((method, path) => {
+      if (path.startsWith('/api/v1/search/')) return ok(page([{ ...POST, bookmarked: true }]));
+      if (method === 'DELETE') return ok({ post_id: 'p1', bookmarked: false });
+      return fail('NOT_FOUND', 404);
+    });
+    render(<CollaborationFeature />);
+    await search();
+    const saved = await screen.findByRole('button', { name: '북마크 해제' });
+    expect(saved).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(saved);
+    expect(await screen.findByRole('button', { name: '북마크' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('without a secure context explains the requirement and sends nothing', async () => {
+    vi.stubGlobal('crypto', {});
+    const fetch = stub((method, path) => {
+      if (path.startsWith('/api/v1/search/')) return ok(page([POST]));
+      if (method === 'GET' && path.includes('/comments')) return ok(page([]));
+      return ok(COMMENT, 201);
+    });
+    render(<CollaborationFeature />);
+    const thread = await openThread();
+    fireEvent.change(within(thread).getByLabelText('익명 댓글'), { target: { value: '댓글' } });
+    fireEvent.click(within(thread).getByRole('button', { name: '익명 댓글 등록 요청' }));
+    expect(await within(thread).findByRole('alert')).toHaveTextContent('보안 컨텍스트가 필요합니다');
+    expect(posts(fetch, '/comments')).toHaveLength(0);
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.queryByText(/로그인이 필요|서버에 연결할 수 없|연결 준비 중/)).not.toBeInTheDocument();
+    expect(within(thread).getByLabelText('익명 댓글')).toHaveValue('댓글');
+  });
+});
+
+const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+
+function deferredSearch() {
+  const pending: Record<string, (response: Response) => void> = {};
+  const fetch = stub((_m, path) => {
+    if (path.startsWith('/api/v1/search/')) {
+      const q = new URLSearchParams(path.split('?')[1]).get('q') ?? '';
+      return new Promise<Response>(resolve => { pending[q] = resolve; });
+    }
+    return ok(page([]));
+  });
+  return { pending, fetch };
+}
+
+describe('only the latest request generation reaches the screen', () => {
+  it('an older search answering last never replaces the newer results', async () => {
+    const { pending, fetch } = deferredSearch();
+    render(<CollaborationFeature />);
+    await search('알고리즘');
+    await waitFor(() => expect(pending['알고리즘']).toBeDefined());
+    await search('학식');
+    await waitFor(() => expect(pending['학식']).toBeDefined());
+    expect((fetch.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
+    pending['학식'](ok(page([{ ...POST, id: 'p2', title: '학식 메뉴' }])));
+    expect(await screen.findByText('학식 메뉴')).toBeInTheDocument();
+    pending['알고리즘'](ok(page([POST])));
+    await settle();
+    expect(screen.getByText('학식 메뉴')).toBeInTheDocument();
+    expect(screen.queryByText(POST.title)).not.toBeInTheDocument();
+  });
+
+  it('a superseded search answering 401 does not unmount the personal views', async () => {
+    const { pending } = deferredSearch();
+    render(<CollaborationFeature />);
+    await search('알고리즘');
+    await waitFor(() => expect(pending['알고리즘']).toBeDefined());
+    await search('학식');
+    await waitFor(() => expect(pending['학식']).toBeDefined());
+    pending['학식'](ok(page([])));
+    expect(await screen.findByText('검색 결과이(가) 없습니다.')).toBeInTheDocument();
+    pending['알고리즘'](fail('UNAUTHORIZED', 401));
+    await settle();
+    expect(screen.queryByText('로그인이 필요합니다.')).not.toBeInTheDocument();
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+  });
+
+  it('a search answering 403 after its panel unmounted is ignored', async () => {
+    const { pending } = deferredSearch();
+    render(<CollaborationFeature />);
+    await search('알고리즘');
+    await waitFor(() => expect(pending['알고리즘']).toBeDefined());
+    fireEvent.click(screen.getByRole('tab', { name: '내 북마크·신고' }));
+    expect(await screen.findByText('북마크이(가) 없습니다.')).toBeInTheDocument();
+    pending['알고리즘'](fail('FORBIDDEN', 403));
+    await settle();
+    expect(screen.queryByText('커뮤니티 참여 권한이 확인되지 않았습니다.')).not.toBeInTheDocument();
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+  });
+
+  it('under StrictMode the discarded first effect is aborted and its late 401 is ignored', async () => {
+    const late: ((response: Response) => void)[] = [];
+    const fetch = stub((_m, path) => {
+      if (path.startsWith('/api/v1/me/bookmarks')) {
+        if (late.length === 0) return new Promise<Response>(resolve => { late.push(resolve); });
+        return ok(page([{ post: { ...POST, bookmarked: true }, bookmarked_at: '2026-10-30T00:00:00Z' }]));
+      }
+      return ok(page([]));
+    });
+    render(<StrictMode><CollaborationFeature /></StrictMode>);
+    fireEvent.click(screen.getByRole('tab', { name: '내 북마크·신고' }));
+    // The bookmark list starts from the server's bookmarked=true.
+    expect(await screen.findByRole('button', { name: '북마크 해제' })).toHaveAttribute('aria-pressed', 'true');
+    const loads = fetch.mock.calls.filter(([url]) => String(url).includes('/me/bookmarks'));
+    expect(loads).toHaveLength(2);
+    expect((loads[0][1] as RequestInit).signal?.aborted).toBe(true);
+    expect((loads[1][1] as RequestInit).signal?.aborted).toBe(false);
+    late[0](fail('UNAUTHORIZED', 401));
+    await settle();
+    expect(screen.queryByText('로그인이 필요합니다.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '북마크 해제' })).toBeInTheDocument();
   });
 });
 

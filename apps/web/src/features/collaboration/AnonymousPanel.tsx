@@ -40,7 +40,7 @@ export function AnonymousPanel() {
 }
 
 function SearchResults({ query, onOpen }: { query: string; onOpen: (post: PostSummary) => void }) {
-  const { state, reload } = useRemote(() => collaborationApi.searchPosts(query), query);
+  const { state, reload } = useRemote(signal => collaborationApi.searchPosts(query, signal), query);
   return (
     <RemoteView remote={state} label="검색 결과" isEmpty={page => page.items.length === 0} onRetry={reload}>
       {page => (
@@ -52,7 +52,7 @@ function SearchResults({ query, onOpen }: { query: string; onOpen: (post: PostSu
               <p className="text-xs text-slate-500">{post.display_name} · {formatTime(post.created_at)} · 댓글 {post.comment_count}</p>
               <div className="flex gap-2">
                 <button type="button" className={button} onClick={() => onOpen(post)}>댓글 보기</button>
-                <BookmarkButton postId={post.id} />
+                <BookmarkButton postId={post.id} initial={post.bookmarked} />
               </div>
             </li>
           ))}
@@ -62,8 +62,9 @@ function SearchResults({ query, onOpen }: { query: string; onOpen: (post: PostSu
   );
 }
 
-function BookmarkButton({ postId }: { postId: string }) {
-  const [saved, setSaved] = useState(false);
+// Starts from the server's own-bookmark state (search item or bookmark list), never a guess.
+export function BookmarkButton({ postId, initial }: { postId: string; initial: boolean }) {
+  const [saved, setSaved] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState<Issue | null>(null);
   const handle = useIssueHandler();
@@ -91,7 +92,7 @@ function BookmarkButton({ postId }: { postId: string }) {
 
 function Thread({ post }: { post: PostSummary }) {
   const [version, setVersion] = useState(0);
-  const { state, reload } = useRemote(() => collaborationApi.listComments(post.id), `${post.id}:${version}`);
+  const { state, reload } = useRemote(signal => collaborationApi.listComments(post.id, signal), `${post.id}:${version}`);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState<Issue | null>(null);
