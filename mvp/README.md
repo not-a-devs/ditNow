@@ -3,7 +3,7 @@
 `docs/` 명세(특히 `09_RELEASE_SCOPE.md`의 P0 흐름)를 바탕으로 만든 **사전 MVP**입니다.
 서버 DB 없이 브라우저 `localStorage`에 저장하는 **시연용 프로토타입**이며, 실제 학교 시스템·SSO와 연결되어 있지 않습니다.
 
-> ⚠️ 해커톤 심사 기준(서버 DB CRUD, RLS, 배포)을 충족하려면 `src/shared/data/` 계층을 Supabase로 교체해야 합니다. 아래 "다음 단계" 참고.
+> ⚠️ 서버 DB CRUD, 권한 격리, 배포는 현재 검증되지 않았습니다. [DEC-015](../docs/11_DECISION_LOG.md)에 따라 FastAPI 서버를 별도 구현하고, DB·인증·호스팅은 OPEN-002/003 결정 후 선택해야 합니다.
 
 ## 실행
 
@@ -55,7 +55,7 @@ src/
   features/       auth · home · department · notices · community · opportunities
   shared/
     data/store.ts   localStorage 저장소 + 탭 간 실시간 동기화(BroadcastChannel)
-    data/api/*      "서버" 계층: 권한·검증·비즈니스 규칙 (화면은 여기만 호출)
+    data/api/*      브라우저 모의 API: 권한·검증·비즈니스 규칙 시연 (실제 서버 아님)
     ui/             공통 컴포넌트(Button, Card, Field, ConfirmDialog, Toast …)
 ```
 
@@ -67,7 +67,7 @@ src/
 
 ## 다음 단계 (서버 전환)
 
-1. Supabase 프로젝트 생성 → `docs/05_DATA_MODEL.md` 기준 마이그레이션 + RLS
-2. `src/shared/data/api/*` 내부를 Supabase 쿼리/Edge Function 호출로 교체 (함수 시그니처 유지)
-3. 공지 배포를 `publish-notice` Edge Function + outbox로 이전, 채팅은 Realtime 구독
-4. 브리핑에 서버 측 AI 호출 추가 (현재 규칙 결과는 실패 시 대체로 유지)
+1. [P0 서버·DB 계약](../docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md)과 OPEN-002/003을 검토하고 DB·인증 공급자·비용·시연 권한 책임자를 결정
+2. FastAPI의 인증 검증·역할/소속/소유권 검사·Pydantic 응답 모델을 구현하고, 승인된 DB에 최소 권한·트랜잭션·RLS(해당 시)를 설계
+3. `src/shared/data/api/*` 호출을 승인된 FastAPI 계약으로 옮겨 두 계정 격리·새로고침 영속성·오류를 검증
+4. 공지 원본/outbox, 권한 재검증이 있는 채팅 구독, 서버 측 AI 호출은 별도 기능 태스크로 구현·검증

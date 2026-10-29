@@ -5,11 +5,11 @@
 
 ## 1. 제품과 문서 기준
 - 전체 서비스 목표: 실제 학교 시스템을 참조하되 외부 내부 API에 의존하지 않는 **신규 통합 캠퍼스 플랫폼**. 학생·교수·조교·학과 대표·운영자 역할 포함.
-- 현재 `README.md`의 AI 지도/길찾기 중심 설명과 `docs/01_PRD.md` 및 `mvp/` 구현 범위가 불일치한다. README를 단일 진실로 간주하지 말고 **`docs/11_DECISION_LOG.md`에서 확정 사항을 검증**한다.
+- `README.md`의 AI 지도/길찾기는 제품 제안, `mvp/`의 브라우저 시연은 현재 구현 범위다. 전체 통합 캠퍼스 방향과 구체적 우선순위는 **`docs/11_DECISION_LOG.md`에서 확정 사항을 검증**한다.
 - 문서 진입: `docs/00_START_HERE.md`; 제품: `docs/01_PRD.md`; 기능: `docs/02_FRD.md`; 비기능: `docs/03_NFR.md`; 권한: `docs/04_POLICY_RBAC.md`; 데이터: `docs/05_DATA_MODEL.md`; 아키텍처: `docs/06_ARCHITECTURE.md`; UX: `docs/07_IA_UX.md`; 테스트: `docs/08_TEST_QA.md`; 단계: `docs/09_RELEASE_SCOPE.md`; AI 워크플로: `docs/10_AI_RUNBOOK.md`; 결정: `docs/11_DECISION_LOG.md`; 심사: `docs/12_HACKATHON_GATE.md`; 학교 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`; 전체 기준: `docs/15_PLATFORM_BASELINE.md`.
 - 공식 조사 근거는 `docs/research/`의 조사 산출물 11개(기능 CSV 포함)를 본다. AI 환경 점검은 별도 `docs/research/09_AI_DEVELOPMENT_ENVIRONMENT.md`를 본다.
 - 통합 설계 초안은 `docs/v1-draft/`의 PRD→FRD→NFR→RBAC→DB/API→아키텍처→IA/UX→QA 순으로 읽고, 92개 ID의 기능별 연결은 `docs/v1-draft/09_FEATURE_TRACEABILITY.csv`에서 확인한다. 미확정 정책은 `docs/v1-draft/11_OPEN_POLICIES_ASSUMPTIONS.md`를 따른다. 이 초안은 기존 확정 결정을 대체하지 않는다.
-- P0 인증·학과/학년·익명 글·실명 모집·개인 기회의 조건부 서버/DB/RLS 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`를 본다. 실제 백엔드 구현·기술 선택 승인은 별개다.
+- P0 인증·학과/학년·익명 글·실명 모집·개인 기회의 FastAPI 서버/DB 후보/RLS 계약은 `docs/v1-draft/13_P0_SERVER_DB_RLS_CONTRACT.md`를 본다. 프런트 React/Vite/Tailwind와 FastAPI는 DEC-015 확정이며 실제 백엔드 구현·DB/인증·호스팅/비용 결정은 별개다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
 
 ## 2. 현재 코드 진입점
@@ -33,9 +33,9 @@
 - 현재 `.github/workflows/mvp-ci.yml`: PR/main의 Node.js 22 MVP 설치·타입·빌드 검증.
 - 현재 `.agents/skills/`: Codex 프로젝트 스킬 8개.
 - 현재 `.claude/skills/`: Claude Code 프로젝트 스킬 8개 (동기화 복사본).
-- 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `packages/contracts/` (공유 계약), `supabase/migrations/`·`supabase/functions/` (문서의 설계 기본값에 따른 DB·서버 함수). 독립 API가 필요하면 `services/api/`는 별도 기술 결정 후 추가한다.
+- 제안 경로 (아직 없음): `apps/web/` (검증 후 웹 이전), `services/api/` (FastAPI), `packages/contracts/` (OpenAPI 기반 공유 계약), `infra/db/migrations/` (DB 채택 후). 현재 `mvp/`를 자동 이동하거나 이 경로들이 구현됐다고 주장하지 않는다.
 
-**주의:** 경로 이름만 보고 새 스택이나 프레임워크를 확정하지 않는다. 확정되지 않은 기술 결정은 `docs/11_DECISION_LOG.md`에 제안으로 기록하고 독립적으로 개발 가능한 작업부터 진행한다.
+**주의:** DEC-015는 프런트와 FastAPI만 확정한다. PostgreSQL은 권장 후보이며 인증·DB·호스팅·비용은 OPEN-002/003에 남는다.
 
 ## 4. 작업 유형별 먼저 읽을 자료
 - 대학 사이트 조사: `docs/13_EXISTING_SERVICE_AUDIT.md`, `docs/15_PLATFORM_BASELINE.md`, `docs/research/`.
