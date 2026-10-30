@@ -18,6 +18,9 @@ def test_export_has_only_implemented_routes_and_is_deterministic():
         "/api/v1/public-campus",
         "/api/v1/public-campus/{record_id}",
         "/api/v1/discovery",
+        "/api/v1/data-provenance",
+        "/api/v1/data-provenance/labels/{label}",
+        "/api/v1/campus-travel/calculate",
     }
     assert "author_id" not in first
     assert set(schema["components"]["securitySchemes"]) == {"HTTPBearer"}

@@ -1,8 +1,18 @@
 import pytest
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from starlette.exceptions import HTTPException
 
 from app.core.config import Settings
+from app.core.errors import (
+    ApiError,
+    api_error_handler,
+    http_error_handler,
+    validation_error_handler,
+)
+from app.core.logging import SafeRequestMiddleware
 from app.factory import create_app
 from app.features.campus_travel.models import TravelInput
 from app.features.campus_travel.router import build_travel_router
@@ -93,19 +103,42 @@ def test_unknown_fields_and_identity_injection_are_not_accepted():
         TravelInput(**BASE, student_id="private-student")
 
 
-def test_router_closed_and_no_global_mount():
+URL = "/api/v1/campus-travel/calculate"
+
+
+def isolated_app(router) -> FastAPI:
+    """TEST ONLY: isolate the feature router from factory's lazy global router includes."""
+    app = FastAPI()
+    app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(HTTPException, http_error_handler)
+    app.add_middleware(SafeRequestMiddleware)
+    app.include_router(router, prefix="/api/v1")
+    return app
+
+
+def test_global_mount_is_enabled_public_route():
     app = create_app(Settings(environment="test"))
-    assert "/api/v1/campus-travel/calculate" not in app.openapi()["paths"]
-    app.include_router(build_travel_router(), prefix="/api/v1")
+    assert URL in app.openapi()["paths"]
     with TestClient(app) as client:
-        response = client.post("/api/v1/campus-travel/calculate", json=BASE)
+        response = client.post(URL, json=BASE)
+    assert response.status_code == 200
+    assert response.json()["data"]["remaining_seconds"] == 300
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+def test_disabled_router_fails_closed_in_isolated_app():
+    app = isolated_app(build_travel_router())
+    assert set(app.openapi()["paths"]) == {URL}
+    with TestClient(app) as client:
+        response = client.post(URL, json=BASE)
     assert response.status_code == 503
+    assert response.json()["code"] == "UNAVAILABLE"
     assert response.headers["cache-control"] == "private, no-store"
 
 
 def test_http_contract_validation_cache_and_no_input_logging(caplog):
-    app = create_app(Settings(environment="test"))
-    app.include_router(build_travel_router(enabled=True), prefix="/api/v1")
+    app = isolated_app(build_travel_router(enabled=True))
     with TestClient(app) as client:
         response = client.post("/api/v1/campus-travel/calculate", json=BASE)
         invalid = client.post(
@@ -128,8 +161,7 @@ def test_unexpected_failure_has_private_cache_and_no_raw_error(monkeypatch):
         raise RuntimeError("PRIVATE_EXCEPTION_MARKER")
 
     monkeypatch.setattr("app.features.campus_travel.router.calculate_travel", broken)
-    app = create_app(Settings(environment="test"))
-    app.include_router(build_travel_router(enabled=True), prefix="/api/v1")
+    app = isolated_app(build_travel_router(enabled=True))
     with TestClient(app) as client:
         response = client.post("/api/v1/campus-travel/calculate", json=BASE)
     assert response.status_code == 500

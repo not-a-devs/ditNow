@@ -96,6 +96,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campus-travel/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Calculate */
+        post: operations["calculate_api_v1_campus_travel_calculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-provenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Provenance Overview */
+        get: operations["get_provenance_overview_api_v1_data_provenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-provenance/labels/{label}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Provenance Label */
+        get: operations["get_provenance_label_api_v1_data_provenance_labels__label__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/discovery": {
         parameters: {
             query?: never;
@@ -498,6 +549,62 @@ export interface components {
             /** Student Id */
             student_id: string;
         };
+        /** ProvenanceLabelInfo */
+        ProvenanceLabelInfo: {
+            /** Description */
+            description: string;
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "DEMO" | "OFFICIAL_PUBLIC" | "PLATFORM" | "UNKNOWN";
+            /** Title */
+            title: string;
+            /** User Guidance */
+            user_guidance: string;
+        };
+        /** ProvenanceOverview */
+        ProvenanceOverview: {
+            /** Catalog Version */
+            catalog_version: string;
+            /** Feature Ids */
+            feature_ids: string[];
+            /** Labels */
+            labels: components["schemas"]["ProvenanceLabelInfo"][];
+            /** Notice */
+            notice: string;
+            status: components["schemas"]["ProvenanceStatus"];
+        };
+        /**
+         * ProvenanceStatus
+         * @description Fixed facts about this platform; every value is a constant, never configuration.
+         */
+        ProvenanceStatus: {
+            /**
+             * Content Administration
+             * @default NOT_IMPLEMENTED
+             * @constant
+             */
+            content_administration: "NOT_IMPLEMENTED";
+            /**
+             * Financial Effect
+             * @default NONE
+             * @constant
+             */
+            financial_effect: "NONE";
+            /**
+             * Persistence
+             * @default IN_PROCESS_FIXED
+             * @constant
+             */
+            persistence: "IN_PROCESS_FIXED";
+            /**
+             * School Sso Connected
+             * @default false
+             * @constant
+             */
+            school_sso_connected: false;
+        };
         /** PublicGuide */
         PublicGuide: {
             /**
@@ -685,6 +792,28 @@ export interface components {
              */
             server_time?: string;
         };
+        /** SuccessResponse[ProvenanceLabelInfo] */
+        SuccessResponse_ProvenanceLabelInfo_: {
+            data: components["schemas"]["ProvenanceLabelInfo"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
+        /** SuccessResponse[ProvenanceOverview] */
+        SuccessResponse_ProvenanceOverview_: {
+            data: components["schemas"]["ProvenanceOverview"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
         /** SuccessResponse[PublicGuidePage] */
         SuccessResponse_PublicGuidePage_: {
             data: components["schemas"]["PublicGuidePage"];
@@ -718,6 +847,17 @@ export interface components {
              */
             server_time?: string;
         };
+        /** SuccessResponse[TravelResult] */
+        SuccessResponse_TravelResult_: {
+            data: components["schemas"]["TravelResult"];
+            /** Resource Version */
+            resource_version?: number | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time?: string;
+        };
         /** SuccessResponse[dict[str, str]] */
         SuccessResponse_dict_str__str__: {
             /** Data */
@@ -731,6 +871,63 @@ export interface components {
              * Format: date-time
              */
             server_time?: string;
+        };
+        /** TravelInput */
+        TravelInput: {
+            /** Estimated Travel Minutes */
+            estimated_travel_minutes: number;
+            /**
+             * Next Starts At
+             * Format: date-time
+             */
+            next_starts_at: string;
+            /**
+             * Previous Ends At
+             * Format: date-time
+             */
+            previous_ends_at: string;
+        };
+        /** TravelResult */
+        TravelResult: {
+            /**
+             * Calculation Version
+             * @default manual-travel-v1
+             * @constant
+             */
+            calculation_version: "manual-travel-v1";
+            /**
+             * Estimate Source
+             * @default USER_INPUT
+             * @constant
+             */
+            estimate_source: "USER_INPUT";
+            /** Gap Seconds */
+            gap_seconds: number;
+            /**
+             * Next Starts At
+             * Format: date-time
+             */
+            next_starts_at: string;
+            /**
+             * Notice
+             * @default 사용자가 입력한 시각과 예상 이동 시간만 계산합니다. 실제 지도·최단 경로·공식 이동 시간·접근 가능한 동선·도착을 보장하지 않습니다. 개인 시간표는 연결하지 않습니다.
+             * @constant
+             */
+            notice: "사용자가 입력한 시각과 예상 이동 시간만 계산합니다. 실제 지도·최단 경로·공식 이동 시간·접근 가능한 동선·도착을 보장하지 않습니다. 개인 시간표는 연결하지 않습니다.";
+            /**
+             * Previous Ends At
+             * Format: date-time
+             */
+            previous_ends_at: string;
+            /** Remaining Seconds */
+            remaining_seconds: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OVERLAP" | "INSUFFICIENT" | "NO_MARGIN" | "HAS_MARGIN";
+            /** Travel Seconds */
+            travel_seconds: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -973,6 +1170,198 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    calculate_api_v1_campus_travel_calculate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TravelInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_TravelResult_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_provenance_overview_api_v1_data_provenance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_ProvenanceOverview_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_provenance_label_api_v1_data_provenance_labels__label__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: "DEMO" | "OFFICIAL_PUBLIC" | "PLATFORM" | "UNKNOWN";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_ProvenanceLabelInfo_"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -17,6 +17,8 @@ from app.core.errors import (
     validation_error_handler,
 )
 from app.core.logging import SafeRequestMiddleware, configure_logging
+from app.features.campus_travel.router import build_travel_router
+from app.features.data_provenance.router import router as provenance_router
 from app.integrations.chatbot.assistant import build_assistant
 from app.integrations.platform_runtime.runtime import PlatformRuntime
 from app.schemas.common import ErrorResponse
@@ -64,11 +66,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_exception_handler(HTTPException, http_error_handler)
     application.include_router(health_router)
     application.include_router(v1_router)
+    # Public fixed metadata and pure manual calculation; no actor, ledger or persistence.
+    application.include_router(provenance_router, prefix="/api/v1")
+    application.include_router(build_travel_router(enabled=True), prefix="/api/v1")
     if settings.p0_runtime_enabled:
         # Thin async transport only; never mount synchronous feature routers over AsyncSession.
         from app.api.v1.p0 import router as p0_router
+        from app.integrations.demo_runtime import configure_demo_runtime
 
         application.include_router(p0_router, prefix="/api/v1")
+        # Fictional process-memory demos bound to the common current context (fails closed 503).
+        configure_demo_runtime(application)
     application.add_middleware(SafeRequestMiddleware)
     application.add_middleware(
         CORSMiddleware,
