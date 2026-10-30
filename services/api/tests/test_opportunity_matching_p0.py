@@ -245,9 +245,7 @@ def test_current_binding_denies_revoked_expired_or_incompatible_rows(platform, m
             response = client.get(path, headers=headers)
             assert response.status_code in {401, 403}
             assert response.headers["cache-control"] == "private, no-store"
-            assert str(ids["opportunity"]) not in response.json().get("error", {}).get(
-                "message", ""
-            )
+            assert str(ids["opportunity"]) not in response.json()["message"]
 
 
 def test_resource_uow_revalidates_token_after_dependency_and_never_calls_matcher(platform):
