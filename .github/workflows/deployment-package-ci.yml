@@ -1,0 +1,56 @@
+name: 소유자 배포 패키지 검증
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: deployment-package-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux-package:
+    name: Linux Docker · 공개 프로필 loopback 검증
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: 패키지 계약·오프라인 회귀
+        run: python -m unittest discover -s infra/deploy/tests -v
+      - name: HTTPS 검증기 오프라인 회귀·외부 요청 없음
+        run: python -m unittest discover -s tests/deployment -p 'test_*.py' -v
+      - name: 비밀 없는 공개 설정 준비
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          owner_tmp=$(mktemp -d)
+          printf 'DITNOW_PACKAGE_TMP=%s\n' "$owner_tmp" >> "$GITHUB_ENV"
+          printf 'DITNOW_PACKAGE_PROJECT=ditnow-package-ci-%s\n' "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+          cp infra/deploy/api.env.example "$owner_tmp/api.env"
+          printf '%s\n' 'CI_PUBLIC_FIXTURE_NOT_A_TRUSTED_CA' > "$owner_tmp/ca.pem"
+          printf 'DITNOW_RELEASE_SHA=%s\nDITNOW_API_ENV_FILE=%s/api.env\nDITNOW_DB_CA_FILE=%s/ca.pem\n' "$(git rev-parse HEAD)" "$owner_tmp" "$owner_tmp" > "$owner_tmp/deploy.env"
+          docker compose --project-name "ditnow-package-ci-$GITHUB_RUN_ID" --env-file "$owner_tmp/deploy.env" -f infra/deploy/compose.yaml config -q
+      - name: 실제 두 이미지 빌드
+        run: docker compose --project-name "$DITNOW_PACKAGE_PROJECT" --env-file "$DITNOW_PACKAGE_TMP/deploy.env" -f infra/deploy/compose.yaml build
+      - name: 공개 프로필만 loopback 기동
+        run: docker compose --project-name "$DITNOW_PACKAGE_PROJECT" --env-file "$DITNOW_PACKAGE_TMP/deploy.env" -f infra/deploy/compose.yaml up -d --no-build --pull never api web
+      - name: 실제 바인딩·SPA·API 공개 경계 검사
+        run: python infra/deploy/scripts/smoke.py --wait-seconds 30
+      - name: SHA 이미지 라벨 확인
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_sha=$(git rev-parse HEAD)
+          test "$(docker image inspect "ditnow-api:$release_sha" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$release_sha"
+          test "$(docker image inspect "ditnow-web:$release_sha" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$release_sha"
+      - name: 이 CI 프로젝트만 종료
+        if: always() && env.DITNOW_PACKAGE_TMP != ''
+        run: docker compose --project-name "$DITNOW_PACKAGE_PROJECT" --env-file "$DITNOW_PACKAGE_TMP/deploy.env" -f infra/deploy/compose.yaml down --remove-orphans
