@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runAiOpportunityE2E } = require('../src/ai-runner.cjs');
 const { assertBasis, assertMatchPage, assertBrief, ownSaved, assertNoSavedChange, assertSavedDraft } = require('../src/ai-contract.cjs');
-const { buildAiStages, watchMutations } = require('../src/ai-scenario.cjs');
+const { AI, buildAiStages, watchMutations, navigateAi } = require('../src/ai-scenario.cjs');
 const { buildStages } = require('../src/scenario.cjs');
 const { E2EError } = require('../src/errors.cjs');
 const { baseEnv, createFakeApi, OPPORTUNITY_ID, FIXTURE_PASSWORD } = require('./fixtures/fake-api.cjs');
@@ -58,6 +58,53 @@ test('AI stages require preview/cancel before explicit save and use unchanged P0
   assert.equal(stages.at(-2).run, old.find(s => s.id === 'opportunity.remove').run);
   assert.equal(stages.at(-1).run, old.find(s => s.id === 'auth.logout_a').run);
   assert.equal(old.length, 9); // Existing P0 scenario is preserved.
+});
+
+function navigationPage({ mobile = false, href = '/app/ai' } = {}) {
+  const events = { clicks: 0, toggles: 0, inputWaits: 0 };
+  let current = 'http://127.0.0.1:5753/app/community';
+  const page = {
+    url: () => current,
+    getByRole: role => {
+      assert.equal(role, 'navigation');
+      return { getByRole: (childRole, options) => {
+        assert.equal(childRole, 'link');
+        // The real navigation link includes its visible AI badge in its accessible name.
+        const accessibleName = `${AI.navigation} AI`;
+        assert.equal(options.exact ? accessibleName === options.name : accessibleName.includes(options.name), true);
+        return {
+          isVisible: async () => !mobile || events.toggles > 0,
+          getAttribute: async name => { assert.equal(name, 'href'); return href; },
+          click: async () => { events.clicks += 1; current = new URL(href, current).href; },
+        };
+      } };
+    },
+    locator: () => ({ first: () => ({ click: async () => { events.toggles += 1; } }) }),
+    waitForURL: async predicate => { assert.equal(predicate(new URL(current)), true); },
+    getByLabel: label => {
+      assert.equal(label, AI.keyword);
+      return { waitFor: async () => { events.inputWaits += 1; } };
+    },
+  };
+  return { page, events };
+}
+
+for (const mobile of [false, true]) {
+  test(`AI badge accessible name navigates to the exact approved route (${mobile ? 'mobile' : 'desktop'})`, async () => {
+    const { page, events } = navigationPage({ mobile });
+    await navigateAi({ page, timeoutMs: 100 });
+    assert.equal(new URL(page.url()).pathname, '/app/ai');
+    assert.deepEqual(events, { clicks: 1, toggles: Number(mobile), inputWaits: 1 });
+  });
+}
+
+test('AI navigation refuses unrelated or external hrefs before clicking', async () => {
+  for (const href of ['/app/ai-other', '/app/ai?next=other', '/app/ai#other', 'https://external.invalid/app/ai', null]) {
+    const { page, events } = navigationPage({ href });
+    await assert.rejects(navigateAi({ page, timeoutMs: 100 }), error => error instanceof E2EError && error.code === 'ASSERTION');
+    assert.equal(events.clicks, 0);
+    assert.equal(events.inputWaits, 0);
+  }
 });
 
 test('reference context must match current own department and year, not another student', () => {
