@@ -1,32 +1,50 @@
-# 시연 증거
+# 시연·심사 증거 — J-002
 
-기준 main `49cf5759c9f0694dbf6e59455f138895d697c28f`, J-001, 2026-10-30 KST. 최신 실DB 운영 증거는 [승인된 P0 기록](../dev-prep/TASK_P0_APPROVED_LIVE_E2E.md), 전체 범위는 [92개 진행표](../dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)를 따른다.
+2026-10-30 KST. 문서 소스 기준 main `4305fcf185cad41d3267c04255fef2ee5a23ca6e`. [공식 기준](RUBRIC.md)과 [현재 판정](SCORECARD.md)을 따른다. 문서 작성자는 공개 코드·CI와 운영자의 마스킹된 실행 요약을 읽었고 비밀·DB·서버에 직접 접근하지 않았다.
 
-| 대상 | 판정 | 근거·실행 범위 | 성공이라고 하지 않는 부분 |
+## 실행 SHA와 판정
+
+| 증거 | 판정 | 범위·출처 | 제외되는 주장 |
 |---|---|---|---|
-| 공통 가상 로그인·현재 신원·로그아웃 | PASS (로컬 실제) | 기존 학생 A/B, 신규 웹→FastAPI→원격 MariaDB, 이전 토큰 거부 | 운영 SSO·실제 학생·관리자·공개 배포 |
-| 익명 게시글 | PASS (로컬 실제) | 작성·조회·수정·삭제·재로그인, 익명 응답·B 변경 차단 | 전체 커뮤니티/신고 정책 |
-| 실명 모집 | PASS (로컬 실제) | 생성·조회·수정·논리 취소·B 차단 | 지원자 승인·정원 전체 실제 경합 |
-| 개인 기회 준비 | PASS (로컬 실제) | 저장·상태·체크 CRUD·재로그인·B 격리 | 맞춤 추천/LLM와 연결된 새 흐름 |
-| P0 브라우저 | PASS (로컬 실제) | 390/1280, 2회×21단계, 캡처된36세션 폐기, 테스트 saved/check0 | 전체 화면·실운영 성능·사용자 직접 검수 |
-| MariaDB TLS·스키마 | PASS (읽기 전용 재확인) | 11.4.13·TLS1.3·CA 지문/체인/호스트 검증·25테이블·app계정. 이번 재검증 쓰기0/DDL0 | 추가 migration·DDL 거부 시도·운영 부하 |
-| DEMO 공고 | 제한 확인 | 공개1건 contest/school, 주관·마감·원문URL·확인일 없음 | 학과별 추천 차이·마감 임박 순위·학교 공식 공고 실증 |
-| API 자동 검사 | PASS (이전 main 근거) | 전체1442, 관련 민감 정보 검사80. 새 사전 재실행 matching48 PASS | 모의/격리 SQL 테스트를 원격DB로 표시하지 않음 |
-| 신규 웹 자동 검사 | PASS (이전 main 근거) | 전체533. 새 사전 재실행 matching31 PASS | 단위 테스트가 브라우저/DB 검증인 것은 아님 |
-| 기존 RAG | PARTIAL | 공개 시설 검색 실제 API·UI 연결, 패키지 검색기 재사용 | 신규 앱 실제 LLM·개인 학적 RAG NOT_RUN |
-| 신규 기회 도우미 | 코드 병합 / 통합 NOT_RUN | PR75/77/78의 현재학적 추천·수정 초안·하네스가 main에 있음. 이 SHA App의 새 화면 연결은 없음 | 추천→확인→실DB E2E 전 PASS 금지 |
-| 공식 공지→채팅 | PARTIAL | 도메인·fake 기반 자동 검사 존재 | 실DB·공통 교직원 권한·신규 앱 E2E NOT_RUN |
-| 운영 HTTPS·심사용 계정·제출 | NOT_RUN/미확인 | 로컬 승인 범위 외 | 외부 접속·등록·설문·최종 제출 성공 주장 금지 |
-| Lighthouse·실제 발표 | NOT_RUN | 측정·리허설 기록 없음 | 성능90·발표 고득점 가정 금지 |
+| 과거 공통로그인·3CRUD | PASS, 과거 실행에 한정 | [승인된 P0 기록](../dev-prep/TASK_P0_APPROVED_LIVE_E2E.md), HTTP·MariaDB·핵심390/1280 각21단계 | 최신 main·전체92·운영 배포 PASS 아님 |
+| 과거 규칙 기회 확인저장 | PASS, 실행 eebc1b42ef1fae7d97e53035378427943571b9f6 | [기회 실행 기록](../dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md):10:38~10:40,390/1280 총17단계·편집/취소/동의/저장/재로그인/B격리 | 실제LLM·학과별 후보차이·마감순위 실증 아님 |
+| 그 실행의 사후 정리 | INCOMPLETE | 캡처10토큰 폐기·saved/check0 확인, 전역세션 기대값 FAIL 및 미귀속1보존 | 전체세션0·원인확정·물리삭제 주장 금지 |
+| 최신 재실행1 | FAIL | 운영자 요약: main25fa4cf95fcb599916514eb8f868e77e2b69ecdd, ANONYMOUS_CRUD; 생성 글 정리 확인 | 과거PASS로 덮지 않음 |
+| 최신 재실행2 | FAIL | 같은main, 익명통과 후 RECRUITMENT_CRUD HTTP_OR_RESPONSE_FAILURE; 모집/세션 정리NOT_VERIFIED | 원인·정리완료·새브라우저PASS 추정 금지 |
+| 문서기준main CI | PASS | 4305fcf의 Python/agent·웹·RAG·Docker공개프로필·프로토타입보존 검사6개 실제성공 | 실DB재실행·운영Docker·배포 아님 |
+| 추가 가상5·프로필/액션/채널 | TESTED/PARTIAL | 단위/모의브라우저·PROCESS_MEMORY, 각 TASK 문서와 실제 소스 | MariaDB공유원장·현재운영권한·전체FR완료 아님 |
+| 추가공지ack·운영제안·감사큐·로컬미리보기 | PR검증에 한정 | PR95/100/101/102 정확HEAD CI6개씩 성공, 각 전용/전체 단위 회귀 | 문서기준main에 모두 포함됐다고 가정하지 않음. 실제권한/원격시청0 |
+| 공개HTTPS·심사용로그인 | NOT_RUN | [배포 준비](../dev-prep/TASK_DEPLOYMENT_PREPARATION.md), 준비 패키지 및 오프라인/CI 증거만 | 운영·외부공개 승인/실행 아님 |
+| Lighthouse·실제LLM·발표/제출 | NOT_RUN/미확인 | 실제측정·호출·리허설·최종제출 확인 없음 | 성능90·AI5·발표 고득점·제출완료 가정 금지 |
 
-## 통합 후보의 추가 증거 — main 판정과 분리
+최신 실패 요약은 root의 전달 근거이며 현재 원인을 단정할 공개 원문은 없다. 세 번째 자동 재실행·최신 브라우저는 이 문서 작성 시점 NOT_RUN이다. 후속 main/PR CI 진행은 별도이며 성공을 선반영하지 않는다.
 
-`feat/ai-opportunity-flow-20261030`의 실제 실행 코드 `eebc1b42ef1fae7d97e53035378427943571b9f6`에서 10:38~10:40 KST 추천→초안 편집/명시 확인→MariaDB 저장→재로그인 조회→계정 B 격리의 **390/1280 총17단계 PASS**를 얻었다. 같은 로컬 서버의 기존 HTTP 보안 검사와 핵심 브라우저21단계도 PASS다. 규칙 기반이며 실제 LLM 생성은 0이다. 두 번의 앞선 선택자 실패는 FAIL로 보존했다.
+## 직접 읽은 코드 근거
 
-후속 모바일 메뉴·상대 API 주소 보완을 포함한 후보에서 11:10 API1515·웹561·타입/빌드·Ruff·OpenAPI 검사를 통과했다. 이는 해당 소스의 단위/빌드 결과이며 모든 후속 SHA의 실제 DB E2E를 반복했다는 뜻은 아니다. 새 후보의 main 병합과 동일 HEAD CI를 확인하기 전 J-001 점수에는 선반영하지 않는다.
+아래 행 번호는 문서 기준4305fcf의 소스다. 스키마·계약 존재와 실제 검증 수준을 구별한다.
 
-사후 정리는 **INCOMPLETE**: 이번 AI 실행에서 캡처한10토큰은 폐기했고 saved/check0을 확인했으나, 전역 세션 집계 검사는 기대값과 달라 FAIL했다. 가상 A의 미귀속 세션1은 임의 삭제하지 않았다. 상세 범위·초기 실패·Claude 독립 검토는 [기회 도우미 실행 기록](../dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md)을 따른다.
+| 항목 | 파일·시작행 | 확인 내용·한계 |
+|---|---|---|
+| 비밀번호 | [auth.py](../../chatbot/app/auth.py)16 | salt와PBKDF2 해시·상수시간 비교. 실제계정값 열람0 |
+| HTTP 로그인·로그아웃 | [auth.py](../../services/api/app/api/v1/auth.py)45 | 공통 어댑터와 사전 제한 호출. 공급자/운영SSO 검증 아님 |
+| 현재신원·소속·역할 | [bindings.py](../../services/api/app/integrations/platform_runtime/bindings.py)38 | 정확issuer/subject·승인audit pin·DEMO/current membership/role 확인 |
+| 매 자원UOW 재검증 | [runtime.py](../../services/api/app/integrations/platform_runtime/runtime.py)105, [p0_runtime.py](../../services/api/app/db/p0_runtime.py)87 | 같은 트랜잭션에서 현재권한 다시검사 |
+| 익명·모집 소유권 | [community_sql.py](../../services/api/app/repositories/community_sql.py)176·325 | actor 스코프·CAS, 공개취소숨김; 실제운영경합 전체 미검증 |
+| 개인기록 소유권 | [opportunities_sql.py](../../services/api/app/repositories/opportunities_sql.py)169 | user+parent 범위. 전체준비목록 페이징은 미완 |
+| 페이지·마이그레이션 | 위community_sql232·364, 위opportunities_sql102, [migration_runner.py](../../services/api/app/db/migration_runner.py)177 | 공개목록limit/cursor·CREATE-only장부. 서비스 전체성능 보증 아님 |
+| 오류·private캐시 | [logging.py](../../services/api/app/core/logging.py)25·62 | 보호경로/root_path·안전한오류/no-store. 추가prefix 연결 전 별도검토 |
+| FE 로그인·기회 | [App.tsx](../../apps/web/src/App.tsx)66·78·90 | 검증된auth.phase와generation으로 보호, 규칙도우미 연결 |
+| 규칙과 향후LLM 구분 | [service.py](../../services/api/app/features/opportunity_matching/service.py)1, [planning_contract.py](../../services/api/app/features/opportunity_matching/planning_contract.py)1 | deterministic 규칙·미호출LLM 계약. 실제AI점수 근거0 |
+| 실패 판정·정리 | [verify_p0_security.py](../../services/api/scripts/verify_p0_security.py)323·387·676·702 | 실패시NOT_VERIFIED, 모르는정리를성공으로표시하지않음 |
+| 사진·단계 기록 | [runner.cjs](../../tests/e2e/src/runner.cjs)14·108·239 | opt-in 사진·단계별상태·실행조건. 파일존재는 별도확인 |
 
-main49cf5759의 GitHub Actions는 Python API·에이전트 설정·신규 웹·MVP 보존·RAG·브라우저 하네스의6개 검사를 통과했다. 실제 P0 검증은 문서의 실행 SHA를 따르며 모든 후속 SHA에서 실DB를 다시 실행했다는 뜻은 아니다. 미병합 통합 브랜치의 실행은 [진행 기록](../dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md)과 구분한다.
+## CI와 사진의 공개 범위
 
-보호 원문에는 비밀·개별 신원/감사 UUID·토큰이 있으므로 공개 문서/PR로 옮기지 않는다. 공개 증거에는 실행 SHA·환경·단계·집계·정리 결과만 기록한다. 가상 기본16행과 기존 자료는 보존한다.
+- 기준main4305fcf의 check-runs6개를 GitHub에서 직접 확인했다. PR100/101/102의 단위 수치 및 CI는 해당PR HEAD에만 적용한다.
+- 선택적 사진 경로 규칙은 `tests/e2e/.artifacts/<viewport>-<stageId>.png`다. 비밀번호 입력칸 마스크만으로 화면의 모든 개인자료가 정화된다고 보장하지 않는다.
+- 이 문서 작업자는 실제 스크린샷/원문 보고서를 열거나 사진의 존재·마스킹 완료를 확인하지 않았다. 공개 제출본은 운영자가 개인표시·토큰·신원/감사UUID를 가린 사본만 검토해 제공한다. 사진이 미제공인 칸에는 사진 근거를 부여하지 않는다.
+- 비밀파일·개별계정·접속주소·원시토큰·상담/성적·보호원문 로그를 본문/PR에 옮기지 않는다. 과거 승인16행과 기존 자료 보존은 관련 실행 기록의 범위다.
+
+## README와 실행 증거의 대응
+
+현재README 첫3은 익명게시글, 실명모집, 개인기회준비다. 과거불일치 지적은 해소됐지만 최신FAIL이므로 이 세 기능의 오늘 전체성공을 주장하지 않는다. [대본](DEMO_SCRIPT.md)은 운영자가 정확한main·정리·실행허용을 확인한 뒤 쓰는 제안이며 리허설NOT_RUN이다.
