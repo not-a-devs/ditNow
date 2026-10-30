@@ -20,9 +20,11 @@ const MATCH = /^\/me\/opportunity-matches$/;
 
 async function navigateAi(ctx) {
   if (new URL(ctx.page.url()).pathname !== AI.route) {
-    const link = ctx.page.getByRole('navigation', { name: S.NAV.landmark }).getByRole('link', { name: AI.navigation, exact: true });
+    // The visible AI badge contributes to the accessible name ("AI 도우미 AI").
+    const link = ctx.page.getByRole('navigation', { name: S.NAV.landmark }).getByRole('link', { name: AI.navigation, exact: false });
     await step('navigate AI reference', async () => {
       if (!(await link.isVisible())) await ctx.page.locator(S.NAV.menuToggle).first().click();
+      requireThat(await link.getAttribute('href') === AI.route, 'AI navigation must target the approved in-app route');
       await link.click();
       await ctx.page.waitForURL(url => url.pathname === AI.route, { timeout: ctx.timeoutMs });
     });
