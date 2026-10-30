@@ -43,6 +43,33 @@ function isCampusSearchData(value: unknown): value is CampusSearchData {
   });
 }
 
+interface AskLocation { id: string; name: string; building: string; distance_m: number | null; walk_minutes: number | null }
+interface AskData { answer: string; found: boolean; locations: AskLocation[] }
+
+const nullableInt = (v: unknown) => v === null || (Number.isInteger(v) && (v as number) >= 0);
+
+function isAskData(value: unknown): value is AskData {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Record<string, unknown>;
+  return typeof data.answer === 'string' && data.answer.length <= 4000 && typeof data.found === 'boolean'
+    && Array.isArray(data.locations) && data.locations.length <= 10
+    && data.locations.every((value: unknown) => {
+      const loc = value as Record<string, unknown> | null;
+      return !!loc && ['id', 'name', 'building'].every((key) => typeof loc[key] === 'string')
+        && nullableInt(loc.distance_m) && nullableInt(loc.walk_minutes);
+    });
+}
+
+/** 권한을 허락하면 현재 위치, 거부·미지원·시간 초과면 null (질문은 위치 없이 보낸다). */
+function currentLocation(): Promise<{ lat: number; lng: number } | null> {
+  if (!('geolocation' in navigator)) return Promise.resolve(null);
+  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+    (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+    () => resolve(null),
+    { timeout: 8000, maximumAge: 60_000 },
+  ));
+}
+
 /** 신규 플랫폼 화면. 기존 MVP 및 챗봇의 별도 로그인 화면을 사용하지 않는다. */
 export default function CampusAssistantPage() {
   const [query, setQuery] = useState(() => {
@@ -50,8 +77,10 @@ export default function CampusAssistantPage() {
     return value.length <= 200 && /[\p{L}\p{N}]/u.test(value) && !/[\p{Cc}\p{Cf}]/u.test(value) ? value : '';
   });
   const [result, setResult] = useState<CampusSearchData | null>(null);
+  const [answer, setAnswer] = useState<AskData | null>(null);
+  const [useLocation, setUseLocation] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -71,8 +100,9 @@ export default function CampusAssistantPage() {
     const current = new AbortController();
     controller.current = current;
     setPending(true);
-    setError(false);
+    setError('');
     setResult(null);
+    setAnswer(null);
     try {
       const params = new URLSearchParams({ q: trimmed, limit: '5' });
       const data = await requestData<unknown>(`/ai/campus/search?${params}`, {
@@ -81,7 +111,34 @@ export default function CampusAssistantPage() {
       if (!isCampusSearchData(data)) throw new Error('Invalid campus search response');
       if (!current.signal.aborted) setResult(data);
     } catch {
-      if (!current.signal.aborted) setError(true);
+      if (!current.signal.aborted) setError('시설 정보를 불러오지 못했습니다. 잠시 후 다시 검색해 주세요.');
+    } finally {
+      if (!current.signal.aborted) setPending(false);
+    }
+  }
+
+  async function askAi() {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length > 200) return;
+    controller.current?.abort();
+    const current = new AbortController();
+    controller.current = current;
+    setPending(true);
+    setError('');
+    setResult(null);
+    setAnswer(null);
+    try {
+      const location = useLocation ? await currentLocation() : null;
+      const data = await requestData<unknown>('/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed, ...(location && { user_location: location }) }),
+        signal: current.signal,
+      });
+      if (!isAskData(data)) throw new Error('Invalid ask response');
+      if (!current.signal.aborted) setAnswer(data);
+    } catch {
+      if (!current.signal.aborted) setError('AI 답변을 받지 못했습니다. 잠시 후 다시 물어봐 주세요.');
     } finally {
       if (!current.signal.aborted) setPending(false);
     }
@@ -107,20 +164,36 @@ export default function CampusAssistantPage() {
             autoComplete="off"
           />
           <button type="submit" disabled={pending || !query.trim()}>
-            {pending ? '검색 중…' : '검색'}
+            {pending ? '처리 중…' : '검색'}
+          </button>
+          <button type="button" onClick={() => void askAi()} disabled={pending || !query.trim()}>
+            AI에게 묻기
           </button>
         </div>
+        <label className={styles.check}>
+          <input type="checkbox" checked={useLocation} onChange={(event) => setUseLocation(event.target.checked)} />
+          내 위치로 도보 시간 계산 (위치는 계산에만 쓰고 저장하지 않습니다)
+        </label>
       </form>
 
       <p className={styles.notice}>
         현재 시설 자료를 검색할 수 있습니다. 개인 시간표·성적 안내는 공통 로그인과 학적 데이터 연결 후 제공됩니다.
       </p>
       <div aria-live="polite" aria-busy={pending}>
-        {pending && <p role="status">시설 정보를 찾고 있습니다.</p>}
-        {error && (
-          <p role="alert" className={styles.error}>
-            시설 정보를 불러오지 못했습니다. 잠시 후 다시 검색해 주세요.
-          </p>
+        {pending && <p role="status">답을 찾고 있습니다.</p>}
+        {error && <p role="alert" className={styles.error}>{error}</p>}
+        {answer && (
+          <article className={styles.card} aria-label="AI 답변">
+            <p className={styles.category}>AI 답변 · 교내 자료 근거, 틀릴 수 있어요</p>
+            <p className={styles.answer}>{answer.answer}</p>
+            {answer.locations.some((loc) => loc.walk_minutes !== null) && (
+              <ul>
+                {answer.locations.filter((loc) => loc.walk_minutes !== null).map((loc) => (
+                  <li key={loc.id}>{loc.name} ({loc.building}): 걸어서 약 {loc.walk_minutes}분 · 약 {loc.distance_m}m (직선 거리 기반 추정)</li>
+                ))}
+              </ul>
+            )}
+          </article>
         )}
         {result && (
           <>
