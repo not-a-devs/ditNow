@@ -21,7 +21,7 @@ from chatbot.app.intents import CAMPUS, route
 from chatbot.app.llm import LLMClient, get_llm_client
 from chatbot.app.rag import answer_question
 from chatbot.app.retriever.keyword import KeywordRetriever
-from chatbot.app.schemas import CampusData, Turn
+from chatbot.app.schemas import CampusData, Turn, UserLocation
 from chatbot.app.student_repo import load_student
 from fastapi import Request
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -124,6 +124,11 @@ class Assistant:
             student=bundle[0] if bundle else None,
             student_data=bundle[1] if bundle else None,
             intent=intent,
+            user_location=(
+                UserLocation(lat=body.user_location.lat, lng=body.user_location.lng)
+                if body.user_location
+                else None
+            ),
         )
         return AskData(
             answer=res.answer,

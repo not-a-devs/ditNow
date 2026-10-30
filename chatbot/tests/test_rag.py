@@ -7,7 +7,8 @@ from app.llm.fake_client import FakeLLMClient
 from app.prompt import CLASSIFY_PROMPT, LLM_FAILURE_ANSWER, NOT_FOUND_ANSWER, build_user_message
 from app.rag import answer_question, find_locations, parse_sources
 from app.retriever.keyword import KeywordRetriever
-from app.schemas import CampusData
+from app.schemas import Building, CampusData, UserLocation
+from app.travel import walk_estimate
 
 
 class _FixedLLM(LLMClient):
@@ -135,3 +136,35 @@ def test_context_limit_keeps_top_hit(retriever: KeywordRetriever) -> None:
     assert len(hits) > 1
     msg = build_user_message([h.doc.to_context() for h in hits], "q", max_chars=1)
     assert f"[{hits[0].doc.id}]" in msg and f"[{hits[1].doc.id}]" not in msg
+
+
+def test_walk_estimate() -> None:
+    """위도 0.001도(약 111m) × 우회 1.3 ≈ 145m → 75m/분이라 2분. 좌표 없으면 None."""
+    bld = Building(building_id="b", name="B", lat=35.001, lng=129.0)
+    assert walk_estimate(UserLocation(lat=35.0, lng=129.0), bld) == (145, 2)
+    assert walk_estimate(UserLocation(lat=35.001, lng=129.0), bld) == (0, 1)  # 같은 자리도 최소 1분
+    assert (
+        walk_estimate(UserLocation(lat=35.0, lng=129.0), Building(building_id="x", name="X"))
+        is None
+    )
+
+
+async def test_user_location_adds_walk_estimate(
+    retriever: KeywordRetriever, campus_data: CampusData
+) -> None:
+    """위치를 주면 계산된 도보 시간만 근거에 붙고, 좌표 원본은 LLM에 가지 않는다."""
+    data = campus_data.model_copy(deep=True)
+    data.buildings["mirae"].lat, data.buildings["mirae"].lng = 35.001, 129.0
+    llm = FakeLLMClient()
+    here = UserLocation(lat=35.0, lng=129.0)
+    res = await answer_question(
+        "컴소과 사무실 어디야", retriever=retriever, llm=llm, data=data, user_location=here
+    )
+    prompt = llm.calls[-1][-1].content
+    assert "걸어서 약 2분" in prompt and "35.0" not in prompt
+    [loc] = res.locations
+    assert (loc.distance_m, loc.walk_minutes) == (145, 2)
+
+    res = await answer_question("컴소과 사무실 어디야", retriever=retriever, llm=llm, data=data)
+    assert "걸어서" not in llm.calls[-1][-1].content
+    assert res.locations[0].walk_minutes is None

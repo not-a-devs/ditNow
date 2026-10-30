@@ -4,8 +4,8 @@
     "name": "본관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1657784,
+    "lng": 129.0734199
   },
   {
     "building_id": "bonkwan_annex",
@@ -22,16 +22,16 @@
     "name": "황령관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1665005,
+    "lng": 129.0735032
   },
   {
     "building_id": "changjo",
     "name": "창조관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1663061,
+    "lng": 129.0728366
   },
   {
     "building_id": "sanhak",
@@ -41,32 +41,32 @@
       "산협관"
     ],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1658895,
+    "lng": 129.0727533
   },
   {
     "building_id": "jinri",
     "name": "진리관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1658617,
+    "lng": 129.0722533
   },
   {
     "building_id": "neulbeot",
     "name": "늘벗터",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.16538405,
+    "lng": 129.07231946
   },
   {
     "building_id": "tamgu",
     "name": "탐구관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1646952,
+    "lng": 129.0733366
   },
   {
     "building_id": "jeongbo",
@@ -75,8 +75,8 @@
       "도서관 건물"
     ],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1647785,
+    "lng": 129.0725311
   },
   {
     "building_id": "seokdang",
@@ -85,16 +85,16 @@
       "석당관"
     ],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1650284,
+    "lng": 129.0719756
   },
   {
     "building_id": "mirae",
     "name": "미래관",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1647507,
+    "lng": 129.0714201
   },
   {
     "building_id": "onnuri",
@@ -125,23 +125,23 @@
       "긱사"
     ],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1664095,
+    "lng": 129.0738776
   },
   {
     "building_id": "main_gate",
     "name": "정문",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1658125,
+    "lng": 129.0700156
   },
   {
     "building_id": "back_gate",
     "name": "후문",
     "aliases": [],
     "address": "부산광역시 부산진구 양지로 54 (47230)",
-    "lat": null,
-    "lng": null
+    "lat": 35.1663625,
+    "lng": 129.0719844
   }
 ]
