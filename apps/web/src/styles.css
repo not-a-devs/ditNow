@@ -30,3 +30,13 @@
   .quick-card { min-height: 175px; }
   .mobile-bar button { letter-spacing: -.5px; }
 }
+/* Keep the mobile header to menu / current page / session action. */
+@media(max-width:760px) {
+  .topbar { flex-wrap: nowrap; gap: 12px; }
+  .topbar .menu-button,.topbar .text-button { white-space: nowrap; flex-shrink: 0; }
+  .topbar .breadcrumb { display: block; flex: 1; min-width: 0; margin-right: 0; gap: 0; font-size: 0; white-space: nowrap; overflow: hidden; }
+  .topbar .breadcrumb > span { display: none; }
+  .topbar .breadcrumb strong { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .visitor { flex: 0 0 auto; gap: 0; }
+  .topbar .visitor > span { display: none; }
+}
