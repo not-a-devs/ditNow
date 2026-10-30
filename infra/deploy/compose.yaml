@@ -1,0 +1,49 @@
+name: ditnow-campus
+services:
+  api:
+    image: ditnow-api:${DITNOW_RELEASE_SHA:?set exact clean Git SHA}
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+      args:
+        RELEASE_SHA: ${DITNOW_RELEASE_SHA:?set exact clean Git SHA}
+    network_mode: host
+    env_file:
+      - path: ${DITNOW_API_ENV_FILE:?use an absolute private file outside repository}
+        format: raw
+        required: true
+    environment:
+      DIT_API_ENVIRONMENT: production
+      DIT_API_DOCS_ENABLED: "false"
+      DIT_API_CORS_ORIGINS: "[]"
+    volumes:
+      - type: bind
+        source: ${DITNOW_DB_CA_FILE:?use an absolute approved public CA file}
+        target: /run/certs/mariadb-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: "no"
+  web:
+    image: ditnow-web:${DITNOW_RELEASE_SHA:?set exact clean Git SHA}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        RELEASE_SHA: ${DITNOW_RELEASE_SHA:?set exact clean Git SHA}
+    network_mode: host
+    depends_on: [api]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: "no"
+
