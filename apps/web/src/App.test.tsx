@@ -1,6 +1,99 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
+import { navigation } from './navigation';
+
+vi.mock('./features/demo-attendance', () => ({ default: ({ sessionGeneration }: { sessionGeneration: number }) => <p>mock-attendance:{sessionGeneration}</p> }));
+vi.mock('./features/demo-services', () => ({ default: ({ sessionGeneration }: { sessionGeneration: number | string }) => <p>mock-services:{sessionGeneration}</p> }));
+
+const demoMe = (name: string) => ({ user_id: name === '가상 B' ? '10000000-0000-4000-8000-000000000002' : '10000000-0000-4000-8000-000000000001', display_name: name, record_source: 'DEMO', department_id: '20000000-0000-4000-8000-000000000001', department_code: 'DEMO', academic_year: 1, community_access: true });
+const demoOk = (data: unknown) => new Response(JSON.stringify({ data }), { status: 200 });
+function demoBackend(meHandler: () => Promise<Response> | Response = () => demoOk(demoMe('가상 A'))) {
+  const fetcher = vi.fn((url: string, init: RequestInit = {}) => {
+    const path = new URL(url).pathname.replace('/api/v1', '');
+    if (path === '/auth/login') { const input = JSON.parse(String(init.body)); return Promise.resolve(demoOk({ token: `token.${input.student_id}`, token_type: 'Bearer', student_id: input.student_id, name: '가상 이름', record_source: 'DEMO' })); }
+    if (path === '/auth/me') return Promise.resolve(meHandler());
+    if (path === '/auth/logout') return Promise.resolve(demoOk({ status: 'ok' }));
+    return Promise.resolve(demoOk({ items: [], offset: 0, limit: 20, has_more: false }));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  return fetcher;
+}
+function openSection(id: string) { fireEvent.click(within(screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' })).getByRole('link', { name: navigation.find(item => item.id === id)!.label })); }
+async function demoLogin(id = 'fakeA') {
+  openSection('login');
+  fireEvent.change(screen.getByLabelText('가상 학번'), { target: { value: id } });
+  fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'synthetic-password' } });
+  fireEvent.click(screen.getByRole('button', { name: '가상 계정으로 로그인' }));
+  await screen.findByRole('heading', { name: '현재 가상 계정' });
+}
+const privateCalls = (fetcher: ReturnType<typeof vi.fn>) => fetcher.mock.calls.filter(([url]) => /\/me\/demo-/.test(String(url)));
+
+describe('demo platform route integration', () => {
+  it('shows public travel on academic but keeps private attendance unmounted while anonymous', () => {
+    window.history.pushState(null, '', '/app');
+    const fetcher = demoBackend();
+    render(<App />);
+    openSection('academic');
+    expect(screen.getByRole('heading', { name: '강의 간 이동 여유 계산' })).toBeInTheDocument();
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    expect(screen.queryByText(/mock-attendance/)).toBeNull();
+    expect(privateCalls(fetcher)).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('does not mount support services while identity is still being checked', async () => {
+    window.history.pushState(null, '', '/app');
+    let release: (response: Response) => void = () => undefined;
+    const fetcher = demoBackend(() => new Promise<Response>(resolve => { release = resolve; }));
+    render(<App />);
+    openSection('login');
+    fireEvent.change(screen.getByLabelText('가상 학번'), { target: { value: 'fakeA' } });
+    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'synthetic-password' } });
+    fireEvent.click(screen.getByRole('button', { name: '가상 계정으로 로그인' }));
+    await waitFor(() => expect(fetcher.mock.calls.some(([url]) => String(url).endsWith('/auth/me'))).toBe(true));
+    openSection('support');
+    expect(screen.queryByText(/mock-services/)).toBeNull();
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    expect(privateCalls(fetcher)).toHaveLength(0);
+    release(demoOk(demoMe('가상 A')));
+    expect(await screen.findByText(/mock-services:/)).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it('mounts private modules with the verified generation and unmounts them on user switch and logout', async () => {
+    window.history.pushState(null, '', '/app');
+    let name = '가상 A'; demoBackend(() => demoOk(demoMe(name)));
+    render(<App />);
+    await demoLogin('fakeA');
+    openSection('academic');
+    const first = (await screen.findByText(/mock-attendance:/)).textContent;
+    expect(screen.getByRole('heading', { name: '강의 간 이동 여유 계산' })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+    await waitFor(() => expect(screen.queryByText(/mock-attendance/)).toBeNull());
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    name = '가상 B'; await demoLogin('fakeB');
+    openSection('academic');
+    const second = (await screen.findByText(/mock-attendance:/)).textContent;
+    expect(screen.getByText('가상 B')).toBeInTheDocument();
+    expect(second).not.toBe(first);
+    openSection('support');
+    expect(await screen.findByText(/mock-services:/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+    await waitFor(() => expect(screen.queryByText(/mock-services/)).toBeNull());
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps public campus information and adds data provenance', () => {
+    window.history.pushState(null, '', '/app');
+    demoBackend();
+    render(<App />);
+    openSection('information');
+    expect(screen.getByRole('heading', { name: '대학·학과 정보' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '자료 출처 표시 안내' })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
 
 describe('integrated campus shell', () => {
   it('connects global search to the public feature without exposing personal records', () => {

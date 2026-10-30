@@ -1,5 +1,37 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, requestData, resolveApiUrl } from './api';
+import { ApiError, registerAuthentication, requestData, resolveApiUrl } from './api';
+
+describe('demo namespace authentication allowlist', () => {
+  async function headersFor(path: string, init: RequestInit = {}) {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const unregister = registerAuthentication({ read: () => ({ generation: 7, token: 'verified-token', verified: true }), denied: () => undefined });
+    try { await requestData(path, init).catch(() => undefined); } finally { unregister(); vi.unstubAllGlobals(); }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    return { headers: new Headers(call[1].headers), init: call[1] };
+  }
+
+  it.each(['/me/demo-services', '/me/demo-attendance/sessions', '/me/demo-profile', '/me/demo-action-center/items?x=1', '/me/demo-channels/'])('injects the verified bearer with no-store for %s', async path => {
+    const { headers, init } = await headersFor(path);
+    expect(headers.get('Authorization')).toBe('Bearer verified-token');
+    expect(init.cache).toBe('no-store');
+    expect(init.credentials).toBe('omit');
+  });
+
+  it.each(['/me/demo-services-evil', '/me/demo-attendanceX', '/me/demo-profile-evil', '/me/demo-action-centerX', '/me/demo-channels-evil', '/me/demo', '/me/other', '/me', '/demo-services', '/campus-travel/calculate', '/data-provenance'])('never sends the bearer to near-miss or public path %s', async path => {
+    const { headers } = await headersFor(path, path.startsWith('/campus-travel') ? { method: 'POST', body: '{}' } : {});
+    expect(headers.get('Authorization')).toBeNull();
+  });
+
+  it('rejects demo namespaces before network when the identity is not yet verified', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const unregister = registerAuthentication({ read: () => ({ generation: 1, token: 'pending', verified: false }), denied: () => undefined });
+    try { await expect(requestData('/me/demo-attendance')).rejects.toMatchObject({ status: 401 }); } finally { unregister(); vi.unstubAllGlobals(); }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
 
 describe('public API transport', () => {
   it('keeps relative API paths inside the configured base', () => {
