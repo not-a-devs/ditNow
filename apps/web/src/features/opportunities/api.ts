@@ -43,11 +43,12 @@ export function listSaved(signal?: AbortSignal): Promise<SavedOpportunityList> {
   return requestData<SavedOpportunityList>(`${BASE}/me/saved-opportunities`, { signal });
 }
 
-export function saveOpportunity(id: string, memo = ''): Promise<SavedOpportunity> {
+export function saveOpportunity(id: string, memo = '', signal?: AbortSignal): Promise<SavedOpportunity> {
   return requestData<SavedOpportunity>(savedPath(id), {
     method: 'PUT',
     headers: JSON_HEADERS,
     body: JSON.stringify({ memo }),
+    signal,
   });
 }
 
@@ -72,11 +73,13 @@ export function addCheck(
   text: string,
   sortOrder: number,
   idempotencyKey: string,
+  signal?: AbortSignal,
 ): Promise<CheckItem> {
   return requestData<CheckItem>(`${savedPath(id)}/checks`, {
     method: 'POST',
     headers: { ...JSON_HEADERS, 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ text, sort_order: sortOrder }),
+    signal,
   });
 }
 

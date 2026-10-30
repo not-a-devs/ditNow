@@ -74,7 +74,7 @@ export async function requestSessionLogout<T>(token: string, signal?: AbortSigna
 async function send<T>(path: string, init: RequestInit, logoutToken?: string): Promise<T> {
   const url = resolveApiUrl(path);
   const pathname = path.split('?')[0];
-  const protectedPath = /^\/(?:auth\/me|anonymous-posts|recruitments|me\/saved-opportunities)(?:\/|$)/.test(pathname);
+  const protectedPath = /^\/(?:auth\/me|anonymous-posts|recruitments|me\/(?:saved-opportunities|opportunity-matches))(?:\/|$)/.test(pathname);
   const bridge = authentication;
   const snapshot = protectedPath ? bridge?.read() : undefined;
   const headers = headerRecord(init.headers);

@@ -11,6 +11,24 @@ function owner(verified = true) {
   return { denied, change: () => { session = { generation: 2, token: 'token.B', verified: true }; } };
 }
 describe('single memory authentication transport', () => {
+  it.each(['/me/opportunity-matches?interest_kind=contest', '/me/opportunity-matches/10000000-0000-4000-8000-000000000001/brief'])('protects matching requests with the current common session: %s', async path => {
+    owner(); const fetch = vi.fn().mockResolvedValue(response({})); vi.stubGlobal('fetch', fetch);
+    await requestData(path);
+    expect(fetch.mock.calls[0][1]).toMatchObject({ headers: { Authorization: 'Bearer token.A' }, cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' });
+  });
+  it('refuses matching before current-user verification', async () => {
+    owner(false); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    await expect(requestData('/me/opportunity-matches')).rejects.toMatchObject({ status: 401 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([200, 401, 403])('discards a late matching response after account change (%s)', async status => {
+    const auth = owner(); let resolve!: (r: Response) => void;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+    const pending = requestData('/me/opportunity-matches');
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    auth.change(); resolve(response({ memberships: ['private-A'] }, status));
+    await rejected; expect(auth.denied).not.toHaveBeenCalled();
+  });
   it.each(['/anonymous-posts/../health', '/anonymous-posts/./id', '/recruitments/../opportunities'])('rejects literal path normalization before injecting credentials: %s', async path => {
     owner(); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
     await expect(requestData(path)).rejects.toMatchObject({ code: 'CONFIGURATION' }); expect(fetch).not.toHaveBeenCalled();
