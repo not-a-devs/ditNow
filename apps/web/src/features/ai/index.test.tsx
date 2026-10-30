@@ -65,4 +65,30 @@ describe('캠퍼스 검색 통합 화면', () => {
     expect(signal).not.toBeNull();
     expect((signal as AbortSignal | null)?.aborted).toBe(true);
   });
+
+  it('AI에게 묻기: 위치를 허락하면 함께 보내고 도보 예상 시간을 보여 준다', async () => {
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
+      getCurrentPosition: (ok: PositionCallback) => ok({ coords: { latitude: 35.166, longitude: 129.073 } } as GeolocationPosition),
+    } });
+    vi.mocked(requestData).mockResolvedValue({ answer: '미래관은 걸어서 약 4분이에요.', found: true,
+      locations: [{ id: 'bld_mirae', name: '미래관', building: '미래관', lat: 35.1, lng: 129.0, distance_m: 280, walk_minutes: 4 }] });
+    render(<CampusAssistantPage />);
+    fireEvent.change(screen.getByLabelText('시설 이름 또는 질문'), { target: { value: '미래관까지 몇 분?' } });
+    fireEvent.click(screen.getByLabelText(/내 위치로 도보 시간 계산/));
+    fireEvent.click(screen.getByRole('button', { name: 'AI에게 묻기' }));
+    expect(await screen.findByText('미래관은 걸어서 약 4분이에요.')).toBeTruthy();
+    expect(screen.getByText(/걸어서 약 4분 · 약 280m/)).toBeTruthy();
+    const [path, init] = vi.mocked(requestData).mock.calls[0];
+    expect(path).toBe('/ai/ask');
+    expect(JSON.parse(String(init?.body))).toEqual({ question: '미래관까지 몇 분?', user_location: { lat: 35.166, lng: 129.073 } });
+  });
+
+  it('AI에게 묻기: 위치를 끄면 보내지 않고, 잘못된 응답은 오류로 알린다', async () => {
+    vi.mocked(requestData).mockResolvedValue({ answer: 1 });
+    render(<CampusAssistantPage />);
+    fireEvent.change(screen.getByLabelText('시설 이름 또는 질문'), { target: { value: '미래관' } });
+    fireEvent.click(screen.getByRole('button', { name: 'AI에게 묻기' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(JSON.parse(String(vi.mocked(requestData).mock.calls[0][1]?.body))).toEqual({ question: '미래관' });
+  });
 });

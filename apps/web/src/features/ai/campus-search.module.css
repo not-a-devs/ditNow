@@ -15,5 +15,8 @@
 .card h2 { margin: .3rem 0 .75rem; font-size: 1.25rem; }
 .card p { line-height: 1.65; }
 .card small { color: #57665b; }
+.form .check { display: flex; gap: .5rem; align-items: center; min-height: 24px; font-weight: 400; }
+.form .check input { width: 1.2rem; height: 1.2rem; }
+.answer { white-space: pre-line; }
 .category { margin: 0; color: #365b47; font-size: .8rem; font-weight: 700; }
 @media (max-width: 28rem) { .controls { flex-wrap: wrap; } .controls input { flex-basis: 100%; } .controls button { width: 100%; } }
