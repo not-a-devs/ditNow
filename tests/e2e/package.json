@@ -9,7 +9,8 @@
   },
   "scripts": {
     "test": "node --test \"test/*.test.cjs\"",
-    "e2e": "node run.cjs"
+    "e2e": "node run.cjs",
+    "e2e:ai": "node run-ai.cjs"
   },
   "dependencies": {
     "playwright": "1.64.1"
