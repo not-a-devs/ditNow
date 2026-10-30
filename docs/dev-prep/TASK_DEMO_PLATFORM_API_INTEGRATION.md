@@ -49,7 +49,7 @@
 - FastAPI의 lazy include 때문에 `app.router.routes[].path` 필터·개수 검사는 전역 router shadow를 제거하지 못했다. Codex가 세 helper를 bare `FastAPI()` + `SafeRequestMiddleware` + 기존 공통 exception handlers + 대상 feature router만 사용하는 격리 앱으로 기계 정정했다. 단언은 실제 OpenAPI 경로와 HTTP503/401·주입 catalog 동작으로 유지한다.
 - 기본 앱의 승인된 공개 mount200은 신규 통합 테스트와 별도 기본 앱 테스트가 검증한다. 기존 feature의 비활성503·actor/catalog 주입 검증을 삭제하거나 완화하지 않았다.
 - 신규 통합 테스트의 Depends 기본 인자 Ruff B008/포맷만 정정했으며 factory/공통 Context/업무 로직은 Codex가 변경하지 않았다.
-- 승인된 공개3경로를 `test_foundation.py`/`test_openapi_export.py`의 정확 경로 집합에 추가하고 default OpenAPI와 신규 웹 타입을 기계 재생성한다. 사전 mvp 생성 파일은 변경하지 않는다.
+- 승인된 공개3경로를 `test_foundation.py`/`test_openapi_export.py`의 정확 경로 집합에 추가하고 default OpenAPI와 신규 웹 타입을 기계 재생성한다. 이후 실제 CI에서 확인한 기존 사전프로토 보존 회귀를 위해 승인된 `mvp/src/shared/api/schema.d.ts` 한 파일도 기계 재생성한다. 사전 앱의 업무 코드·화면·상태·의존성은 변경하거나 신규 앱에 복사하지 않는다.
 
 ## 테스트 (NOT_RUN)
 
@@ -70,7 +70,13 @@
 - 새 등록 5모듈의 실제 HTTP 경로를 A/B 현재 context로 호출해 본인 데이터 격리·타인 변경 거부·위조 header/body·무인증·철회·앱 인스턴스 분리를 검증했다. 이때 fake context override는 테스트에만 존재한다. 실제 로그인·원격 DB 검증은 NOT_RUN.
 - shadow helper 정정 후 전용 통합/기존 travel/provenance **92 PASS**. 전체 API 1차 **1737 PASS / 2 FAIL**는 추가된 공개3경로의 옛 고정 목록 때문이었다. 승인된 공개 mount 사실에 맞춰 정확 목록만 갱신한 뒤 관련 **35 PASS**, 최종 전체 API **1739 PASS**(57.42초).
 - 전체 Ruff check PASS, format **268파일 PASS**. 신규 통합 테스트의 B008과 포맷 초기 오류를 정정한 후 확인했다.
-- `python -m app.export_openapi --check` 초기 stale 확인 → default snapshot 기계 재생성 → PASS. 신규 웹 OpenAPI 타입 생성/드리프트 검사·typecheck·build PASS. 사전 mvp 생성 파일은 보존했다.
+- `python -m app.export_openapi --check` 초기 stale 확인 → default snapshot 기계 재생성 → PASS. 신규 웹 OpenAPI 타입 생성/드리프트 검사·typecheck·build PASS. 최초에는 사전 mvp 생성 파일을 보존했으나 아래 실제 CI 증거에 따라 해당 생성 산출물만 정합을 맞춘다.
 - 신규 웹 의존성은 `npm ci --offline --no-audit --no-fund`로 캐시만 설치했다. 검사에 실제 API/DB/학교/외부 모델 서버를 호출하지 않았다.
 - 에이전트 탐색107경로·8스킬, 92 FR 진행표 오류0, `git diff --check` PASS. 기존 92개 요구사항 ID·인증/인가 정책·DB/migration·운영 비밀은 변경하지 않았다.
 - 상태: PUBLIC 설명/순수 계산 mount와 P0 활성 설정의 메모리 demo 배선은 격리 HTTP에서 TESTED. 실제 브라우저/로그인·DEMO DB 원장·공개 HTTPS·운영 배포·학교 공식 업무는 이 PR에서 NOT_RUN. 메모리 데모에 DB 영속화 점수를 부여하는 근거로 사용하지 않는다.
+
+## 실제 CI의 사전프로토 타입 회귀 정합 (범위 정정)
+- 최초 PR HEAD f2ec776의 CI에서 Python·신규웹·Docker·MVP빌드·RAG는 PASS였으나 에이전트 설정 job의 마지막 `mvp npm run api:types:check`가 실패했다. 탐색 지도/92FR 검사는 PASS였다.
+- `.github/workflows/python-api-ci.yml`의 실제 명령을 대조하여 기존 사전프로토 보존 회귀 타입 검사도 있음을 확인했다. '해당 검사가 없다'는 작업 중 추정을 정정하며, CI 재실행·검사 삭제로 덮지 않았다.
+- root 승인 범위로 `mvp/src/shared/api/schema.d.ts` **한 생성 파일만** 기계 재생성했다. 기존 prototype 업무 코드·화면·상태·의존성 변경0, 신규 앱에 소스 재사용0.
+- offline 설치 후 `npm run api:types`, `npm run api:types:check`, MVP `typecheck`, `build` 모두 직접 PASS. 최종 새 HEAD의 CI 전체 결과는 PR에 별도 기록한다.
