@@ -367,9 +367,7 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("        add_header X-Content-Type-Options nosniff always;\n", text)
         self.assertEqual(locations_missing_nosniff(text), [])
         overriding = [
-            name
-            for name, body in re.findall(LOCATION_PATTERN, text)
-            if "add_header" in body
+            name for name, body in re.findall(LOCATION_PATTERN, text) if "add_header" in body
         ]
         # Not vacuous: index, assets and SPA fallback all override inherited headers.
         self.assertEqual(sorted(overriding), ["/", "/assets/", "= /index.html"])
