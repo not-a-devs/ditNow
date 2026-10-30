@@ -46,4 +46,3 @@ services:
     security_opt: [no-new-privileges:true]
     init: true
     restart: "no"
-

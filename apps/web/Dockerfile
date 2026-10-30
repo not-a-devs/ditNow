@@ -16,4 +16,3 @@ COPY --from=build /build/dist/ /srv/ditnow-web/
 USER 101:101
 ENTRYPOINT ["nginx"]
 CMD ["-g", "daemon off;"]
-

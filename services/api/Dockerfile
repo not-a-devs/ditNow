@@ -19,4 +19,3 @@ COPY --from=build /opt/ditnow/services/api/.venv/ ./.venv/
 COPY services/api/app/ ./app/
 USER 10001:10001
 CMD ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "18000", "--workers", "1", "--loop", "asyncio", "--no-access-log", "--no-proxy-headers"]
-
