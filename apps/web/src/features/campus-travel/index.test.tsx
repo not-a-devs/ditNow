@@ -57,6 +57,36 @@ describe('manual travel contract', () => {
     vi.mocked(fetch).mockResolvedValue(response({ ...result(), ...changes }));
     await expect(calculateTravel(input)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
+  it.each([
+    { previous_ends_at: '2026-10-30T01:00:01Z' }, { next_starts_at: '2026-10-30T10:15:00' }, { gap_seconds: '900' },
+    { travel_seconds: 0 }, { calculation_version: 'manual-travel-v2' }, { notice: '공식 이동 시간' }, { distance_meters: 120 },
+  ])('rejects echoed time, type, version or invented distance %j', async changes => {
+    vi.mocked(fetch).mockResolvedValue(response({ ...result(), ...changes }));
+    await expect(calculateTravel(input)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it('rejects array and missing-key payloads', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(response([result()]));
+    await expect(calculateTravel(input)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    const partial = Object.fromEntries(Object.entries(result()).filter(([key]) => key !== 'notice'));
+    vi.mocked(fetch).mockResolvedValueOnce(response(partial));
+    await expect(calculateTravel(input)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+  it('accepts the inclusive seven-day and 1440-minute bounds and an equivalent UTC echo', async () => {
+    const edge = kstInput('2026-10-30T10:00', '2026-11-06T10:00', '1440');
+    vi.mocked(fetch).mockResolvedValueOnce(response(result(edge)));
+    expect((await calculateTravel(edge)).gap_seconds).toBe(604800);
+    expect(() => kstInput('2026-10-30T10:00', '2026-11-06T10:01', '10')).toThrow();
+    expect(() => kstInput('2026-10-30T10:00', '2026-10-30T10:15', '1441')).toThrow();
+    expect(() => kstInput('2026-10-30T10:00', '2026-10-30T10:15', '-1')).toThrow();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('maps an overlapping KST interval to OVERLAP and rejects a server claiming margin', async () => {
+    const overlap = kstInput('2026-10-30T10:15', '2026-10-30T10:00', '0');
+    vi.mocked(fetch).mockResolvedValueOnce(response(result(overlap)));
+    expect((await calculateTravel(overlap)).status).toBe('OVERLAP');
+    vi.mocked(fetch).mockResolvedValueOnce(response({ ...result(overlap), status: 'HAS_MARGIN' }));
+    await expect(calculateTravel(overlap)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
 });
 
 describe('manual travel screen', () => {
@@ -100,5 +130,61 @@ describe('manual travel screen', () => {
     view.unmount(); expect(signal?.aborted).toBe(true);
     await act(async () => reject(new Error('private failure')));
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+  it('aborts the earlier request on resubmit and shows only the latest response', async () => {
+    let first!: (v: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(r => { first = r; }));
+    const later = { ...input, estimated_travel_minutes: 20 };
+    const view = render(<CampusTravelPage />); fill();
+    const form = view.container.querySelector('form')!;
+    fireEvent.submit(form);
+    const firstSignal = vi.mocked(fetch).mock.calls[0][1]?.signal;
+    fireEvent.change(screen.getByLabelText('내가 예상한 이동 시간 (분)'), { target: { value: '20' } });
+    expect(firstSignal?.aborted).toBe(true);
+    vi.mocked(fetch).mockResolvedValueOnce(response(result(later)));
+    fireEvent.submit(form);
+    expect(await screen.findByText('부족: 5분')).toBeInTheDocument();
+    await act(async () => first(response()));
+    expect(screen.queryByText('남는 시간: 5분')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '입력 기준으로 계산' })).toBeEnabled();
+  });
+  it('aborts a pending request when the same form is submitted again', async () => {
+    let first!: (v: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(r => { first = r; }));
+    const view = render(<CampusTravelPage />); fill();
+    const form = view.container.querySelector('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(vi.mocked(fetch).mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(await screen.findByText('남는 시간: 5분')).toBeInTheDocument();
+    await act(async () => first(new Response(JSON.stringify({ code: 'UNAVAILABLE' }), { status: 503 })));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it('shows a local validation alert without transport for an out-of-bound input', async () => {
+    render(<CampusTravelPage />); fill();
+    fireEvent.change(screen.getByLabelText('내가 예상한 이동 시간 (분)'), { target: { value: '1441' } });
+    fireEvent.submit(screen.getByRole('button', { name: '입력 기준으로 계산' }).closest('form')!);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('clears a displayed result as soon as an input changes', async () => {
+    render(<CampusTravelPage />); fill();
+    fireEvent.click(screen.getByRole('button', { name: '입력 기준으로 계산' }));
+    expect(await screen.findByText('남는 시간: 5분')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('앞 수업 종료 시각 (KST)'), { target: { value: '2026-10-30T10:05' } });
+    expect(screen.queryByText('남는 시간: 5분')).not.toBeInTheDocument();
+    expect(screen.getByText('두 시각과 예상 이동 시간을 입력해 주세요.')).toBeInTheDocument();
+  });
+  it('ignores a late success after unmount', async () => {
+    let resolve!: (v: Response) => void;
+    vi.mocked(fetch).mockReturnValueOnce(new Promise(r => { resolve = r; }));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const view = render(<CampusTravelPage />); fill();
+    fireEvent.click(screen.getByRole('button', { name: '입력 기준으로 계산' }));
+    view.unmount();
+    await act(async () => resolve(response()));
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });
