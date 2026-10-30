@@ -54,6 +54,43 @@ async function review() { fireEvent.click(screen.getByText('준비 초안 검토
 function confirm() { fireEvent.click(screen.getByLabelText('선택한 준비 항목을 내 기록에 추가하는 데 동의합니다')); fireEvent.click(screen.getByText('확인하고 내 준비에 저장')); }
 
 describe('PreparationDraft: explicit consent, current source and existing preparation', () => {
+  it('moves keyboard focus from open to editor to review and back to the cancel trigger', async () => {
+    mount();
+    const trigger = screen.getByRole('button', { name: '준비 초안 만들기' }); trigger.focus();
+    expect(trigger).toHaveStyle({ minHeight: '24px' });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('heading', { name: /^준비 초안 —/ })).toHaveFocus();
+    expect(screen.getByLabelText('초안 항목 1 저장').closest('label')).toHaveStyle({ minHeight: '24px' });
+    const reviewButton = screen.getByRole('button', { name: '준비 초안 검토' }); reviewButton.focus();
+    expect(reviewButton).toHaveStyle({ minHeight: '24px' });
+    fireEvent.click(reviewButton);
+    expect(await screen.findByRole('heading', { name: '저장 전 확인' })).toHaveFocus();
+    expect(screen.getByLabelText('선택한 준비 항목을 내 기록에 추가하는 데 동의합니다').closest('label')).toHaveStyle({ minHeight: '24px' });
+    const cancel = screen.getByRole('button', { name: '초안 취소' }); cancel.focus(); fireEvent.click(cancel);
+    expect(screen.getByRole('button', { name: '준비 초안 만들기' })).toHaveFocus();
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to the editor when reviewing the draft again without losing input', async () => {
+    mount(); open(); await review();
+    fireEvent.click(screen.getByRole('button', { name: '초안 다시 편집' }));
+    expect(screen.getByRole('heading', { name: /^준비 초안 —/ })).toHaveFocus();
+    expect(screen.getByLabelText('준비 항목 초안 1')).toHaveValue(check.text);
+    fireEvent.click(screen.getByRole('button', { name: '초안 취소' }));
+    expect(screen.getByRole('button', { name: '준비 초안 만들기' })).toHaveFocus();
+  });
+
+  it('retains long unbroken evidence and applies intrinsic wrapping instead of truncating content', () => {
+    const text = 'LongUnbrokenEvidence'.repeat(30);
+    const brief = { ...BRIEF, opportunity: { ...BRIEF.opportunity, title: text, organization: text, eligibility: text },
+      procedure: [{ ...BRIEF.procedure[0], evidence_value: text }] };
+    render(<PreparationDraft brief={brief} interests={INTERESTS} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '준비 초안 만들기' }));
+    expect(screen.getByRole('region', { name: '준비 초안 편집' })).toHaveStyle({ overflowWrap: 'anywhere', minWidth: '0' });
+    expect(screen.getByRole('heading', { name: `준비 초안 — ${text}` })).toBeInTheDocument();
+    expect(screen.getAllByText(text, { exact: false }).length).toBeGreaterThan(2);
+  });
+
   it('editing, read-only review and cancellation make no writes', async () => {
     mount(); open(); await review();
     expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
