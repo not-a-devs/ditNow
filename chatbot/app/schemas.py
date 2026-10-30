@@ -13,8 +13,8 @@ class Building(BaseModel):
     name: str
     aliases: list[str] = Field(default_factory=list)
     address: str | None = None
-    lat: float | None = None
-    lng: float | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)  # WGS84, 주 출입구 기준
+    lng: float | None = Field(default=None, ge=-180, le=180)
 
 
 class Facility(BaseModel):
@@ -176,10 +176,10 @@ class StudentData(BaseModel):
 
 
 class UserLocation(BaseModel):
-    """사용자 현재 위치 (이후 길찾기용, 로그에 남기지 않음)."""
+    """사용자 현재 위치 (WGS84). 도보 예상 시간 계산에만 쓰고 로그·캐시·LLM에 넘기지 않는다."""
 
-    lat: float
-    lng: float
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class Turn(BaseModel):
@@ -205,6 +205,8 @@ class LocationOut(BaseModel):
     building: str
     lat: float
     lng: float
+    distance_m: int | None = None  # 현재 위치를 보냈을 때만: 경로 추정 거리
+    walk_minutes: int | None = None  # 현재 위치를 보냈을 때만: 도보 예상 분
 
 
 class AskResponse(BaseModel):
