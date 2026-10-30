@@ -5,6 +5,9 @@ import { navigation } from './navigation';
 
 vi.mock('./features/demo-attendance', () => ({ default: ({ sessionGeneration }: { sessionGeneration: number }) => <p>mock-attendance:{sessionGeneration}</p> }));
 vi.mock('./features/demo-services', () => ({ default: ({ sessionGeneration }: { sessionGeneration: number | string }) => <p>mock-services:{sessionGeneration}</p> }));
+vi.mock('./features/demo-profile', () => ({ default: ({ sessionGeneration }: { sessionGeneration?: number }) => <p>mock-profile:{sessionGeneration}</p> }));
+vi.mock('./features/demo-action-center', () => ({ default: ({ sessionGeneration }: { sessionGeneration: number }) => <p>mock-action-center:{sessionGeneration}</p> }));
+vi.mock('./features/demo-channels', () => ({ default: ({ sessionGeneration }: { sessionGeneration?: number }) => <p>mock-channels:{sessionGeneration}</p> }));
 
 const demoMe = (name: string) => ({ user_id: name === '가상 B' ? '10000000-0000-4000-8000-000000000002' : '10000000-0000-4000-8000-000000000001', display_name: name, record_source: 'DEMO', department_id: '20000000-0000-4000-8000-000000000001', department_code: 'DEMO', academic_year: 1, community_access: true });
 const demoOk = (data: unknown) => new Response(JSON.stringify({ data }), { status: 200 });
@@ -81,6 +84,69 @@ describe('demo platform route integration', () => {
     expect(await screen.findByText(/mock-services:/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
     await waitFor(() => expect(screen.queryByText(/mock-services/)).toBeNull());
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps department channels unmounted and quiet while anonymous', () => {
+    window.history.pushState(null, '', '/app');
+    const fetcher = demoBackend();
+    render(<App />);
+    openSection('department');
+    expect(screen.getByRole('heading', { name: '가상 학과·학년 채널 체험' })).toBeInTheDocument();
+    expect(screen.getByText(/실제 학교 공식 채널 소속이나 기관 공지 전달이 아니며/)).toBeInTheDocument();
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    expect(screen.queryByText(/mock-channels/)).toBeNull();
+    openSection('home');
+    expect(screen.getByText('나만의 하루를 준비하고 있어요')).toBeInTheDocument();
+    expect(screen.queryByText(/mock-action-center/)).toBeNull();
+    expect(privateCalls(fetcher)).toHaveLength(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('mounts the profile on the login panel and removes it on logout', async () => {
+    window.history.pushState(null, '', '/app');
+    demoBackend();
+    render(<App />);
+    openSection('login');
+    expect(screen.queryByText(/mock-profile/)).toBeNull();
+    await demoLogin('fakeA');
+    expect(await screen.findByText(/mock-profile:/)).toBeInTheDocument();
+    expect(screen.getByText('가상 A · DEMO')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+    await waitFor(() => expect(screen.queryByText(/mock-profile/)).toBeNull());
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a labelled virtual action center on home only while authenticated', async () => {
+    window.history.pushState(null, '', '/app');
+    demoBackend();
+    render(<App />);
+    await demoLogin('fakeA');
+    openSection('home');
+    const center = screen.getByLabelText('가상 액션 센터');
+    expect(within(center).getByText(/실제 오늘 시간표나 학교 공식 학사 마감이 아니며/)).toBeInTheDocument();
+    expect(within(center).getByText(/mock-action-center:/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '나의 캠퍼스로 바로' })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+    await waitFor(() => expect(screen.queryByText(/mock-action-center/)).toBeNull());
+    expect(screen.getByText('나만의 하루를 준비하고 있어요')).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it('remounts department channels with a new generation after logout and account switch', async () => {
+    window.history.pushState(null, '', '/app');
+    let name = '가상 A'; demoBackend(() => demoOk(demoMe(name)));
+    render(<App />);
+    await demoLogin('fakeA');
+    openSection('department');
+    const first = (await screen.findByText(/mock-channels:/)).textContent;
+    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
+    await waitFor(() => expect(screen.queryByText(/mock-channels/)).toBeNull());
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    name = '가상 B'; await demoLogin('fakeB');
+    openSection('department');
+    const second = (await screen.findByText(/mock-channels:/)).textContent;
+    expect(second).not.toBe(first);
     vi.unstubAllGlobals();
   });
 
