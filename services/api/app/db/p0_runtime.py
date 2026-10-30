@@ -18,8 +18,10 @@ from app.features.community.domain import CommunityActor
 from app.features.community.service import AnonymousPostService, RecruitmentService
 from app.features.opportunities.repository import StoreConflict
 from app.features.opportunities.service import OpportunityService
+from app.features.opportunity_matching.service import MatchingService
 from app.repositories.community_sql import SQLAnonymousPosts, SQLPublicProfiles, SQLRecruitments
 from app.repositories.opportunities_sql import SQLOpportunityCatalog, SQLSavedOpportunities
+from app.repositories.opportunity_matching_sql import SQLAcademicContext
 from app.repositories.p0_access import CurrentP0Access
 from app.schemas.common import ErrorCode, utc_now
 
@@ -32,6 +34,7 @@ class P0Services:
     posts: AnonymousPostService
     recruitments: RecruitmentService
     opportunities: OpportunityService
+    matching: MatchingService
 
 
 class P0Executor:
@@ -69,6 +72,12 @@ class P0Executor:
                     ),
                     opportunities=OpportunityService(
                         catalog, SQLSavedOpportunities(session, access), clock=self.clock
+                    ),
+                    matching=MatchingService(
+                        catalog,
+                        SQLAcademicContext(session, access, self.clock),
+                        None,  # Recruitment references remain explicitly NOT_CONNECTED.
+                        clock=self.clock,
                     ),
                 )
             )

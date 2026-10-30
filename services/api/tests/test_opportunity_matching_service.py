@@ -115,7 +115,7 @@ def test_missing_or_foreign_context_is_forbidden_and_invalid_memberships_are_dro
             USER_C: AcademicContext(
                 USER_C,
                 (
-                    AcademicMembership("CSE", 9),
+                    AcademicMembership("CSE", 0),
                     AcademicMembership("../x", 1),
                     AcademicMembership("EE", None),
                 ),
@@ -125,6 +125,33 @@ def test_missing_or_foreign_context_is_forbidden_and_invalid_memberships_are_dro
     page = run(catalog, USER_C, svc=service(catalog, contexts))
     assert [m.department_code for m in page.context.memberships] == ["EE"]
     assert contexts.calls == [USER_C]
+
+
+@pytest.mark.parametrize("invalid", [True, False, 0, -1, "2"])
+def test_membership_grade_rejects_non_positive_or_non_strict_int(invalid):
+    contexts = FakeContexts(
+        {USER_A: AcademicContext(USER_A, (AcademicMembership("CSE", invalid),))}
+    )
+    page = run(FakeCatalog([SCHOOL]), svc=service(FakeCatalog([SCHOOL]), contexts))
+    assert page.context.memberships == []
+
+
+@pytest.mark.parametrize("invalid", [True, False, 0, -1, "2"])
+def test_catalog_grade_rejects_non_positive_or_non_strict_int(invalid):
+    row = make_opportunity(target_scope=TargetScope("grade", (), (invalid,)))
+    page = run(FakeCatalog([row], leak_unfiltered=True))
+    assert page.items == [] and page.omitted_count == 1
+
+
+def test_positive_year_without_invented_school_cap_and_unknown_organization():
+    row = make_opportunity(organization="", target_scope=TargetScope("grade", ("CSE",), (9,)))
+    contexts = FakeContexts({USER_A: AcademicContext(USER_A, (AcademicMembership("CSE", 9),))})
+    catalog = FakeCatalog([row])
+    svc = service(catalog, contexts)
+    page = run(catalog, svc=svc)
+    assert page.context.memberships[0].grade == 9
+    assert page.items[0].opportunity.organization == ""
+    assert svc.brief(USER_A, row.id, NONE).opportunity.organization == ""
 
 
 def test_interest_reasons_and_bounded_scores():
@@ -300,7 +327,7 @@ def test_malformed_rows_are_omitted_without_metadata():
         make_opportunity(id=uid(404), title="미래 확인", checked_at=NOW + timedelta(days=1)),
         make_opportunity(id=uid(405), title="   "),
         make_opportunity(
-            id=uid(406), title="학년 범위 밖", target_scope=TargetScope("grade", (), (9,))
+            id=uid(406), title="잘못된 학년", target_scope=TargetScope("grade", (), (0,))
         ),
         make_opportunity(
             id=uid(407), title="학교+학과", target_scope=TargetScope("school", ("CSE",))

@@ -15,7 +15,6 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from app.core.errors import ApiError
-from app.features.campus.domain import MAX_GRADE, MIN_GRADE
 from app.features.community.domain import (
     CommunityActor,
     Recruitment,
@@ -117,7 +116,8 @@ def _aware(value: datetime | None) -> bool:
 
 def is_well_formed(record: OpportunityRecord, now: datetime) -> bool:
     """Rows that cannot be judged safely are omitted instead of guessed."""
-    if not (record.title.strip() and record.organization.strip()):
+    # Unknown organization stays blank; never invent it or hide an otherwise valid notice.
+    if not record.title.strip():
         return False
     stamps = (record.apply_starts_at, record.deadline_at, record.checked_at)
     if not all(_aware(stamp) for stamp in stamps):
@@ -137,7 +137,7 @@ def is_well_formed(record: OpportunityRecord, now: datetime) -> bool:
         return bool(scope.department_codes) and not scope.academic_years
     if scope.level == "grade":
         return bool(scope.academic_years) and all(
-            MIN_GRADE <= year <= MAX_GRADE for year in scope.academic_years
+            type(year) is int and year > 0 for year in scope.academic_years
         )
     return False
 
@@ -311,7 +311,8 @@ def _clean_memberships(context: AcademicContext) -> tuple[AcademicMembership, ..
         m
         for m in context.memberships
         if _CODE.fullmatch(m.department_code)
-        and (m.grade is None or MIN_GRADE <= m.grade <= MAX_GRADE)
+        # Match the canonical ledger's positive integer; no school upper bound is approved.
+        and (m.grade is None or (type(m.grade) is int and m.grade > 0))
     }
     return tuple(sorted(valid, key=lambda m: (m.department_code, m.grade or 0)))
 
