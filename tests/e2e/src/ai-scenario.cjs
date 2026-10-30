@@ -23,10 +23,12 @@ async function navigateAi(ctx) {
     // The visible AI badge contributes to the accessible name ("AI 도우미 AI").
     const link = ctx.page.getByRole('navigation', { name: S.NAV.landmark }).getByRole('link', { name: AI.navigation, exact: false });
     await step('navigate AI reference', async () => {
-      if (!(await link.isVisible())) await ctx.page.locator(S.NAV.menuToggle).first().click();
-      requireThat(await link.getAttribute('href') === AI.route, 'AI navigation must target the approved in-app route');
-      await link.click();
-      await ctx.page.waitForURL(url => url.pathname === AI.route, { timeout: ctx.timeoutMs });
+      if (!(await step('AI navigation link visibility', () => link.isVisible()))) {
+        await step('AI mobile menu open', () => ctx.page.locator(S.NAV.menuToggle).first().click());
+      }
+      requireThat(await step('AI navigation href read', () => link.getAttribute('href')) === AI.route, 'AI navigation must target the approved in-app route');
+      await step('AI navigation link click', () => link.click());
+      await step('AI route arrival', () => ctx.page.waitForURL(url => url.pathname === AI.route, { timeout: ctx.timeoutMs }));
     });
   }
   await step('own reference input visible', () => ctx.page.getByLabel(AI.keyword, { exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs }));
@@ -51,7 +53,7 @@ function watchMutations(ctx) {
 
 async function openReference(ctx, identity = ctx.accounts.A.identity) {
   await navigateAi(ctx);
-  await ctx.page.getByLabel(AI.keyword, { exact: true }).fill('통합검증');
+  await step('AI reference keyword fill', () => ctx.page.getByLabel(AI.keyword, { exact: true }).fill('통합검증'));
   const res = await withApiResponse(ctx, { label: 'own rule-based references', method: 'GET', path: MATCH, status: 200 },
     () => ctx.page.getByRole('button', { name: AI.search, exact: true }).click());
   assertMatchPage(await readData(res), identity, ctx.opportunity);
@@ -64,17 +66,18 @@ async function openReference(ctx, identity = ctx.accounts.A.identity) {
 }
 
 async function editDraft(ctx) {
-  await ctx.page.getByRole('button', { name: AI.makeDraft, exact: true }).click();
+  await step('AI draft open button', () => ctx.page.getByRole('button', { name: AI.makeDraft, exact: true }).click());
   const region = ctx.page.getByRole('region', { name: AI.draft, exact: true });
-  await region.waitFor({ state: 'visible', timeout: ctx.timeoutMs });
-  await region.getByLabel(AI.memo, { exact: true }).fill(ctx.state.ai.memo);
-  await region.getByLabel(AI.firstCheck, { exact: true }).fill(ctx.state.ai.checkText);
+  await step('AI draft edit region visible', () => region.waitFor({ state: 'visible', timeout: ctx.timeoutMs }));
+  // Label textContent includes a textarea's initial text; its accessible name excludes it.
+  await step('AI draft memo fill', () => region.getByRole('textbox', { name: AI.memo, exact: true }).fill(ctx.state.ai.memo));
+  await step('AI draft first item fill', () => region.getByRole('textbox', { name: AI.firstCheck, exact: true }).fill(ctx.state.ai.checkText));
   const choices = region.getByRole('checkbox', { name: /^초안 항목 \d+ 저장$/ });
-  const count = await choices.count();
+  const count = await step('AI draft choices count', () => choices.count());
   requireThat(count >= 1 && count <= 10, 'bounded draft choices required');
   for (let i = 0; i < count; i += 1) {
-    if (i === 0) await choices.nth(i).check();
-    else await choices.nth(i).uncheck();
+    if (i === 0) await step('AI draft first choice select', () => choices.nth(i).check());
+    else await step('AI draft remaining choice clear', () => choices.nth(i).uncheck());
   }
   return region;
 }
@@ -92,8 +95,8 @@ async function previewAndCancel(ctx) {
   try {
     await openReference(ctx);
     await editDraft(ctx);
-    await ctx.page.getByRole('button', { name: AI.cancel, exact: true }).click();
-    await ctx.page.getByRole('region', { name: AI.draft, exact: true }).waitFor({ state: 'hidden', timeout: ctx.timeoutMs });
+    await step('AI draft cancel button', () => ctx.page.getByRole('button', { name: AI.cancel, exact: true }).click());
+    await step('AI cancelled draft hidden', () => ctx.page.getByRole('region', { name: AI.draft, exact: true }).waitFor({ state: 'hidden', timeout: ctx.timeoutMs }));
     assertNoSavedChange(before, await savedList(ctx));
     requireThat(observer.count() === 0, 'reference, edit or cancellation issued an API write');
   } finally { observer.stop(); }
@@ -105,15 +108,15 @@ async function explicitSave(ctx) {
   const observer = watchMutations(ctx);
   try {
     const draft = await editDraft(ctx);
-    await draft.getByRole('button', { name: AI.review, exact: true }).click();
-    await ctx.page.getByRole('region', { name: AI.confirmation, exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs });
+    await step('AI draft review button', () => draft.getByRole('button', { name: AI.review, exact: true }).click());
+    await step('AI save confirmation visible', () => ctx.page.getByRole('region', { name: AI.confirmation, exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs }));
     assertNoSavedChange(before, await savedList(ctx));
     requireThat(observer.count() === 0, 'review before explicit consent issued an API write');
   } finally { observer.stop(); }
   const confirmation = ctx.page.getByRole('region', { name: AI.confirmation, exact: true });
   const button = confirmation.getByRole('button', { name: AI.confirm, exact: true });
-  requireThat(await button.isDisabled(), 'save must require explicit consent');
-  await confirmation.getByRole('checkbox', { name: AI.consent, exact: true }).check();
+  requireThat(await step('AI save consent gate disabled', () => button.isDisabled()), 'save must require explicit consent');
+  await step('AI explicit save consent check', () => confirmation.getByRole('checkbox', { name: AI.consent, exact: true }).check());
   // Register BEFORE the write: an uncertain PUT/check response must still be reviewed by the
   // existing current-marker cleanup. A row created by someone else is skipped, never adopted.
   ctx.registry.register('saved_opportunity', ctx.opportunity.id, { viewport: ctx.vp });
@@ -132,15 +135,15 @@ async function freshSessionRead(ctx) {
   ctx.recordReload('relogin_required');
   const response = await withApiResponse(ctx, { label: 'fresh UI session saved requery', method: 'GET', path: /^\/me\/saved-opportunities$/, status: 200 }, () => navTo(ctx, 'opportunities'));
   assertSavedDraft(ownSaved(await readData(response), ctx.opportunity.id), { opportunityId: ctx.opportunity.id, ...ctx.state.ai });
-  await ctx.page.locator(S.OPP.savedSection).getByText(ctx.state.ai.checkText, { exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs });
+  await step('AI fresh session saved item visible', () => ctx.page.locator(S.OPP.savedSection).getByText(ctx.state.ai.checkText, { exact: true }).waitFor({ state: 'visible', timeout: ctx.timeoutMs }));
 }
 
 async function isolationB(ctx) {
-  const peer = { ...ctx, ...await ctx.newPeer() };
+  const peer = { ...ctx, ...await step('AI isolated student browser context', () => ctx.newPeer()) };
   await loginFromStart(peer, ctx.accounts.B.credential, ctx.accounts.B.identity);
   await openReference(peer, ctx.accounts.B.identity);
   await navTo(peer, 'opportunities');
-  requireThat(await peer.page.locator(S.OPP.savedSection).getByText(ctx.state.ai.checkText, { exact: true }).count() === 0, 'B UI contains A preparation');
+  requireThat(await step('AI other student saved item absence', () => peer.page.locator(S.OPP.savedSection).getByText(ctx.state.ai.checkText, { exact: true }).count()) === 0, 'B UI contains A preparation');
   const bSaved = await savedList(ctx, ctx.accounts.B.token);
   requireThat(!JSON.stringify(bSaved).includes(ctx.marker) && ownSaved(bSaved, ctx.opportunity.id) === null, 'B server list contains A preparation');
   const path = `/me/saved-opportunities/${ctx.opportunity.id}`;
@@ -164,4 +167,4 @@ function buildAiStages() {
   ];
 }
 
-module.exports = { AI, buildAiStages, watchMutations, navigateAi, editDraft };
+module.exports = { AI, buildAiStages, watchMutations, navigateAi, openReference, editDraft };
