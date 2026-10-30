@@ -54,6 +54,43 @@ async function review() { fireEvent.click(screen.getByText('준비 초안 검토
 function confirm() { fireEvent.click(screen.getByLabelText('선택한 준비 항목을 내 기록에 추가하는 데 동의합니다')); fireEvent.click(screen.getByText('확인하고 내 준비에 저장')); }
 
 describe('PreparationDraft: explicit consent, current source and existing preparation', () => {
+  it('moves keyboard focus from open to editor to review and back to the cancel trigger', async () => {
+    mount();
+    const trigger = screen.getByRole('button', { name: '준비 초안 만들기' }); trigger.focus();
+    expect(trigger).toHaveStyle({ minHeight: '24px' });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('heading', { name: /^준비 초안 —/ })).toHaveFocus();
+    expect(screen.getByLabelText('초안 항목 1 저장').closest('label')).toHaveStyle({ minHeight: '24px' });
+    const reviewButton = screen.getByRole('button', { name: '준비 초안 검토' }); reviewButton.focus();
+    expect(reviewButton).toHaveStyle({ minHeight: '24px' });
+    fireEvent.click(reviewButton);
+    expect(await screen.findByRole('heading', { name: '저장 전 확인' })).toHaveFocus();
+    expect(screen.getByLabelText('선택한 준비 항목을 내 기록에 추가하는 데 동의합니다').closest('label')).toHaveStyle({ minHeight: '24px' });
+    const cancel = screen.getByRole('button', { name: '초안 취소' }); cancel.focus(); fireEvent.click(cancel);
+    expect(screen.getByRole('button', { name: '준비 초안 만들기' })).toHaveFocus();
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to the editor when reviewing the draft again without losing input', async () => {
+    mount(); open(); await review();
+    fireEvent.click(screen.getByRole('button', { name: '초안 다시 편집' }));
+    expect(screen.getByRole('heading', { name: /^준비 초안 —/ })).toHaveFocus();
+    expect(screen.getByLabelText('준비 항목 초안 1')).toHaveValue(check.text);
+    fireEvent.click(screen.getByRole('button', { name: '초안 취소' }));
+    expect(screen.getByRole('button', { name: '준비 초안 만들기' })).toHaveFocus();
+  });
+
+  it('retains long unbroken evidence and applies intrinsic wrapping instead of truncating content', () => {
+    const text = 'LongUnbrokenEvidence'.repeat(30);
+    const brief = { ...BRIEF, opportunity: { ...BRIEF.opportunity, title: text, organization: text, eligibility: text },
+      procedure: [{ ...BRIEF.procedure[0], evidence_value: text }] };
+    render(<PreparationDraft brief={brief} interests={INTERESTS} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '준비 초안 만들기' }));
+    expect(screen.getByRole('region', { name: '준비 초안 편집' })).toHaveStyle({ overflowWrap: 'anywhere', minWidth: '0' });
+    expect(screen.getByRole('heading', { name: `준비 초안 — ${text}` })).toBeInTheDocument();
+    expect(screen.getAllByText(text, { exact: false }).length).toBeGreaterThan(2);
+  });
+
   it('editing, read-only review and cancellation make no writes', async () => {
     mount(); open(); await review();
     expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
@@ -143,6 +180,46 @@ describe('PreparationDraft: explicit consent, current source and existing prepar
     expect(savedApi.addCheck).toHaveBeenCalledTimes(3);
     expect(vi.mocked(savedApi.addCheck).mock.calls[2].slice(0, 4)).toEqual(uncertain);
     expect(savedApi.newIdempotencyKey).toHaveBeenCalledTimes(2); expect(savedApi.saveOpportunity).toHaveBeenCalledOnce();
+  });
+
+  it('blocks the first write when the reviewed saved row was deleted, keeps the draft and proceeds only after a fresh review', async () => {
+    vi.mocked(savedApi.listSaved).mockResolvedValueOnce({ items: [row()] }).mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce({ items: [row({ checks: [check] })] });
+    mount(); open(); fireEvent.change(screen.getByLabelText('준비 메모 초안'), { target: { value: '내 메모' } });
+    await review(); expect(screen.getByText(/메모: 기존 메모 유지/)).toBeInTheDocument(); confirm();
+    await screen.findByText(/검토 이후 기존 준비 기록이 바뀌었습니다/);
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
+    expect(screen.queryByRole('region', { name: '저장 전 확인' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^준비 초안 —/ })).toHaveFocus();
+    expect(screen.getByLabelText('준비 항목 초안 1')).toHaveValue(check.text); expect(screen.getByLabelText('준비 메모 초안')).toHaveValue('내 메모');
+    await review(); expect(screen.getByLabelText('선택한 준비 항목을 내 기록에 추가하는 데 동의합니다')).not.toBeChecked();
+    expect(screen.getByText(/메모: 내 메모/)).toBeInTheDocument(); confirm(); await screen.findByRole('status');
+    expect(savedApi.saveOpportunity).toHaveBeenCalledOnce(); expect(savedApi.saveOpportunity).toHaveBeenCalledWith(ID, '내 메모', expect.any(AbortSignal));
+  });
+
+  it.each([['revised', row({ revision: 2 })], ['recreated', row({ created_at: '2026-10-30T04:00:00Z' })]])('blocks the first write when the reviewed saved row was %s', async (_label, changed) => {
+    vi.mocked(savedApi.listSaved).mockResolvedValueOnce({ items: [row()] }).mockResolvedValueOnce({ items: [changed] });
+    mount(); open(); await review(); confirm();
+    await screen.findByText(/검토 이후 기존 준비 기록이 바뀌었습니다/);
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('준비 항목 초안 1')).toHaveValue(check.text);
+  });
+
+  it('blocks the first write when a saved row appears after reviewing an absent one', async () => {
+    vi.mocked(savedApi.listSaved).mockResolvedValueOnce({ items: [] }).mockResolvedValueOnce({ items: [row({ memo: '다른 메모' })] });
+    mount(); open(); fireEvent.change(screen.getByLabelText('준비 메모 초안'), { target: { value: '새 메모' } });
+    await review(); expect(screen.getByText(/새 준비 기록과/)).toBeInTheDocument(); confirm();
+    await screen.findByText(/검토 이후 기존 준비 기록이 바뀌었습니다/);
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('준비 메모 초안')).toHaveValue('새 메모');
+  });
+
+  it.each([undefined, '2026-10-30T03:00:00'])('refuses a saved row with missing or naive creation time before consent', async created => {
+    vi.mocked(savedApi.listSaved).mockResolvedValueOnce({ items: [row({ created_at: created as unknown as string })] });
+    mount(); open(); fireEvent.click(screen.getByText('준비 초안 검토'));
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('region', { name: '저장 전 확인' })).not.toBeInTheDocument();
+    expect(savedApi.saveOpportunity).not.toHaveBeenCalled(); expect(savedApi.addCheck).not.toHaveBeenCalled();
   });
 
   it('rejects an empty selection and overlong code-point input before even reviewing', async () => {

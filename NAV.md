@@ -16,6 +16,8 @@
 - 실제 계정 생성 전 승인·충돌·audit UUID 절차는 `docs/dev-prep/TASK_DEMO_ACCOUNT_APPROVAL.md`, 계정 없는 HTTP/브라우저 사전 점검은 `docs/dev-prep/TASK_LOCAL_E2E_PREFLIGHT.md`, HTTPS·서버·비밀 주입과 배포 승인 준비는 `docs/dev-prep/TASK_DEPLOYMENT_PREPARATION.md`를 따른다.
 - 승인 DITNOW-P0-DEMO-20261030의 실제 16행 생성·두 감사 pin·로그인/핵심 3CRUD·HTTP/390·1280 E2E 및 잔여 DB·세션 정리 결과는 `docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md`다. 운영 배포·전체 92개 완료와 구분한다.
 - AI 개발 준비 점검과 실제 명령 결과는 `docs/dev-prep/01_READINESS_REVIEW.md`를 본다.
+- 공식 심사 원문·현재 추정·PR별 변화·개선 우선순위·시연 증거는 `docs/judging/`의 `RUBRIC.md`, `SCORECARD.md`, `SCORE_HISTORY.md`, `IMPROVEMENT_PRIORITY.md`, `DEMO_EVIDENCE.md`를 따른다. 추정 점수는 심사위원의 점수가 아니다.
+- 기회 탐색→규칙 근거·수정 초안→명시 확인→실제 준비 저장의 통합 상태와 호출 없는 LLM 계약은 `docs/dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md`다. 외부 모델 생성·추가 시드와 구분한다.
 
 ## 2. 현재 코드 진입점
 | 영역 | 현재 경로 | 확인할 내용 |
@@ -26,7 +28,7 @@
 | 실제 HTTP 보안 검사 도구 | `services/api/scripts/verify_p0_security.py`, `docs/dev-prep/TASK_P0_SECURITY_E2E.md` | localhost 두 가상 계정의 CRUD·소유권·익명성 검사. 기본 미실행이며 모의 테스트와 실제 실행 구별 |
 | 브라우저 통합 검사 도구 | `tests/e2e/package.json`, `tests/e2e/run.cjs`, `docs/dev-prep/TASK_P0_BROWSER_E2E.md` | 두 가상 계정·390/1280 검사 준비. 기본 NOT_RUN, 오프라인 하네스 검사와 실제 브라우저 E2E 구별 |
 | 신규 공통 API·타입 | `apps/web/src/lib/api.ts`, `apps/web/scripts/api-types.mjs` | 안전한 전송·타입 생성; 공개·로그인·현재 신원 계약, 조건부 업무 라우트는 실행 설정별 확인 |
-| 신규 앱의 캠퍼스 안내 | `apps/web/src/features/ai/index.tsx`, `services/api/app/api/v1/ai.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색. 기존 검색기 재사용, 개인 원장·LLM 생성·운영 배포는 미검증 |
+| 신규 앱의 캠퍼스 안내·기회 준비 | `apps/web/src/features/ai/index.tsx`, `apps/web/src/features/opportunity-matching/`, `services/api/app/api/v1/p0.py`, `services/api/app/integrations/chatbot/campus.py` | `/app/ai`→공개 시설 검색 보존 + 공통 로그인 기반 기회·규칙 준비 초안. 외부 LLM·개인 학사 RAG·운영 배포는 미검증 |
 | 사전 React/Vite 프로토타입 | `mvp/package.json`, `mvp/src/main.tsx`, `mvp/src/app/` | 보존 전용; 아래 MVP 경로는 최종 구현 진척에서 제외 |
 | 학생 홈·시간표 | `mvp/src/features/home/` | 현재 학생 UI |
 | 로그인 UI | `mvp/src/features/auth/` | 시연 인증 UI |
