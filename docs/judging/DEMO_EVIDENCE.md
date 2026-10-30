@@ -1,6 +1,6 @@
 # 시연 증거
 
-기준 main `197436f80a9f7bb35895a019eb9b04dffc7bf847`, 2026-10-30 KST. 최신 실DB 운영 증거는 [승인된 P0 기록](../dev-prep/TASK_P0_APPROVED_LIVE_E2E.md), 전체 범위는 [92개 진행표](../dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)를 따른다.
+기준 main `49cf5759c9f0694dbf6e59455f138895d697c28f`, J-001, 2026-10-30 KST. 최신 실DB 운영 증거는 [승인된 P0 기록](../dev-prep/TASK_P0_APPROVED_LIVE_E2E.md), 전체 범위는 [92개 진행표](../dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)를 따른다.
 
 | 대상 | 판정 | 근거·실행 범위 | 성공이라고 하지 않는 부분 |
 |---|---|---|---|
@@ -14,11 +14,19 @@
 | API 자동 검사 | PASS (이전 main 근거) | 전체1442, 관련 민감 정보 검사80. 새 사전 재실행 matching48 PASS | 모의/격리 SQL 테스트를 원격DB로 표시하지 않음 |
 | 신규 웹 자동 검사 | PASS (이전 main 근거) | 전체533. 새 사전 재실행 matching31 PASS | 단위 테스트가 브라우저/DB 검증인 것은 아님 |
 | 기존 RAG | PARTIAL | 공개 시설 검색 실제 API·UI 연결, 패키지 검색기 재사용 | 신규 앱 실제 LLM·개인 학적 RAG NOT_RUN |
-| 신규 기회 도우미 | IN_PROGRESS | 별도 A/B/C worktree에서 구현 중. main 평가에 미포함 | 추천→확인→실DB E2E 전 PASS 금지 |
+| 신규 기회 도우미 | 코드 병합 / 통합 NOT_RUN | PR75/77/78의 현재학적 추천·수정 초안·하네스가 main에 있음. 이 SHA App의 새 화면 연결은 없음 | 추천→확인→실DB E2E 전 PASS 금지 |
 | 공식 공지→채팅 | PARTIAL | 도메인·fake 기반 자동 검사 존재 | 실DB·공통 교직원 권한·신규 앱 E2E NOT_RUN |
 | 운영 HTTPS·심사용 계정·제출 | NOT_RUN/미확인 | 로컬 승인 범위 외 | 외부 접속·등록·설문·최종 제출 성공 주장 금지 |
 | Lighthouse·실제 발표 | NOT_RUN | 측정·리허설 기록 없음 | 성능90·발표 고득점 가정 금지 |
 
-main197436f의 GitHub Actions는 Python API·에이전트 설정·신규 웹·MVP 보존·RAG·브라우저 하네스 검사를 통과했다. 실제 P0 검증은 문서의 실행 SHA를 따르며 모든 후속 SHA에서 실DB를 다시 실행했다는 뜻은 아니다.
+## 통합 후보의 추가 증거 — main 판정과 분리
+
+`feat/ai-opportunity-flow-20261030`의 실제 실행 코드 `eebc1b42ef1fae7d97e53035378427943571b9f6`에서 10:38~10:40 KST 추천→초안 편집/명시 확인→MariaDB 저장→재로그인 조회→계정 B 격리의 **390/1280 총17단계 PASS**를 얻었다. 같은 로컬 서버의 기존 HTTP 보안 검사와 핵심 브라우저21단계도 PASS다. 규칙 기반이며 실제 LLM 생성은 0이다. 두 번의 앞선 선택자 실패는 FAIL로 보존했다.
+
+후속 모바일 메뉴·상대 API 주소 보완을 포함한 후보에서 11:10 API1515·웹561·타입/빌드·Ruff·OpenAPI 검사를 통과했다. 이는 해당 소스의 단위/빌드 결과이며 모든 후속 SHA의 실제 DB E2E를 반복했다는 뜻은 아니다. 새 후보의 main 병합과 동일 HEAD CI를 확인하기 전 J-001 점수에는 선반영하지 않는다.
+
+사후 정리는 **INCOMPLETE**: 이번 AI 실행에서 캡처한10토큰은 폐기했고 saved/check0을 확인했으나, 전역 세션 집계 검사는 기대값과 달라 FAIL했다. 가상 A의 미귀속 세션1은 임의 삭제하지 않았다. 상세 범위·초기 실패·Claude 독립 검토는 [기회 도우미 실행 기록](../dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md)을 따른다.
+
+main49cf5759의 GitHub Actions는 Python API·에이전트 설정·신규 웹·MVP 보존·RAG·브라우저 하네스의6개 검사를 통과했다. 실제 P0 검증은 문서의 실행 SHA를 따르며 모든 후속 SHA에서 실DB를 다시 실행했다는 뜻은 아니다. 미병합 통합 브랜치의 실행은 [진행 기록](../dev-prep/TASK_AI_OPPORTUNITY_ASSISTANT.md)과 구분한다.
 
 보호 원문에는 비밀·개별 신원/감사 UUID·토큰이 있으므로 공개 문서/PR로 옮기지 않는다. 공개 증거에는 실행 SHA·환경·단계·집계·정리 결과만 기록한다. 가상 기본16행과 기존 자료는 보존한다.

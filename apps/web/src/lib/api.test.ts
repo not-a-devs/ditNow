@@ -5,6 +5,7 @@ describe('public API transport', () => {
   it('keeps relative API paths inside the configured base', () => {
     expect(resolveApiUrl('/health', 'https://api.example.test/api/v1')).toBe('https://api.example.test/api/v1/health');
     expect(resolveApiUrl('/health', '')).toBe(`${window.location.origin}/api/v1/health`);
+    expect(resolveApiUrl('/health', '/api/v1')).toBe(`${window.location.origin}/api/v1/health`);
   });
   it.each(['javascript:alert(1)', 'https://user:secret@api.example.test', '/remote', 'https://api.example.test?token=secret'])('rejects invalid base without echoing it: %s', base => {
     try { resolveApiUrl('/health', base); throw new Error('should fail'); } catch (error) { expect(error).toBeInstanceOf(ApiError); expect((error as Error).message).not.toContain('secret'); }
