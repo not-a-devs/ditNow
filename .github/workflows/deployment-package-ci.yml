@@ -24,6 +24,8 @@ jobs:
           python-version: '3.13'
       - name: 패키지 계약·오프라인 회귀
         run: python -m unittest discover -s infra/deploy/tests -v
+      - name: HTTPS 검증기 오프라인 회귀·외부 요청 없음
+        run: python -m unittest discover -s tests/deployment -p 'test_*.py' -v
       - name: 비밀 없는 공개 설정 준비
         shell: bash
         run: |
