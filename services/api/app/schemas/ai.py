@@ -36,9 +36,16 @@ class AskTurn(ApiModel):
     content: str = Field(min_length=1, max_length=1000)
 
 
+class AskUserLocation(ApiModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
 class AskInput(ApiModel):
     question: str = Field(min_length=1, max_length=200)
     history: list[AskTurn] = Field(default_factory=list, max_length=6)
+    # 도보 예상 시간 계산에만 쓴다. 저장·로그·LLM 전송하지 않는다
+    user_location: AskUserLocation | None = None
 
 
 class AskLocation(ApiModel):
@@ -47,6 +54,8 @@ class AskLocation(ApiModel):
     building: str
     lat: float
     lng: float
+    distance_m: int | None = None
+    walk_minutes: int | None = None
 
 
 class AskData(ApiModel):

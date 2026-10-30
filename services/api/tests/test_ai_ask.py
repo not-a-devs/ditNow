@@ -122,3 +122,19 @@ def test_without_llm_ask_is_unavailable() -> None:
 
 def test_seed_creates_tables_and_demo_data() -> None:
     assert asyncio.run(seed(SQLITE_MEMORY)) is True
+
+
+def test_user_location_returns_walk_estimate(client: TestClient) -> None:
+    """위치를 보내면 근거 시설 건물까지 도보 예상이 locations에 붙는다. 범위 밖 좌표는 400."""
+    campus = client.app.state.assistant.campus
+    building = campus.buildings[campus.facilities["dept_cs"].building_id]
+    building.lat, building.lng = 35.001, 129.0  # 실제 좌표는 팀 제공 전이라 테스트에서만 넣는다
+    try:
+        here = {"lat": 35.0, "lng": 129.0}
+        data = ask(client, "컴소과 사무실 어디야", user_location=here).json()["data"]
+        [loc] = data["locations"]
+        assert (loc["distance_m"], loc["walk_minutes"]) == (145, 2)
+    finally:
+        building.lat = building.lng = None
+    response = ask(client, "컴소과 사무실 어디야", user_location={"lat": 91, "lng": 129.0})
+    assert response.status_code == 400
