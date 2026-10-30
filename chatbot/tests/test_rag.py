@@ -168,3 +168,25 @@ async def test_user_location_adds_walk_estimate(
     res = await answer_question("컴소과 사무실 어디야", retriever=retriever, llm=llm, data=data)
     assert "걸어서" not in llm.calls[-1][-1].content
     assert res.locations[0].walk_minutes is None
+
+
+async def test_travel_question_explains_why_not_computed(
+    retriever: KeywordRetriever, campus_data: CampusData
+) -> None:
+    """이동 시간을 물었는데 계산할 수 없으면 근거에 이유를 적는다 (좌표 없음 / 위치 없음)."""
+    llm = FakeLLMClient()
+    here = UserLocation(lat=35.0, lng=129.0)
+    q = "컴소과 사무실까지 몇 분 걸려?"
+    await answer_question(q, retriever=retriever, llm=llm, data=campus_data, user_location=here)
+    assert (
+        "계산할 수 없음 (미래관 위치 좌표가 아직 등록되지 않았습니다)" in llm.calls[-1][-1].content
+    )
+
+    data = campus_data.model_copy(deep=True)
+    data.buildings["mirae"].lat, data.buildings["mirae"].lng = 35.001, 129.0
+    await answer_question(q, retriever=retriever, llm=llm, data=data)
+    assert "위치 권한을 허용하면" in llm.calls[-1][-1].content
+
+    # 이동 시간을 묻지 않은 질문에는 붙이지 않는다
+    await answer_question("컴소과 사무실 어디야", retriever=retriever, llm=llm, data=data)
+    assert "도보 시간" not in llm.calls[-1][-1].content

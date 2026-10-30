@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 # '[근거: a, b]'. 대괄호 없이 '근거: a, b'로 쓰는 경우도 있어 괄호는 선택
 _SOURCES_LINE = re.compile(r"\[?근거:\s*([^\]\n]*)\]?")
 _BLOCK_ID = re.compile(r"^\[([^\]]+)\]")
+# '미래관까지 몇 분 걸려', '정보관 얼마나 걸려' 같은 이동 시간 질문
+_ASKS_TRAVEL = re.compile(r"몇\s*분|걸려|걸리|걸어서|거리|얼마나\s*가")
 # 최신 모델은 답하기 전 추론에도 토큰을 써서, 시험 4과목 나열 같은 답이 600에서 잘렸다
 ANSWER_MAX_TOKENS = 1024
 
@@ -93,16 +95,30 @@ def find_locations(
     return out
 
 
-def _campus_context(fac: Facility, data: CampusData, user: UserLocation | None) -> str:
-    """시설 근거 블록. 위치가 있으면 계산된 도보 예상만 덧붙인다 (좌표 원본은 LLM에 넘기지 않음)."""
+def _campus_context(
+    fac: Facility, data: CampusData, user: UserLocation | None, asks_travel: bool
+) -> str:
+    """시설 근거 블록. 위치가 있으면 계산된 도보 예상만 덧붙인다 (좌표 원본은 LLM에 넘기지 않음).
+
+    이동 시간을 물었는데 계산할 수 없으면 그 이유를 적어, LLM이 설명만 하지 않고 이유를 말하게 한다.
+    """
     block = fac.to_context()
     bld = data.buildings.get(fac.building_id or "")
-    walk = walk_estimate(user, bld) if user and bld else None
+    if bld is None:
+        return block
+    walk = walk_estimate(user, bld) if user else None
     if walk:
         block += (
             f"\n- 현재 위치에서 {bld.name}까지: 약 {walk[0]}m, "
             f"걸어서 약 {walk[1]}분 (직선 거리 기반 추정)"
         )
+    elif asks_travel:
+        reason = (
+            f"{bld.name} 위치 좌표가 아직 등록되지 않았습니다"
+            if bld.lat is None or bld.lng is None
+            else "현재 위치를 받지 못했습니다. 위치 권한을 허용하면 계산할 수 있습니다"
+        )
+        block += f"\n- 현재 위치에서 {bld.name}까지 도보 시간: 계산할 수 없음 ({reason})"
     return block
 
 
@@ -136,7 +152,8 @@ async def answer_question(
         if not hits:
             # 근거가 없으면 LLM을 부르지 않는다 (비용 절감 + 환각 방지)
             return done(answer=NOT_FOUND_ANSWER, found=False)
-        blocks = [_campus_context(h.doc, data, user_location) for h in hits]
+        asks_travel = bool(_ASKS_TRAVEL.search(question))
+        blocks = [_campus_context(h.doc, data, user_location, asks_travel) for h in hits]
         personal_locations: list[LocationOut] = []
     elif student is None or student_data is None:
         return done(answer=LOGIN_REQUIRED_ANSWER, found=False, need_login=True)
