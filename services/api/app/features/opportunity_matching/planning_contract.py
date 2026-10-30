@@ -1,6 +1,6 @@
 """Phase-2 LLM contract only. No provider, model invocation, tool or database write.
 
-Build solely from the public opportunity projection and rule *codes*. Never include
+Build solely from the public opportunity projection. Never include match signals,
 the question, interests, current membership values, user identity or saved data.
 Public catalog text remains untrusted data. Production calls need separate approval.
 """
@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints
 
-from app.features.opportunity_matching.models import OpportunityBrief, ReasonCode
+from app.features.opportunity_matching.models import OpportunityBrief
 from app.schemas.common import ApiModel
 
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -28,7 +28,6 @@ class PreparationPlanningInput(ApiModel):
     opportunity_id: UUID
     source_kind: Literal["OFFICIAL_PUBLIC", "DEMO"]
     evidence: list[PlanningEvidence] = Field(min_length=1, max_length=5)
-    rule_reason_codes: list[ReasonCode] = Field(max_length=6)
 
 
 class PreparationActionDraft(ApiModel):
@@ -66,7 +65,6 @@ def planning_input(brief: OpportunityBrief) -> PreparationPlanningInput:
             for ref, value in values.items()
             if value and value.strip()
         ],
-        rule_reason_codes=list(dict.fromkeys(reason.code for reason in brief.match.reasons)),
     )
 
 
