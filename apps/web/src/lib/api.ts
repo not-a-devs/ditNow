@@ -52,7 +52,7 @@ export function resolveApiUrl(path: string, configuredBase = import.meta.env.VIT
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
     throw new ApiError('CONFIGURATION', 0);
   }
-  if (configuredBase && !/^https?:\/\//.test(configuredBase)) throw new ApiError('CONFIGURATION', 0);
+  if (configuredBase && configuredBase !== '/api/v1' && !/^https?:\/\//.test(configuredBase)) throw new ApiError('CONFIGURATION', 0);
   const prefix = base.pathname.replace(/\/$/, '') + '/';
   const target = new URL(path.slice(1), base.origin + prefix);
   if (target.origin !== base.origin || !target.pathname.startsWith(prefix) || target.hash) {
@@ -74,7 +74,7 @@ export async function requestSessionLogout<T>(token: string, signal?: AbortSigna
 async function send<T>(path: string, init: RequestInit, logoutToken?: string): Promise<T> {
   const url = resolveApiUrl(path);
   const pathname = path.split('?')[0];
-  const protectedPath = /^\/(?:auth\/me|anonymous-posts|recruitments|me\/(?:saved-opportunities|opportunity-matches))(?:\/|$)/.test(pathname);
+  const protectedPath = /^\/(?:auth\/me|anonymous-posts|recruitments|me\/(?:saved-opportunities|opportunity-matches|demo-services|demo-attendance|demo-profile|demo-action-center|demo-channels))(?:\/|$)/.test(pathname);
   const bridge = authentication;
   const snapshot = protectedPath ? bridge?.read() : undefined;
   const headers = headerRecord(init.headers);

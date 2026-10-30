@@ -36,11 +36,15 @@ def check(condition, code):
         raise Failure(code)
 
 
+def nosniff(headers):
+    return headers.get("X-Content-Type-Options", "").strip().lower() == "nosniff"
+
+
 def probe(wait_seconds=30, snapshot=None):
     deadline = time.monotonic() + wait_seconds
     while True:
         try:
-            code, _, body = get("/api/v1/health")
+            code, health_headers, body = get("/api/v1/health")
             if code == 200 and json.loads(body)["data"] == {
                 "status": "ok",
                 "service": "ditnow-api",
@@ -56,6 +60,7 @@ def probe(wait_seconds=30, snapshot=None):
         bound == {"18000": ["127.0.0.1:18000"], "18080": ["127.0.0.1:18080"]},
         "LOOPBACK_BIND_REQUIRED",
     )
+    check(nosniff(health_headers), "API_HEALTH_NOSNIFF_MISSING")
     code, headers, index = get("/app")
     check(
         code == 200
@@ -63,16 +68,20 @@ def probe(wait_seconds=30, snapshot=None):
         and "no-store" in headers.get("Cache-Control", ""),
         "SPA_ROOT_INVALID",
     )
+    check(nosniff(headers), "SPA_NOSNIFF_MISSING")
     for route in ("/app/login", "/app/community", "/app/opportunities", "/app/ai"):
         code, headers, body = get(route)
         check(
             code == 200 and body == index and "no-store" in headers.get("Cache-Control", ""),
             "SPA_DIRECT_ENTRY_INVALID",
         )
+        check(nosniff(headers), "SPA_NOSNIFF_MISSING")
     assets = re.findall(rb'(?:src|href)="(/assets/[^"\s]+)"', index)
     check(bool(assets), "BUILD_ASSETS_MISSING")
     for asset in assets:
-        check(get(asset.decode("ascii"))[0] == 200, "BUILD_ASSET_FAILED")
+        code, headers, _ = get(asset.decode("ascii"))
+        check(code == 200, "BUILD_ASSET_FAILED")
+        check(nosniff(headers), "ASSET_NOSNIFF_MISSING")
     code, _, body = get("/assets/does-not-exist.js")
     check(code == 404 and body != index, "MISSING_ASSET_MUST_NOT_USE_SPA")
     for path, expected in (

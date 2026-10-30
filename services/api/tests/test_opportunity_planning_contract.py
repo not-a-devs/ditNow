@@ -4,8 +4,9 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from test_opportunity_matching_support import USER_A, FakeCatalog, make_opportunity, service
+from test_opportunity_matching_support import USER_A, USER_B, FakeCatalog, make_opportunity, service
 
+from app.features.opportunities.repository import TargetScope
 from app.features.opportunity_matching.planning_contract import (
     PreparationPlanningInput,
     planning_input,
@@ -41,7 +42,6 @@ def test_allowlisted_input_excludes_personal_context_and_instructions():
         "opportunity_id",
         "source_kind",
         "evidence",
-        "rule_reason_codes",
     }
     assert set(item["ref"] for item in data["evidence"]) <= {
         "title",
@@ -61,10 +61,22 @@ def test_valid_draft_remains_confirmation_only():
     assert draft.eligibility_guaranteed is False
 
 
-@pytest.mark.parametrize("extra", ["token", "user_id", "memberships", "question", "interests"])
+@pytest.mark.parametrize(
+    "extra", ["token", "user_id", "memberships", "question", "interests", "rule_reason_codes"]
+)
 def test_input_rejects_extra_personal_fields(extra):
     with pytest.raises(ValidationError):
         PreparationPlanningInput.model_validate(source().model_dump() | {extra: "not-allowed"})
+
+
+def test_same_public_notice_never_exports_membership_match_inference():
+    opportunity = make_opportunity(target_scope=TargetScope("grade", ("CSE",), (2,)))
+    matching = service(FakeCatalog([opportunity]))
+    a = matching.brief(USER_A, opportunity.id, Interests())
+    b = matching.brief(USER_B, opportunity.id, Interests())
+    assert a.match.in_scope and not b.match.in_scope
+    # Match signals combined with public eligibility could reveal membership. Export neither.
+    assert planning_input(a).model_dump() == planning_input(b).model_dump()
 
 
 @pytest.mark.parametrize(

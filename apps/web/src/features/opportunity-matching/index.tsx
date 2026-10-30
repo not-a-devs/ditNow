@@ -19,6 +19,7 @@ import type { ContextBasis, MatchFilter, MatchItem, MatchPage, MatchReason, Oppo
 
 const PAGE_SIZE = 10;
 const DISCLAIMER = '서버 고정 규칙으로 정렬한 참고 목록입니다. AI 생성 결과가 아니며 지원 자격을 보장하지 않습니다.';
+const TOUCH_TARGET = { minHeight: 24 };
 
 interface Described {
   message: string;
@@ -66,7 +67,7 @@ function ErrorBox({ message, requestId, onRetry, retryLabel = '다시 시도' }:
       <p>{message}</p>
       {requestId && <p className="mt-1 text-xs text-red-600">요청 ID: {requestId}</p>}
       {onRetry && (
-        <button type="button" onClick={onRetry} className="mt-2 rounded border border-red-300 px-2 py-1 text-xs">
+        <button type="button" onClick={onRetry} style={TOUCH_TARGET} className="mt-2 rounded border border-red-300 px-2 py-1 text-xs">
           {retryLabel}
         </button>
       )}
@@ -134,7 +135,7 @@ function ContextLine({ context }: { context: ContextBasis }) {
 function MatchCard({ item, onBrief }: { item: MatchItem; onBrief: (id: string) => void }) {
   const o = item.opportunity;
   return (
-    <li className="space-y-1 rounded-md border border-slate-200 p-3">
+    <li style={{ minWidth: 0 }} className="space-y-1 rounded-md border border-slate-200 p-3">
       <p className="text-xs text-slate-500">
         {KIND_LABEL[o.kind]} · {o.organization.trim() || '미확인'}
         {o.source_kind === 'DEMO' && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">DEMO 가상 공고</span>}
@@ -152,7 +153,7 @@ function MatchCard({ item, onBrief }: { item: MatchItem; onBrief: (id: string) =
         {api.safeHref(item.source_url) ? <ExternalLink href={item.source_url}>원문 보기</ExternalLink> : '원문 링크 없음'}
       </p>
       <Recruitment refs={item.recruitment} />
-      <button type="button" onClick={() => onBrief(o.id)} className="rounded border border-slate-300 px-2 py-1 text-xs">
+      <button type="button" onClick={() => onBrief(o.id)} style={TOUCH_TARGET} className="rounded border border-slate-300 px-2 py-1 text-xs">
         요약·절차 보기
       </button>
     </li>
@@ -162,10 +163,10 @@ function MatchCard({ item, onBrief }: { item: MatchItem; onBrief: (id: string) =
 function BriefPanel({ brief }: { brief: OpportunityBrief }) {
   const d = brief.opportunity;
   return (
-    <article aria-label="공고 요약" className="space-y-3 rounded-md border border-slate-200 p-3 text-sm">
+    <article aria-label="공고 요약" style={{ minWidth: 0 }} className="space-y-3 rounded-md border border-slate-200 p-3 text-sm">
       <h3 className="font-semibold">{d.title}</h3>
       <p className="text-xs text-slate-600">{brief.provenance.notice}</p>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
         <dt>주관</dt><dd>{d.organization.trim() || '미확인'}</dd>
         <dt>접수</dt><dd>{formatDateTime(d.apply_starts_at)} ~ {formatDateTime(d.deadline_at)} ({WINDOW_LABEL[brief.window]})</dd>
         <dt>원문 확인</dt><dd>{FRESHNESS_LABEL[brief.freshness]}</dd>
@@ -297,8 +298,8 @@ export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => v
     setKinds((all) => (checked ? [...all, kind].slice(0, api.MAX_INTERESTS) : all.filter((k) => k !== kind)));
 
   return (
-    <section aria-label="기회 준비 도우미" className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[1fr_1fr]">
-      <section aria-labelledby="match-title" className="space-y-3">
+    <section aria-label="기회 준비 도우미" style={{ overflowWrap: 'anywhere', minWidth: 0 }} className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section aria-labelledby="match-title" style={{ minWidth: 0 }} className="space-y-3">
         <h2 id="match-title" className="text-xl font-semibold">맞춤 기회 찾기</h2>
         <p className="rounded bg-slate-50 p-2 text-xs text-slate-600">{DISCLAIMER}</p>
         <p className="text-xs">질문에서 찾고 싶은 표현을 직접 키워드로 확인해 입력하세요. 자연어를 자동 해석하거나 LLM을 호출하지 않습니다.</p>
@@ -306,7 +307,7 @@ export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => v
           <fieldset className="flex flex-wrap gap-2">
             <legend className="text-xs text-slate-600">관심 분류</legend>
             {(Object.keys(KIND_LABEL) as OpportunityKind[]).map((kind) => (
-              <label key={kind} className="flex items-center gap-1">
+              <label key={kind} style={TOUCH_TARGET} className="flex items-center gap-1">
                 <input type="checkbox" checked={kinds.includes(kind)} onChange={(e) => toggleKind(kind, e.target.checked)} />
                 {KIND_LABEL[kind]}
               </label>
@@ -327,11 +328,11 @@ export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => v
           {keywordError && (
             <p id="keyword-error" role="alert" className="text-xs text-red-700">{keywordError}</p>
           )}
-          <label className="flex items-center gap-1">
+          <label style={TOUCH_TARGET} className="flex items-center gap-1">
             <input type="checkbox" checked={includeClosed} onChange={(e) => setIncludeClosed(e.target.checked)} />
             마감된 공고 포함
           </label>
-          <button type="submit" className="rounded bg-slate-800 px-3 py-1 text-white">맞춤 공고 보기</button>
+          <button type="submit" style={TOUCH_TARGET} className="rounded bg-slate-800 px-3 py-1 text-white">맞춤 공고 보기</button>
         </form>
 
         {list.state === 'loading' && <p aria-busy="true" className="text-sm text-slate-500">맞춤 공고를 불러오는 중…</p>}
@@ -367,7 +368,7 @@ export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => v
               />
             )}
             {list.page.next_cursor && !moreError && (
-              <button type="button" disabled={loadingMore} onClick={loadMore} className="rounded border border-slate-300 px-3 py-1 text-sm">
+              <button type="button" disabled={loadingMore} onClick={loadMore} style={TOUCH_TARGET} className="rounded border border-slate-300 px-3 py-1 text-sm">
                 {loadingMore ? '불러오는 중…' : '더 보기'}
               </button>
             )}
@@ -375,7 +376,7 @@ export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => v
         )}
       </section>
 
-      <section aria-label="요약·절차" className="space-y-3">
+      <section aria-label="요약·절차" style={{ minWidth: 0 }} className="space-y-3">
         {!brief && <p className="text-sm text-slate-500">공고를 선택하면 원문 필드 기반 요약과 절차를 보여 줍니다.</p>}
         {brief?.state === 'loading' && <p aria-busy="true" className="text-sm text-slate-500">요약을 불러오는 중…</p>}
         {brief?.state === 'error' && <ErrorBox {...brief} onRetry={() => openBrief(brief.id)} />}

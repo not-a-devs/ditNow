@@ -29,13 +29,49 @@ API_ENV_FILE=/absolute/private/ditnow-api.env
 DEPLOY_ENV_FILE=/absolute/private/ditnow-deploy.env
 CA_FILE=/absolute/approved/mariadb-ca.pem
 SNAPSHOT_FILE=/absolute/private/ditnow-before-release.json
-umask 077
-test ! -e "$API_ENV_FILE"
-cp infra/deploy/api.env.example "$API_ENV_FILE"
-test ! -e "$DEPLOY_ENV_FILE"
-printf 'DITNOW_RELEASE_SHA=%s\nDITNOW_API_ENV_FILE=%s\nDITNOW_DB_CA_FILE=%s\n' "$RELEASE_SHA" "$API_ENV_FILE" "$CA_FILE" > "$DEPLOY_ENV_FILE"
-chmod 600 "$API_ENV_FILE" "$DEPLOY_ENV_FILE"
 ```
+
+외부 파일 생성은 아래 **실패 즉시 중단 함수**로만 한다. 독립된 `test ! -e` 줄 다음에 `cp`/`printf`를 따로 실행하면 대화형 shell은 검사 실패 후에도 다음 줄을 계속 실행하여 기존 runtime env를 덮어쓸 수 있으므로 그 형태를 쓰지 않는다. 함수는 subshell `( … )`에서 `set -eu`·`set -o noclobber`·`umask 077`을 켜므로 소유자 shell 옵션을 바꾸지 않는다. `ditnow_bootstrap || …`처럼 errexit가 꺼지는 문맥에서도 각 단계가 명시적으로 `fail`한다.
+
+```sh
+# BEGIN-DITNOW-BOOTSTRAP
+ditnow_bootstrap() (
+  set -eu
+  set -o noclobber
+  umask 077
+  fail() { printf 'DITNOW_BOOTSTRAP_BLOCKED %s\n' "$1" >&2; exit 1; }
+  template=infra/deploy/api.env.example
+  case "${RELEASE_SHA:-}" in
+    ''|*[!0-9a-f]*) fail RELEASE_SHA_INVALID ;;
+  esac
+  [ "${#RELEASE_SHA}" -eq 40 ] || fail RELEASE_SHA_INVALID
+  for path in "${API_ENV_FILE:-}" "${DEPLOY_ENV_FILE:-}" "${CA_FILE:-}"; do
+    case "$path" in
+      /*) ;;
+      *) fail PATH_NOT_ABSOLUTE ;;
+    esac
+    case "$path" in
+      *[!A-Za-z0-9_./-]*) fail PATH_CHARACTERS_UNSAFE ;;
+    esac
+  done
+  [ "$API_ENV_FILE" != "$DEPLOY_ENV_FILE" ] && [ "$API_ENV_FILE" != "$CA_FILE" ] \
+    && [ "$DEPLOY_ENV_FILE" != "$CA_FILE" ] || fail PATHS_NOT_DISTINCT
+  for target in "$API_ENV_FILE" "$DEPLOY_ENV_FILE"; do
+    if [ -e "$target" ] || [ -L "$target" ]; then fail TARGET_EXISTS; fi
+    [ -d "$(dirname "$target")" ] || fail TARGET_DIRECTORY_MISSING
+  done
+  { [ -f "$template" ] && [ ! -L "$template" ]; } || fail TEMPLATE_MISSING
+  { cat "$template" > "$API_ENV_FILE"; } 2>/dev/null || fail API_ENV_CREATE_FAILED
+  { printf 'DITNOW_RELEASE_SHA=%s\nDITNOW_API_ENV_FILE=%s\nDITNOW_DB_CA_FILE=%s\n' \
+    "$RELEASE_SHA" "$API_ENV_FILE" "$CA_FILE" > "$DEPLOY_ENV_FILE"; } 2>/dev/null || fail DEPLOY_ENV_CREATE_FAILED
+  chmod 600 "$API_ENV_FILE" "$DEPLOY_ENV_FILE" 2>/dev/null || fail PERMISSION_FAILED
+  printf 'DITNOW_BOOTSTRAP_CREATED\n'
+)
+# END-DITNOW-BOOTSTRAP
+ditnow_bootstrap
+```
+
+모든 경로 검사(40자리 소문자 hex SHA, 절대 경로, 안전 문자 `A-Za-z0-9_./-`만, 세 경로 서로 다름, 대상 두 개와 dangling symlink 미존재, 상위 디렉터리 존재, 일반 파일 template)가 끝난 후에만 쓴다. 생성은 `cp`가 아니라 noclobber 리다이렉션으로 하므로 검사 후 경쟁적으로 생긴 파일도 덮어쓰지 않고 실패한다. CA 파일은 이 함수가 만들거나 쓰지 않으며 대상 경로와 같으면 차단한다. 새 파일은 umask 077과 `chmod 600`으로 비공개다. 출력은 고정 코드만이며 경로·template·파일 내용을 출력하지 않는다. pointer 단계에서 실패하면 template 복사본(비밀 없음)만 남을 수 있으므로 소유자가 확인 후 직접 정리한다.
 
 기존 파일이 있으면 덮어쓰지 말고 소유자가 검토한다. API env는 **shell source하지 않는다**. raw 형식은 `KEY=value`의 값에 따옴표까지 포함시키므로 UUID 목록 같은 JSON은 추가 shell quote 없이 그대로 쓴다. 비밀번호는 편집기/기존 보호된 비밀 주입으로만 제공하며 명령 인자·Docker build arg·이미지·VITE 변수·이 저장소에 넣지 않는다.
 
@@ -87,7 +123,7 @@ python3 infra/deploy/scripts/smoke.py --wait-seconds 30 --snapshot "$SNAPSHOT_FI
 ss -H -ltn
 ```
 
-smoke 목적지는 고정 loopback뿐이며 환경 proxy·redirect·비밀번호·토큰을 사용하지 않는다. 실제 두 listener가 각각 **127.0.0.1**인지, Nginx→API health, `/app/login` 등 SPA 직접 진입과 index no-store, 실제 hashed asset, 없는 asset404, API JSON404, 기본 미설정 로그인503/P0업무404, 기존8개 metadata 불변을 검사한다. 실제 로그인/P0를 승인해 켠 뒤에는 public smoke의503/404 기대가 맞지 않으므로 그 결과를 억지로 PASS로 바꾸지 말고 별도 승인된 업무 E2E를 따른다.
+smoke 목적지는 고정 loopback뿐이며 환경 proxy·redirect·비밀번호·토큰을 사용하지 않는다. 실제 두 listener가 각각 **127.0.0.1**인지, Nginx→API health, `/app/login` 등 SPA 직접 진입과 index no-store, 실제 hashed asset, SPA·asset·API health 응답의 `X-Content-Type-Options: nosniff`, 없는 asset404, API JSON404, 기본 미설정 로그인503/P0업무404, 기존8개 metadata 불변을 검사한다. 실제 로그인/P0를 승인해 켠 뒤에는 public smoke의503/404 기대가 맞지 않으므로 그 결과를 억지로 PASS로 바꾸지 말고 별도 승인된 업무 E2E를 따른다.
 
 보호된 실행 기록에는 release SHA·image ID·단계·결과·기존8개 보존만 남긴다. 응답 원문·비밀번호·감사 UUID·토큰을 저장소에 올리지 않는다. 공개 URL은 서버 소유자와 root가 별도 승인 후 `https://dit.sunghae.xyz`에서 검증한다. localhost CI 성공이 실제 Cloudflare·TLS·CORS·브라우저/P0 성공을 뜻하지 않는다.
 
@@ -106,6 +142,7 @@ ditnow_compose down
 ## 검증 범위
 
 - 새 workflow는 Linux GitHub runner에서 **실제 Docker build + hostnetwork loopback public probe**를 실행한다. secret/Tailscale/DB/seed/LLM/운영 Tunnel 없음. CI 자체 프로젝트만 마지막에 정리한다.
+- 1단계 bootstrap 함수는 README 표본 그대로 Linux unittest가 bash subprocess로 격리 임시 디렉터리·합성 값만 사용해 검사한다(기존 파일·CA·dangling symlink·errexit 비활성 문맥·원래 덮어쓰기 반례). Docker·실제 비밀 없음.
 - 로컬 Docker daemon은 사용 불가로 local image build **NOT_RUN**. Windows Docker Desktop 설정/서비스를 변경하지 않았다. 단위 검증은 표준 라이브러리 mock으로 Docker/네트워크 동작 없이 실행한다.
 - 현재 패키지 CI·독립 리뷰·최종 HEAD는 PR에 기록한다. 운영 배포·서버 소유자의 명령 실행·최종 외부 HTTPS·실DB/P0/LLM은 **NOT_RUN**이다. Root README/NAV·공통 App/API는 별도 소유자가 유지한다.
 

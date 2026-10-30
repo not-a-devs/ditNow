@@ -8,6 +8,8 @@ import type { Interests, OpportunityBrief } from './types';
 
 type Row = { text: string; selected: boolean };
 type Intent = { memo: string; saveAttempted: boolean; checks: { text: string; sort: number; key: string; id?: string }[] };
+const TOUCH_TARGET = { minHeight: 24 };
+const FOCUS_HEADING = { scrollMarginTop: '6rem' };
 
 // Evaluation time is a clock, not a content revision. Compare every source/context field used
 // by the draft instead; a changed deadline, scope, procedure or caution requires fresh consent.
@@ -30,9 +32,16 @@ function ownRow(items: SavedOpportunity[], id: string): SavedOpportunity | undef
   if (!Array.isArray(items)) throw new Error('Invalid preparation response');
   const row = items.find(item => item?.opportunity_id === id);
   if (row && (!Array.isArray(row.checks) || !Number.isSafeInteger(row.revision) || row.revision < 1
+    || typeof row.created_at !== 'string' || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(row.created_at) || !Number.isFinite(Date.parse(row.created_at))
     || row.checks.some(check => typeof check.id !== 'string' || typeof check.text !== 'string'
       || !Number.isSafeInteger(check.sort_order) || check.sort_order < 0))) throw new Error('Invalid preparation response');
   return row;
+}
+
+// Consent covers the saved row seen at review. An absent row is its own reviewed state ("[false]"),
+// distinct from never reviewed (null); deletion, recreation, revision or a new row needs re-review.
+function rowSnapshot(row: SavedOpportunity | undefined): string {
+  return stable(row ? [true, row.created_at, row.revision] : [false]);
 }
 
 export interface PreparationDraftProps {
@@ -52,12 +61,26 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [existing, setExisting] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<'editor' | 'review' | 'trigger' | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const editorHeading = useRef<HTMLHeadingElement>(null);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
   const intent = useRef<Intent | null>(null);
+  const reviewed = useRef<string | null>(null);
   const life = useRef({ alive: false, epoch: 0, busy: false, controller: null as AbortController | null });
   useLayoutEffect(() => {
     life.current.alive = true; life.current.epoch++;
     return () => { life.current.alive = false; life.current.epoch++; life.current.controller?.abort(); };
   }, []);
+  useLayoutEffect(() => {
+    if (!focusTarget) return;
+    (focusTarget === 'editor' ? editorHeading.current : focusTarget === 'review' ? reviewHeading.current : trigger.current)?.focus();
+    setFocusTarget(null);
+  }, [focusTarget]);
+
+  function closeDraft() {
+    reviewed.current = null; setOpen(false); setPhase('edit'); setConsent(false); setError(''); setFocusTarget('trigger');
+  }
 
   function begin() {
     const state = life.current;
@@ -79,7 +102,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
 
   function discardDenied(failure: unknown): boolean {
     if (!(failure instanceof ApiError) || ![401, 403].includes(failure.status)) return false;
-    intent.current = null; setRows([]); setMemo(''); setConsent(false); setBusy(false);
+    intent.current = null; reviewed.current = null; setRows([]); setMemo(''); setConsent(false); setBusy(false);
     setPhase('denied'); setError(message(failure));
     life.current.epoch++; life.current.controller?.abort();
     return true;
@@ -90,6 +113,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
     if (!selected.length || selected.some(row => !row.text.trim() || Array.from(row.text.trim()).length > 200)
       || Array.from(memo.trim()).length > 1000 || new Set(selected.map(row => row.text.trim())).size !== selected.length) { setError('서로 다른 준비 항목을 한 개 이상 선택하고 각 1~200자, 메모 1000자 이하로 입력하세요.'); return; }
     const request = begin(); if (!request) return;
+    reviewed.current = null;
     try {
       const fresh = await api.getBrief(brief.opportunity.id, interests, request.signal);
       if (!request.current()) return;
@@ -99,8 +123,10 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
       }
       const list = await savedApi.listSaved(request.signal);
       if (!request.current()) return;
-      setExisting(!!ownRow(list.items, brief.opportunity.id));
-      setConsent(false); setPhase('review');
+      const saved = ownRow(list.items, brief.opportunity.id);
+      reviewed.current = rowSnapshot(saved);
+      setExisting(!!saved);
+      setConsent(false); setPhase('review'); setFocusTarget('review');
     } catch (failure) { if (request.current() && !discardDenied(failure)) setError(message(failure)); }
     finally { request.finish(); }
   }
@@ -115,13 +141,17 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
       if (!validBrief(fresh, brief.opportunity.id)) throw new Error('Invalid source');
       if (briefVersion(fresh) !== briefVersion(source)) {
         if (intent.current) { setPhase('partial'); setError('저장 도중 공고 정보가 바뀌었습니다. 추가 저장을 중단했습니다. 이미 반영된 항목은 내 준비 목록에서 확인하세요.'); }
-        else { setSource(fresh); setPhase('edit'); setConsent(false); setError('확인 이후 공고 또는 현재 소속 정보가 바뀌었습니다. 다시 검토해야 하며 아직 저장하지 않았습니다.'); }
+        else { reviewed.current = null; setSource(fresh); setPhase('edit'); setConsent(false); setError('확인 이후 공고 또는 현재 소속 정보가 바뀌었습니다. 다시 검토해야 하며 아직 저장하지 않았습니다.'); }
         return;
       }
       const list = await savedApi.listSaved(request.signal);
       if (!request.current()) return;
       let saved = ownRow(list.items, brief.opportunity.id);
       if (!intent.current) {
+        if (reviewed.current === null || reviewed.current !== rowSnapshot(saved)) {
+          reviewed.current = null; setConsent(false); setPhase('edit'); setFocusTarget('editor');
+          setError('검토 이후 기존 준비 기록이 바뀌었습니다(삭제·재생성·수정 또는 새 기록). 아직 저장하지 않았습니다. 작성한 초안은 유지되며, 다시 검토하고 동의해야 저장할 수 있습니다.'); return;
+        }
         let sort = saved?.checks.reduce((n, check) => Math.max(n, check.sort_order + 1), 0) ?? 0;
         const checks = rows.filter(row => row.selected).map(row => ({ text: row.text.trim(), sort: sort++, key: savedApi.newIdempotencyKey() }));
         if ((saved?.checks.length ?? 0) + checks.length > 50 || sort > 1000) throw new ApiError('CONFLICT', 409);
@@ -156,37 +186,38 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
   }
 
   if (phase === 'denied') return <p role="alert">{error}</p>;
-  if (!open) return <button type="button" onClick={() => setOpen(true)} className="rounded bg-slate-800 px-3 py-2 text-sm text-white">준비 초안 만들기</button>;
-  return <section aria-label="준비 초안 편집" aria-busy={busy} className="space-y-3 rounded border border-sky-300 p-3 text-sm">
-    <h3 className="font-semibold">준비 초안 — {source.opportunity.title}</h3>
+  if (!open) return <button ref={trigger} type="button" onClick={() => { setOpen(true); setFocusTarget('editor'); }} style={{ ...TOUCH_TARGET, ...FOCUS_HEADING }} className="rounded bg-slate-800 px-3 py-2 text-sm text-white">준비 초안 만들기</button>;
+  return <section aria-label="준비 초안 편집" aria-busy={busy} style={{ overflowWrap: 'anywhere', minWidth: 0 }} className="space-y-3 rounded border border-sky-300 p-3 text-sm">
+    <h3 ref={editorHeading} tabIndex={-1} style={FOCUS_HEADING} className="font-semibold">준비 초안 — {source.opportunity.title}</h3>
     <p>규칙 기반 초안이며 AI 생성 결과가 아닙니다. 지원 자격·기관 제출을 확인하지 않습니다. 선택한 항목만 본인 준비 기록에 추가합니다.</p>
-    <details><summary>현재 확인한 공고 근거</summary><p>주관: {source.opportunity.organization.trim() || '미확인'}</p><p className="whitespace-pre-wrap">{source.opportunity.eligibility}</p><p>마감: {source.opportunity.deadline_at ?? '미확인'}</p><ul>{source.procedure.map(step => <li key={step.order}>{STEP_LABEL[step.code]} · {step.evidence_value ?? '원문 확인 필요'}</li>)}</ul></details>
+    <details><summary style={TOUCH_TARGET}>현재 확인한 공고 근거</summary><p>주관: {source.opportunity.organization.trim() || '미확인'}</p><p className="whitespace-pre-wrap">{source.opportunity.eligibility}</p><p>마감: {source.opportunity.deadline_at ?? '미확인'}</p><ul>{source.procedure.map(step => <li key={step.order}>{STEP_LABEL[step.code]} · {step.evidence_value ?? '원문 확인 필요'}</li>)}</ul></details>
     {phase === 'edit' && <fieldset disabled={busy} className="space-y-2">
       <label className="block">준비 메모 초안<textarea value={memo} onChange={e => setMemo(e.target.value)} className="block w-full rounded border p-2" /></label>
       <p className="text-xs">이미 저장한 공고의 메모·상태·기존 체크는 바꾸지 않습니다.</p>
       {rows.length === 0 && <p>사용할 수 있는 절차 초안이 없습니다. 직접 준비 목록에서 항목을 작성하세요.</p>}
       {rows.map((row, index) => <div key={index} className="space-y-1">
-        <label><input type="checkbox" checked={row.selected} onChange={e => setRows(all => all.map((r, i) => i === index ? { ...r, selected: e.target.checked } : r))} /> 초안 항목 {index + 1} 저장</label>
+        <label style={TOUCH_TARGET} className="inline-flex items-center gap-2"><input type="checkbox" checked={row.selected} onChange={e => setRows(all => all.map((r, i) => i === index ? { ...r, selected: e.target.checked } : r))} /> 초안 항목 {index + 1} 저장</label>
         <label className="block">준비 항목 초안 {index + 1}<textarea value={row.text} onChange={e => setRows(all => all.map((r, i) => i === index ? { ...r, text: e.target.value } : r))} className="block w-full rounded border p-2" /></label>
       </div>)}
-      <button type="button" disabled={busy} onClick={() => void review()} className="rounded border px-3 py-2">준비 초안 검토</button>
-      <button type="button" disabled={busy} onClick={() => { setOpen(false); setError(''); }} className="ml-2 rounded border px-3 py-2">초안 취소</button>
+      <button type="button" disabled={busy} onClick={() => void review()} style={TOUCH_TARGET} className="rounded border px-3 py-2">준비 초안 검토</button>
+      <button type="button" disabled={busy} onClick={closeDraft} style={TOUCH_TARGET} className="ml-2 rounded border px-3 py-2">초안 취소</button>
     </fieldset>}
     {phase === 'review' && <section aria-label="저장 전 확인" className="space-y-2">
+      <h4 ref={reviewHeading} tabIndex={-1} style={FOCUS_HEADING} className="font-semibold">저장 전 확인</h4>
       <p>{existing ? '기존 메모·상태·체크는 유지하고 아래 항목만 추가합니다.' : '새 준비 기록과 아래 선택한 항목을 저장합니다.'}</p>
       <p className="whitespace-pre-wrap">메모: {existing ? '기존 메모 유지' : memo || '(없음)'}</p>
       <ul>{rows.filter(row => row.selected).map((row, i) => <li key={i} className="whitespace-pre-wrap">{row.text.trim()}</li>)}</ul>
-      <label className="block"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /> 선택한 준비 항목을 내 기록에 추가하는 데 동의합니다</label>
-      <button type="button" disabled={busy || !consent} onClick={() => void save()} className="rounded bg-slate-800 px-3 py-2 text-white">확인하고 내 준비에 저장</button>
-      <button type="button" disabled={busy} onClick={() => { setPhase('edit'); setConsent(false); }} className="ml-2 rounded border px-3 py-2">초안 다시 편집</button>
-      <button type="button" disabled={busy} onClick={() => { setPhase('edit'); setOpen(false); setConsent(false); }} className="ml-2 rounded border px-3 py-2">초안 취소</button>
+      <label style={TOUCH_TARGET} className="inline-flex items-center gap-2"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /> 선택한 준비 항목을 내 기록에 추가하는 데 동의합니다</label>
+      <button type="button" disabled={busy || !consent} onClick={() => void save()} style={TOUCH_TARGET} className="rounded bg-slate-800 px-3 py-2 text-white">확인하고 내 준비에 저장</button>
+      <button type="button" disabled={busy} onClick={() => { setPhase('edit'); setConsent(false); setFocusTarget('editor'); }} style={TOUCH_TARGET} className="ml-2 rounded border px-3 py-2">초안 다시 편집</button>
+      <button type="button" disabled={busy} onClick={closeDraft} style={TOUCH_TARGET} className="ml-2 rounded border px-3 py-2">초안 취소</button>
     </section>}
     {phase === 'partial' && <>
       <p>일부 요청이 이미 반영되었을 수 있습니다. 항목별 요청 키를 유지하며 새 복사본을 자동 생성하지 않습니다.</p>
-      <button type="button" disabled={busy} onClick={() => void save()} className="rounded border px-3 py-2">같은 요청으로 저장 다시 확인</button>
-      <button type="button" disabled={busy} onClick={onSaved} className="ml-2 rounded border px-3 py-2">내 준비 목록으로 이동</button>
+      <button type="button" disabled={busy} onClick={() => void save()} style={TOUCH_TARGET} className="rounded border px-3 py-2">같은 요청으로 저장 다시 확인</button>
+      <button type="button" disabled={busy} onClick={onSaved} style={TOUCH_TARGET} className="ml-2 rounded border px-3 py-2">내 준비 목록으로 이동</button>
     </>}
-    {phase === 'saved' && <><p role="status">선택한 준비 항목을 서버에서 다시 확인했습니다.</p><button type="button" onClick={onSaved} className="rounded border px-3 py-2">내 준비 목록으로 이동</button></>}
+    {phase === 'saved' && <><p role="status">선택한 준비 항목을 서버에서 다시 확인했습니다.</p><button type="button" onClick={onSaved} style={TOUCH_TARGET} className="rounded border px-3 py-2">내 준비 목록으로 이동</button></>}
     {error && <p role="alert" className="text-red-800">{error}</p>}
   </section>;
 }
