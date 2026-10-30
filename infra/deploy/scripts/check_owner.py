@@ -80,6 +80,15 @@ def check_source(sha):
         raise Failure("SOURCE_NOT_CLEAN")
 
 
+def check_docker_environment():
+    # Explicit contexts override DOCKER_HOST. Never silently select another daemon.
+    if os.environ.get("DOCKER_CONTEXT"):
+        raise Failure("EXPLICIT_DOCKER_CONTEXT_REVIEW_REQUIRED")
+    endpoint = os.environ.get("DOCKER_HOST")
+    if endpoint and not endpoint.startswith("unix://"):
+        raise Failure("LOCAL_DOCKER_SOCKET_REQUIRED")
+
+
 def other_containers():
     fmt = '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Label "com.docker.compose.project"}}'
     records = []
@@ -109,10 +118,9 @@ def preflight(deploy_env, snapshot, tunnel_confirmed):
         raise Failure("LINUX_HOST_REQUIRED")
     if not tunnel_confirmed:
         raise Failure("TUNNEL_HOST_NETWORK_UNVERIFIED")
+    check_docker_environment()
     values = pointers(deploy_env)
     check_source(values["DITNOW_RELEASE_SHA"])
-    if run(["docker", "info", "--format", "{{.OSType}}"]).strip() != "linux":
-        raise Failure("LINUX_DOCKER_REQUIRED")
     # A remote Docker daemon would not share the namespace tested by local ss.
     endpoint = (
         os.environ.get("DOCKER_HOST")
@@ -120,6 +128,8 @@ def preflight(deploy_env, snapshot, tunnel_confirmed):
     )
     if not endpoint.startswith("unix://"):
         raise Failure("LOCAL_DOCKER_SOCKET_REQUIRED")
+    if run(["docker", "info", "--format", "{{.OSType}}"]).strip() != "linux":
+        raise Failure("LINUX_DOCKER_REQUIRED")
     version = run(["docker", "compose", "version", "--short"]).strip()
     match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", version)
     if not match or tuple(map(int, match.groups())) < (2, 30, 0):
@@ -177,6 +187,7 @@ def main(argv=None):
     try:
         args = parser.parse_args(argv)
         if args.source_only:
+            check_docker_environment()
             check_source(pointers(args.deploy_env)["DITNOW_RELEASE_SHA"])
         else:
             if args.snapshot is None:

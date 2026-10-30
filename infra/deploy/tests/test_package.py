@@ -16,6 +16,41 @@ import smoke  # noqa: E402
 
 
 class PackagingTests(unittest.TestCase):
+    def test_explicit_context_cannot_override_local_host_before_any_command(self):
+        with (
+            patch.object(owner.sys, "platform", "linux"),
+            patch.dict(
+                owner.os.environ,
+                {
+                    "DOCKER_HOST": "unix:///synthetic-local.sock",
+                    "DOCKER_CONTEXT": "synthetic-remote",
+                },
+                clear=True,
+            ),
+            patch.object(owner, "run") as command,
+            patch.object(owner, "pointers") as pointer,
+        ):
+            with self.assertRaisesRegex(owner.Failure, "EXPLICIT_DOCKER_CONTEXT_REVIEW_REQUIRED"):
+                owner.preflight("unused", "unused", True)
+            with patch("builtins.print"):
+                self.assertEqual(owner.main(["--deploy-env", "unused", "--source-only"]), 2)
+            command.assert_not_called()
+            pointer.assert_not_called()
+
+    def test_context_endpoint_is_checked_before_daemon_metadata(self):
+        with (
+            patch.object(owner.sys, "platform", "linux"),
+            patch.dict(owner.os.environ, {}, clear=True),
+            patch.object(owner, "pointers", return_value={"DITNOW_RELEASE_SHA": "a" * 40}),
+            patch.object(owner, "check_source"),
+            patch.object(owner, "run", return_value="ssh://synthetic-remote") as command,
+        ):
+            with self.assertRaisesRegex(owner.Failure, "LOCAL_DOCKER_SOCKET_REQUIRED"):
+                owner.preflight("unused", "unused", True)
+            command.assert_called_once_with(
+                ["docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}"]
+            )
+
     def test_child_environment_cannot_override_validated_compose_pointers(self):
         with (
             patch.dict(

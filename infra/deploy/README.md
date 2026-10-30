@@ -59,7 +59,7 @@ python3 infra/deploy/scripts/check_owner.py --deploy-env "$DEPLOY_ENV_FILE" --sn
 
 검사: 정확한 clean Git SHA, Linux/local Unix Docker socket, Compose 버전, 18080/18000 포트 미사용, 이 프로젝트 외 **기존 컨테이너 8개**의 ID/이름/image/state, env/CA 외부 파일과 권한, **`docker compose config -q`만**. `ditnow-campus` label의 선행 컨테이너가 하나라도 있으면 별도 검토 전 BLOCKED이며 임의로 본인 자원으로 채택하지 않는다. API env·CA 내용은 Python이 읽지 않으며 Docker의 quiet config 검증도 해석된 값을 출력하지 않는다. snapshot은 외부 경로에 mode0600으로 **새로만** 쓰며 기존 파일을 덮어쓰지 않는다. 재검사는 새 snapshot 이름을 사용한다.
 
-PASS여도 실제 DB·외부 HTTPS·운영 권한·Tunnel 연결이 검증된 것은 아니다. 포트 충돌/기존 컨테이너 수 변경/원격 Docker context/dirty source는 BLOCKED다. 타 컨테이너를 중지해 통과시키지 않는다. 업그레이드의 선행 프로젝트 자원 재사용·제거는 소유자가 따로 검토해야 하며 이 최초 배포 사전 검사는 이를 자동 승인하지 않는다.
+PASS여도 실제 DB·외부 HTTPS·운영 권한·Tunnel 연결이 검증된 것은 아니다. 명시된 `DOCKER_CONTEXT`는 `DOCKER_HOST`보다 우선하므로 값이 있으면 Docker 명령 전에 BLOCKED한다. 이를 임의로 해제하여 다른 daemon을 선택하지 말고 소유자가 별도로 검토한다. 기본 context의 endpoint도 daemon metadata 조회 전에 Unix socket인지 검사한다. 포트 충돌/기존 컨테이너 수 변경/원격 Docker context/dirty source도 BLOCKED다. 타 컨테이너를 중지해 통과시키지 않는다. 업그레이드의 선행 프로젝트 자원 재사용·제거는 소유자가 따로 검토해야 하며 이 최초 배포 사전 검사는 이를 자동 승인하지 않는다.
 
 ## 3. 이 프로젝트만 build/up
 
