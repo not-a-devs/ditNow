@@ -5,6 +5,23 @@ fullstack-implementation·nav-doc-maintenance 적용. 관련 전체 FR 92개, NF
 
 ## 최신 실제 실행 — 승인된 P0 통합 검증
 
+### 11:16 이후 추가 실행 — Claude 구현 / Codex 검토
+
+사용자는 가상 입학결과·등록포기·증명·등록금·보호상담 구현을 승인했고 최종 점검 마감을 12:30 KST로 정했다. 실제 금융/공식 발급/민감 본문 처리 승인은 아니다. 기존 실제 DB 핵심 CRUD와 새 메모리 시연을 구별한다.
+
+| Claude 작업 | 격리 worktree | 쓰기 소유 범위 |
+|---|---|---|
+| 가상 학생서비스 API | `ditNow-demo-student-services-api` | BE `features/demo_services`·전용 테스트·TASK |
+| 가상 학생서비스 웹 | `ditNow-demo-student-services-web` | FE `features/demo-services`·전용 테스트·TASK |
+| 이동 여유 계산 재사용 | `ditNow-claude-build-travel` | 기존 FE/BE campus_travel·전용 테스트·TASK |
+| 데이터 출처 표시 | `ditNow-claude-build-provenance` | 신규 data_provenance·data-provenance·전용 테스트·TASK |
+| 가상 학생증·코드 출석 | `ditNow-claude-build-attendance` | demo_attendance·demo-attendance·전용 테스트·TASK |
+| 가상 활동 선호 편집 | `ditNow-claude-build-profile` | demo_profile·demo-profile·전용 테스트·TASK |
+| 가상 액션·알림 체험 | `ditNow-claude-build-action-center` | demo_action_center·demo-action-center·전용 테스트·TASK |
+| 가상 채널 신청 | `ditNow-claude-build-channels` | demo_channels·demo-channels·전용 테스트·TASK |
+
+8개 CLI 작업을 실제 시작했다. 각 완료/예산 종료 여부는 개별 결과로 판단하며 모두가 계속 실행 중이거나 전체 FR 완료라는 뜻은 아니다. Claude는 제한된 Read/Grep/Glob/Edit/Write만, Codex가 직접 검사·리뷰·한국어 커밋/PR을 담당한다. 이미 Codex가 쓴 초안은 보존하고 Claude가 이어받았다. 공통 App/API 전송·router/factory·NAV·진행표는 root 단일 소유, 실제 DB·비밀 접근/배포 권한은 부여하지 않았다. 테스트 통과 전 메모리 시연을 실DB VERIFIED로 표시하지 않는다.
+
 사람 승인 **DITNOW-P0-DEMO-20261030**을 받아 main `9dc2c35cf073091a46d5ce2ad20d6ced365013d3`에서 실제 수행했다. [실행 기록](TASK_P0_APPROVED_LIVE_E2E.md)이 아래 승인 전 이력보다 최신이다.
 
 | 수직 흐름 | 실제 HTTP | 신규 앱390/1280 → FastAPI → strict TLS MariaDB → 재조회 |

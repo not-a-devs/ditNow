@@ -8,7 +8,7 @@ const errorMessage = (e: unknown) => e instanceof ApiError && e.status === 503 ?
   : e instanceof ApiError && e.code === 'INVALID_RESPONSE' ? '응답의 출처와 계산값을 확인하지 못했습니다. 다시 계산하세요.'
   : e instanceof ApiError ? e.message : '계산 결과를 확인하지 못했습니다. 다시 시도하세요.';
 
-export default function CampusTravelPage() {
+export function CampusTravelPage() {
   const [previous, setPrevious] = useState(''), [next, setNext] = useState(''), [minutes, setMinutes] = useState('');
   const [result, setResult] = useState<TravelResult | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const alive = useRef(true), epoch = useRef(0), pending = useRef<AbortController | null>(null);
@@ -44,3 +44,5 @@ export default function CampusTravelPage() {
     {!busy && !error && !result && <p>두 시각과 예상 이동 시간을 입력해 주세요.</p>}
   </section>;
 }
+
+export default CampusTravelPage;
