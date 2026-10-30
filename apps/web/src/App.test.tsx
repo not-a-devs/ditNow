@@ -178,24 +178,27 @@ describe('integrated campus shell', () => {
     expect(screen.getByLabelText('시설 이름 또는 질문')).toBeInTheDocument();
     expect(document.querySelector('p p')).toBeNull();
   });
-  it('checks actual health and distinguishes liveness from database readiness', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { status: 'ok', service: 'ditnow-api' } }), { status: 200 })));
+  const expectHomeActionsAndStatusAbsent = () => {
+    expect(screen.queryByText('MY ACTIONS')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '내가 챙길 일' })).not.toBeInTheDocument();
+    expect(screen.queryByText('나만의 하루를 준비하고 있어요')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '공개 서버 연결 확인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '연결 확인' })).not.toBeInTheDocument();
+  };
+  it('does not mount Home MY ACTIONS or server status for anonymous visitors', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByText('공개 서버가 응답했습니다. 인증·DB 연결 상태는 확인하지 않습니다.')).toBeInTheDocument();
+    expectHomeActionsAndStatusAbsent();
+    expect(screen.getByText('BETTER TOGETHER')).toBeInTheDocument();
+    expect(fetcher.mock.calls.filter(([url]) => /\/health|\/me\/demo/.test(String(url)))).toHaveLength(0);
   });
-  it('provides a retry action on network failure', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('secret')));
+  it('does not mount Home MY ACTIONS or server status after mocked login', async () => {
+    const fetcher = demoBackend();
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByRole('alert')).not.toHaveTextContent('secret');
-    expect(screen.getByRole('button', { name: '다시 확인' })).toBeEnabled();
-  });
-  it.each([null, {}, { status: 'unknown', service: 'ditnow-api' }, { status: 'ok', service: 'other' }])('rejects invalid health data before showing success: %j', async data => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data }), { status: 200 })));
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByText('공개 서버가 응답했습니다. 인증·DB 연결 상태는 확인하지 않습니다.')).not.toBeInTheDocument();
+    await demoLogin();
+    openSection('home');
+    expectHomeActionsAndStatusAbsent();
+    expect(fetcher.mock.calls.filter(([url]) => /\/health|\/me\/demo/.test(String(url)))).toHaveLength(0);
   });
 });

@@ -24,6 +24,8 @@ import LocalScreenPreview from './features/screen-sharing/LocalScreenPreview';
 
 // Release exposure gate only: preserve the existing sandbox slots without mounting them.
 const showMemoryExperiences = false;
+// Release exposure gate only: preserve Home MY ACTIONS and HealthStatus without mounting them.
+const showHomeActionsAndStatus = false;
 
 type Health = components['schemas']['HealthData'];
 type HealthState = { kind: 'loading' | 'idle' } | { kind: 'success'; data: Health } | { kind: 'error'; error: ApiError };
@@ -64,11 +66,11 @@ function Home({ navigate }: { navigate: (id: SectionId) => void }) {
     <section className="section-block" aria-labelledby="quick-title"><div className="section-heading"><div><span className="eyebrow">QUICK ACCESS</span><h2 id="quick-title">나의 캠퍼스로 바로</h2></div><span className="muted">하루를 더 가볍게</span></div>
       <div className="quick-grid">{(['community', 'recruitments', 'opportunities', 'ai'] as const).map(id => { const item = visibleNavigation.find(item => item.id === id)!; return <button className="quick-card" key={id} onClick={() => navigate(id)}><span className={`icon-tile tile-${id}`}><Icon name={id} size={26} /></span><strong>{item.label}</strong><span>{item.description}</span><span className="quick-arrow" aria-hidden="true">↗</span></button>; })}</div>
     </section>
-    <div className="dashboard-grid"><section className="surface section-block" aria-labelledby="action-title"><div className="section-heading"><div><span className="eyebrow">MY ACTIONS</span><h2 id="action-title">내가 챙길 일</h2></div><span className="badge">{showMemoryExperiences && auth.phase === 'authenticated' ? '가상 체험' : '개인화 준비 중'}</span></div>{showMemoryExperiences && auth.phase === 'authenticated'
+    <div className="dashboard-grid">{showHomeActionsAndStatus && <section className="surface section-block" aria-labelledby="action-title"><div className="section-heading"><div><span className="eyebrow">MY ACTIONS</span><h2 id="action-title">내가 챙길 일</h2></div><span className="badge">{showMemoryExperiences && auth.phase === 'authenticated' ? '가상 체험' : '개인화 준비 중'}</span></div>{showMemoryExperiences && auth.phase === 'authenticated'
         ? <div aria-label="가상 액션 센터"><h3>가상 액션 센터</h3><p className="pending-note">시연용 가상 샌드박스 알림입니다. 실제 오늘 시간표나 학교 공식 학사 마감이 아니며, 서버 프로세스가 다시 시작되면 기록이 초기화됩니다.</p><DemoActionCenter key={auth.generation} sessionGeneration={auth.generation} /></div>
-        : <StatusPanel title="나만의 하루를 준비하고 있어요" tone="empty">개인 일정과 알림은 인증·권한 연결 후 제공됩니다. 현재 개인 학적이나 알림을 조회하지 않습니다.</StatusPanel>}<div className="inline-links"><button onClick={() => navigate('discovery')}>통합 검색 <span aria-hidden="true">→</span></button><button onClick={() => navigate('opportunities')}>기회 준비 관리 <span aria-hidden="true">→</span></button></div></section>
+        : <StatusPanel title="나만의 하루를 준비하고 있어요" tone="empty">개인 일정과 알림은 인증·권한 연결 후 제공됩니다. 현재 개인 학적이나 알림을 조회하지 않습니다.</StatusPanel>}<div className="inline-links"><button onClick={() => navigate('discovery')}>통합 검색 <span aria-hidden="true">→</span></button><button onClick={() => navigate('opportunities')}>기회 준비 관리 <span aria-hidden="true">→</span></button></div></section>}
       <section className="community-card"><span className="eyebrow">BETTER TOGETHER</span><h2>혼자보다<br />함께하는 다음.</h2><p>편하게 나누는 생각부터<br />같이 도전할 팀원까지.</p><div className="community-actions"><button onClick={() => navigate('community')}>익명 커뮤니티 <span aria-hidden="true">↗</span></button><button onClick={() => navigate('recruitments')}>실명 팀원 모집 <span aria-hidden="true">↗</span></button></div></section></div>
-    <HealthStatus />
+    {showHomeActionsAndStatus && <HealthStatus />}
   </>;
 }
 
