@@ -15,7 +15,16 @@ from .prompt import (
     build_user_message,
 )
 from .retriever.base import Retriever
-from .schemas import AskResponse, CampusData, LocationOut, Student, StudentData
+from .schemas import (
+    AskResponse,
+    CampusData,
+    Facility,
+    LocationOut,
+    Student,
+    StudentData,
+    UserLocation,
+)
+from .travel import walk_estimate
 
 logger = logging.getLogger(__name__)
 
@@ -60,17 +69,41 @@ def _is_refusal(answer: str, sources: list[str]) -> bool:
     return not sources or len(sentences) == 1
 
 
-def find_locations(data: CampusData, source_ids: list[str]) -> list[LocationOut]:
-    """근거 시설 중 건물 좌표가 있는 것만 지도용으로 모은다."""
+def find_locations(
+    data: CampusData, source_ids: list[str], user: UserLocation | None = None
+) -> list[LocationOut]:
+    """근거 시설 중 건물 좌표가 있는 것만 지도용으로 모은다. 위치를 주면 도보 예상도 붙인다."""
     out: list[LocationOut] = []
     for doc_id in source_ids:
         fac = data.facilities[doc_id]
         bld = data.buildings.get(fac.building_id or "")
         if bld and bld.lat is not None and bld.lng is not None:
+            walk = walk_estimate(user, bld) if user else None
             out.append(
-                LocationOut(id=fac.id, name=fac.name, building=bld.name, lat=bld.lat, lng=bld.lng)
+                LocationOut(
+                    id=fac.id,
+                    name=fac.name,
+                    building=bld.name,
+                    lat=bld.lat,
+                    lng=bld.lng,
+                    distance_m=walk[0] if walk else None,
+                    walk_minutes=walk[1] if walk else None,
+                )
             )
     return out
+
+
+def _campus_context(fac: Facility, data: CampusData, user: UserLocation | None) -> str:
+    """시설 근거 블록. 위치가 있으면 계산된 도보 예상만 덧붙인다 (좌표 원본은 LLM에 넘기지 않음)."""
+    block = fac.to_context()
+    bld = data.buildings.get(fac.building_id or "")
+    walk = walk_estimate(user, bld) if user and bld else None
+    if walk:
+        block += (
+            f"\n- 현재 위치에서 {bld.name}까지: 약 {walk[0]}m, "
+            f"걸어서 약 {walk[1]}분 (직선 거리 기반 추정)"
+        )
+    return block
 
 
 async def answer_question(
@@ -85,6 +118,7 @@ async def answer_question(
     student: Student | None = None,
     now: datetime | None = None,
     intent: Intent | None = None,
+    user_location: UserLocation | None = None,
 ) -> AskResponse:
     """질문 → 의도 분류 → (검색 | 개인 데이터 계산) → 프롬프트 → LLM → 근거 파싱.
 
@@ -102,7 +136,7 @@ async def answer_question(
         if not hits:
             # 근거가 없으면 LLM을 부르지 않는다 (비용 절감 + 환각 방지)
             return done(answer=NOT_FOUND_ANSWER, found=False)
-        blocks = [h.doc.to_context() for h in hits]
+        blocks = [_campus_context(h.doc, data, user_location) for h in hits]
         personal_locations: list[LocationOut] = []
     elif student is None or student_data is None:
         return done(answer=LOGIN_REQUIRED_ANSWER, found=False, need_login=True)
@@ -127,7 +161,7 @@ async def answer_question(
         # 거절하면서 [근거]를 붙이는 모델도 있어, 근거 유무와 상관없이 거절로 본다
         return done(answer=answer, found=False)
     if intent.name == CAMPUS:
-        locations = find_locations(data, sources)
+        locations = find_locations(data, sources, user_location)
     else:
         locations = [loc for loc in personal_locations if loc.id in sources]
     return done(answer=answer, sources=sources, locations=locations, found=True)

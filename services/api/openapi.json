@@ -99,6 +99,16 @@
             "minLength": 1,
             "title": "Question",
             "type": "string"
+          },
+          "user_location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AskUserLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -113,6 +123,17 @@
           "building": {
             "title": "Building",
             "type": "string"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
           },
           "id": {
             "title": "Id",
@@ -129,6 +150,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
           }
         },
         "required": [
@@ -164,6 +196,29 @@
           "content"
         ],
         "title": "AskTurn",
+        "type": "object"
+      },
+      "AskUserLocation": {
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "AskUserLocation",
         "type": "object"
       },
       "CampusSearchData": {

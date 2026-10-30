@@ -176,7 +176,8 @@ def create_app(
         # 캐시 키는 실제로 처리할 질문 기준 (같은 '거기 몇 시까지?'도 대화마다 다르다)
         # 캐시에는 교내 정보 답변만 들어 있어 학생 간에 개인 정보가 섞이지 않는다
         key = " ".join(normalize(question).split())
-        cached = app.state.cache.get(key)
+        # 위치를 보낸 답은 사람마다 도보 시간이 달라 캐시를 읽지도 쓰지도 않는다
+        cached = None if body.user_location else app.state.cache.get(key)
         if cached and cached[0] > time.monotonic():
             return cached[1].model_copy(update={"rewritten_question": rewritten})
         if not body.history:
@@ -196,11 +197,17 @@ def create_app(
             student=bundle[0] if bundle else None,
             student_data=bundle[1] if bundle else None,
             intent=intent,
+            user_location=body.user_location,
         )
         res.rewritten_question = rewritten
         await log_question(db, body.question, res)
         # LLM이 교내로 판정한 답은 캐시하지 않는다: 한 번의 오분류가 10분간 모두에게 반복된다
-        if res.intent == CAMPUS and res.classified_by != "llm" and res.answer != LLM_FAILURE_ANSWER:
+        if (
+            res.intent == CAMPUS
+            and res.classified_by != "llm"
+            and body.user_location is None
+            and res.answer != LLM_FAILURE_ANSWER
+        ):
             # shortcut: 만료 항목을 지우지 않음, 질문 종류가 많아지면 크기 제한 LRU로
             app.state.cache[key] = (time.monotonic() + CACHE_TTL_SEC, res)
         return res

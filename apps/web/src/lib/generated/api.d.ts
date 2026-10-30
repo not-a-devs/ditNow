@@ -287,11 +287,14 @@ export interface components {
             history?: components["schemas"]["AskTurn"][];
             /** Question */
             question: string;
+            user_location?: components["schemas"]["AskUserLocation"] | null;
         };
         /** AskLocation */
         AskLocation: {
             /** Building */
             building: string;
+            /** Distance M */
+            distance_m?: number | null;
             /** Id */
             id: string;
             /** Lat */
@@ -300,6 +303,8 @@ export interface components {
             lng: number;
             /** Name */
             name: string;
+            /** Walk Minutes */
+            walk_minutes?: number | null;
         };
         /** AskTurn */
         AskTurn: {
@@ -310,6 +315,13 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "assistant";
+        };
+        /** AskUserLocation */
+        AskUserLocation: {
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
         };
         /** CampusSearchData */
         CampusSearchData: {

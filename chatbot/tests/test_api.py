@@ -60,6 +60,16 @@ def test_cache_and_rate_limit(client: TestClient) -> None:
     assert client.post("/ask", json={"question": "정보관"}).status_code == 429
 
 
+def test_answer_with_location_is_not_cached(client: TestClient) -> None:
+    """위치를 보낸 답은 사람마다 달라 캐시하지 않는다 (매번 제한에 센다)."""
+    body = {"question": "학식", "user_location": {"lat": 35.0, "lng": 129.0}}
+    for _ in range(3):
+        assert client.post("/ask", json=body).status_code == 200
+    assert client.post("/ask", json=body).status_code == 429
+    bad = {"question": "학식", "user_location": {"lat": 91, "lng": 129.0}}
+    assert client.post("/ask", json=bad).status_code == 422
+
+
 def test_llm_classified_answer_is_not_cached(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
