@@ -45,6 +45,20 @@ describe('DemoStudentServices', () => {
     expect((screen.getByRole('checkbox') as HTMLInputElement).disabled).toBe(true);
   });
 
+  it('keeps keyboard tabs focusable during read requests and aborts the old panel read', async () => {
+    const old = deferred<api.Page>(); m.list.mockReturnValueOnce(old.promise).mockResolvedValueOnce(page());
+    render(<DemoStudentServices sessionGeneration={1} />);
+    const oldSignal = m.list.mock.calls[0][0]!;
+    const tabs = screen.getAllByRole('tab'); tabs[0].focus();
+    expect((tabs[0] as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
+    await screen.findByText(/조회만으로/);
+    expect(screen.getAllByRole('tab')[1]).toHaveFocus();
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => old.resolve(page([item()])));
+    expect(screen.queryByText('가상 입학결과 예시')).toBeNull();
+  });
+
   it('creates only after consent and reports completion only after a fresh GET', async () => {
     render(<DemoStudentServices sessionGeneration={1} />);
     await screen.findByText(/조회만으로/);

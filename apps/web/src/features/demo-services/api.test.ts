@@ -16,7 +16,7 @@ beforeEach(() => { mocked.mockReset(); });
 describe('demo service DTO guards', () => {
   it('accepts the exact fictional item and page', () => {
     expect(isItem(item())).toBe(true);
-    expect(isItem(item({ kind: 'CERTIFICATE', status: 'COMPLETED', document_text: '가상 증명 예시' }))).toBe(true);
+    expect(isItem(item({ kind: 'CERTIFICATE', status: 'COMPLETED', revision: 3, outcome_text: '가상 처리 완료', document_text: '가상 증명 예시' }))).toBe(true);
     expect(isPage(page([item()]))).toBe(true);
   });
   it.each([
@@ -27,6 +27,10 @@ describe('demo service DTO guards', () => {
     ['fraction revision', { revision: 1.5 }], ['non-v4 id', { id: '3f1c2b4a-5d6e-1f70-8a9b-0c1d2e3f4a5b' }], ['unknown kind', { kind: 'GRADES' }],
     ['unknown status', { status: 'CANCELLED' }], ['document on non-certificate', { document_text: '문서' }],
     ['document before completion', { kind: 'CERTIFICATE', document_text: '문서' }],
+    ['wrong status revision', { status: 'COMPLETED', revision: 1, outcome_text: '가상 처리 완료' }],
+    ['completed without outcome', { status: 'COMPLETED', revision: 3 }],
+    ['premature outcome', { outcome_text: '가상 처리 완료' }],
+    ['certificate without document', { kind: 'CERTIFICATE', status: 'COMPLETED', revision: 3, outcome_text: '가상 처리 완료' }],
   ])('rejects %s', (_, patch) => { expect(isItem(item(patch))).toBe(false); });
   it('rejects missing fields, page extras, duplicates and over-limit pages', () => {
     const missing: Record<string, unknown> = { ...item() }; delete missing.outcome_text;
@@ -68,6 +72,8 @@ describe('demo service endpoints', () => {
     await expect(advance(item({ id: '../admin' }), 'adv_0123456789abcdef')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     expect(mocked).toHaveBeenCalledTimes(1);
     mocked.mockResolvedValueOnce(item());
+    await expect(advance(item(), 'adv_0123456789abcdef')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    mocked.mockResolvedValueOnce(item({ status: 'COMPLETED', revision: 3, outcome_text: '가상 처리 완료' }));
     await expect(advance(item(), 'adv_0123456789abcdef')).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
   it('deletes by revision and accepts only the exact synthetic receipt', async () => {

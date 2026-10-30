@@ -28,15 +28,18 @@
 | 검사 | 결과 |
 |---|---|
 | `npm ci --ignore-scripts --offline` | PASS, audit 0 |
-| `npx vitest run src/features/demo-services` | **37 PASS**: DTO/경로·동의·진행/취소 확인·재조회 불일치·동일 키·401/403·계정 전환·StrictMode·409 |
+| `npx vitest run src/features/demo-services` | **42 PASS**: DTO/경로·동의·진행/취소 확인·재조회 불일치·동일 키·401/403·계정 전환·StrictMode·409·고정 단계/문서 조건·조회 중 탭 포커스 |
 | `npm run typecheck` | PASS |
-| `npm test` | **598 PASS / 44 files** (현재 브랜치 전체 웹) |
+| `npm test` | 최초 37개 체크포인트에서 **598 PASS / 44 files**. 이후 5개 추가 회귀의 전체 실행은 최신 PR CI에서 별도 확인 |
 | `npm run build` | PASS. 공유 App 미등록이므로 가상 서비스 최종 경로 번들 통합 증거는 아님 |
 | `git diff --check` | PASS |
-| 실제 API/인증·브라우저·DB 연동 | **NOT_RUN**. 기본 미등록 모듈이며 루트 소유자 통합 후 별도 검증 필요 |
+| 합성 응답 브라우저 390/1280 | PASS: 5종 가상 생성, 확인 취소 시 쓰기 0, 가상 취소 후 조회, Home 키 포커스, overflow/작은 버튼/페이지 오류/외부 요청 0 |
+| 실제 API/인증·DB·최종 App 브라우저 연동 | **NOT_RUN**. 기본 미등록 모듈이며 루트 소유자 통합 후 별도 검증 필요 |
 
 Claude Code 제한 도구(Read/Grep/Glob/Edit/Write) 세션이 기존 스캐폴드 보완과 최초 테스트 작성을 수행했다. 설정된 1달러 예산에서 `error_max_budget_usd`로 종료되었고 보고 비용은 1.0158596달러였다. 추가 비용 재시도는 하지 않았다. 위 테스트·타입·빌드는 Codex가 직접 실행했으며 Claude가 실행했다고 주장하지 않는다. Codex가 재조회 결과의 실질 확인과 계정 전환 중 쓰기 회귀를 추가 보완했다.
 
 상태는 **IMPLEMENTED/TESTED (가상 API 계약 기반 모듈)**이며 실제 공통 App·인증 전송·Backend 마운트 후 통합은 NOT_RUN이다. 프로세스 메모리의 재시작 초기화와 실제 학교 업무의 미구현은 그대로 남는다. NAV·App·공통 인증/전송·OpenAPI는 루트 소유자가 통합한다.
 
-생성/진행 키는 `crypto.randomUUID()`(36자)이고 불명확한 결과는 같은 키로 수동 재확인한다. DELETE는 키 없이 같은 revision 재요청으로 재생한다. 실제 브라우저 모듈용 임시 계측은 React dev preamble/interop 설정 오류로 화면 검사까지 완료하지 못했으며 제품 실패나 실 API 검증 결과로 보고하지 않는다.
+생성/진행 키는 `crypto.randomUUID()`(36자)이고 불명확한 결과는 같은 키로 수동 재확인한다. DELETE는 키 없이 같은 revision 재요청으로 재생한다. 최초 임시 계측의 React dev preamble/interop 설정 오류를 도구에서 수정한 뒤 실제 Chromium으로 합성 응답 모듈을 검수했다. 조회 중 disabled 탭이 키보드 포커스를 잃는 문제를 재현해, 탭 잠금은 쓰기 및 401/403 거부 상태에만 적용하고 조회는 취소/전환할 수 있도록 보완했다. 해당 회귀를 추가했으며 API·권한 계약은 바꾸지 않았다.
+
+브라우저 증거는 저장소 밖 `C:\DIT CSW\ditnow-demo-services-browser-20261030\summary.json` 및 10개 스크린샷이다. 390 보호상담/1280 증명 화면을 직접 시각 확인했다. 자기 loopback Vite와 Playwright 모의 응답만 사용했으며 실제 로그인·API·DB 검증이 아니다. C의 독립 리뷰 37개 직접 PASS 이후 권고된 불가능한 상태 조합 검증을 추가했다: REQUESTED1→IN_PROGRESS2→COMPLETED3, 완료 결과 필수, 완료 증명서에만 문서 필수. 고정된 가상 프로토콜의 검증이며 학교 실제 업무 규칙으로 주장하지 않는다.

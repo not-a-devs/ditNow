@@ -61,7 +61,7 @@ function ServicePanel({ kind, onPending, onDenied }: { kind: api.Kind; onPending
     const state = life.current;
     if (!state.alive || state.busy || state.blocked) return null;
     const controller = new AbortController(); state.controller = controller; state.busy = true;
-    const epoch = ++state.epoch; setPhase(type); setError(''); setNotice(''); onPending(true);
+    const epoch = ++state.epoch; setPhase(type); setError(''); setNotice(''); onPending(type === 'write');
     return { epoch, controller };
   }
   function finish(epoch: number, controller: AbortController) {

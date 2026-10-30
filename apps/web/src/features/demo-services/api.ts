@@ -22,8 +22,10 @@ export function isItem(value: unknown): value is Item {
     && uuid(value.id) && KINDS.includes(value.kind as Kind) && ['STANDARD', 'REVIEW_EXAMPLE'].includes(value.scenario as string)
     && ['REQUESTED', 'IN_PROGRESS', 'COMPLETED'].includes(value.status as string)
     && text(value.status_label, 200) && text(value.title, 200) && Number.isSafeInteger(value.revision) && Number(value.revision) >= 1 && Number(value.revision) <= 2147483647
-    && time(value.created_at) && time(value.updated_at) && (value.outcome_text === null || text(value.outcome_text, 2000))
-    && (value.document_text === null || value.kind === 'CERTIFICATE' && value.status === 'COMPLETED' && text(value.document_text, 4000))
+    && value.revision === ({ REQUESTED: 1, IN_PROGRESS: 2, COMPLETED: 3 } as Record<string, number>)[value.status as string]
+    && time(value.created_at) && time(value.updated_at)
+    && (value.status === 'COMPLETED' ? text(value.outcome_text, 2000) && (value.outcome_text as string).trim().length > 0 : value.outcome_text === null)
+    && (value.kind === 'CERTIFICATE' && value.status === 'COMPLETED' ? text(value.document_text, 4000) && (value.document_text as string).trim().length > 0 : value.document_text === null)
     && boundary(value) && value.sensitive_content_collected === false;
 }
 export function isPage(value: unknown): value is Page {
@@ -42,11 +44,12 @@ export async function create(body: Create, key: string, signal?: AbortSignal): P
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify(body) });
   return isItem(value) && value.kind === body.kind && value.scenario === body.scenario ? value : invalid();
 }
-export async function advance(item: Pick<Item, 'id' | 'revision' | 'kind' | 'scenario'>, key: string, signal?: AbortSignal): Promise<Item> {
+export async function advance(item: Pick<Item, 'id' | 'revision' | 'kind' | 'scenario' | 'status'>, key: string, signal?: AbortSignal): Promise<Item> {
+  const expectedStatus = item.status === 'REQUESTED' ? 'IN_PROGRESS' : item.status === 'IN_PROGRESS' ? 'COMPLETED' : invalid();
   const value = await requestData<unknown>(path(item.id) + '/advance', { method: 'POST', signal, cache: 'no-store',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify({ revision: item.revision }) });
   return isItem(value) && value.id === item.id && value.kind === item.kind && value.scenario === item.scenario
-    && value.revision > item.revision && value.status !== 'REQUESTED' ? value : invalid();
+    && value.revision === item.revision + 1 && value.status === expectedStatus ? value : invalid();
 }
 export async function remove(item: Pick<Item, 'id' | 'revision'>, signal?: AbortSignal): Promise<void> {
   const value = await requestData<unknown>(path(item.id) + `?revision=${item.revision}`, { method: 'DELETE', signal, cache: 'no-store' });
