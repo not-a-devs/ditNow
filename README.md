@@ -8,7 +8,8 @@
 > - 두 가상 학생의 HTTP 보안 검사와 Chromium **390px·1280px E2E 21단계 PASS**를 확인했습니다. 범위·실행 SHA·정리 결과는 [실행 기록](docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md)을 따릅니다.
 > - 공개 시설 검색·대학 안내도 연결되어 있습니다. 개인 학적 RAG/외부 LLM·학과 채팅·강의실 등 나머지 기능은 이 P0 검증에 포함하지 않았습니다.
 > - 검증용 계정과 지원 원장 16행은 명시적 승인으로 생성한 가상 데이터이며 실제 학생 계정으로 학교 시스템에 접속하지 않았습니다.
-> - **운영 배포·외부 공개는 미실행**입니다. 호스팅·도메인·HTTPS 및 배포 승인이 필요합니다.
+> - **운영 배포 완료 (2026-10-30 13:09 KST):** https://dit.sunghae.xyz 에서 커밋 `0fd923b`를 서비스합니다. 서버 측 점검(로컬·외부 HTTPS·로그인 API 활성·DB 반영)은 아래 [배포](#-배포) 절을 참고하세요.
+> - 심사용 로그인은 승인된 가상 학생 `DITDEMO_A`, `DITDEMO_B`만 가능합니다. 비밀번호는 저장소에 넣지 않고 팀이 별도로 전달합니다. 그 밖의 학번은 서버가 403으로 거부합니다.
 > - 92개 기능의 화면·API·DB·테스트 상태는 [기능 진행표](docs/dev-prep/06_FEATURE_IMPLEMENTATION_STATUS.csv)에서 따로 추적합니다.
 
 <br>
@@ -34,9 +35,11 @@
 ### 시스템 구조
 
 ```
- [브라우저]
-    │
+ [브라우저] ── https://dit.sunghae.xyz
+    │  Cloudflare Tunnel (HTTPS 종단, 서버 인바운드 포트 없음)
     ▼
+ Nginx (web 컨테이너, 127.0.0.1:18080) ── 정적 apps/web + /api 프록시
+    │
  apps/web  (React 신규 통합 웹, 8개 메뉴 탐색)
     │  HTTP /api/v1
     ▼
@@ -49,7 +52,7 @@
     ├─ P0 업무 라우터 (익명 글·실명 모집·개인 준비, 승인 설정 시 활성)
     └─ features/* 나머지 모듈 (학과·강의실·도서관·입학·생활지원, 통합 검증 전)
     │
-    ▼  Tailscale 사설망 :3307
+    ▼  운영: 같은 VM의 127.0.0.1:3307 · 개발자: Tailscale 사설망 :3307 (모두 팀 CA TLS 검증)
  MariaDB 11.4  (팀원 Proxmox VM, infra/mariadb)
     ├─ ditnow          공통 플랫폼 DB (사용자·권한, 가상 학적·로그인 세션)
     └─ ditnow_chatbot  챗봇 데이터 영역
@@ -62,7 +65,8 @@
 | `apps/web/` | 신규 통합 웹 (React + TypeScript + Vite + Tailwind) |
 | `services/api/` | 통합 FastAPI 서버와 기능 모듈 (`app/features/*`) |
 | `chatbot/` | RAG 챗봇 (검색기·의도 분류·LLM 답변·평가 스크립트) |
-| `infra/mariadb/` | 공용 MariaDB 서버의 Compose·계정·백업 스크립트 (비밀값 미포함) |
+| `infra/mariadb/` | 공용 MariaDB 서버의 Compose·계정·백업·TLS 스크립트 (비밀값 미포함) |
+| `infra/deploy/` | 운영 배포 패키지: web(Nginx)·api 컨테이너 Compose, 사전 점검·smoke 스크립트 (비밀값 미포함) |
 | `docs/` | PRD·FRD·NFR·권한·데이터 모델·아키텍처·결정 기록 |
 | `.agents/skills/`, `.claude/skills/` | AI 에이전트용 프로젝트 스킬 8종 |
 | `mvp/` | 사전 프로토타입 (보존 전용, 최종 서비스·시연·제출 대상 아님) |
@@ -127,11 +131,35 @@
 | Backend | Python 3.13, FastAPI, Pydantic v2, uv (잠금 설치), Ruff, pytest |
 | AI · RAG | 키워드·별칭·자모 오타 검색(RapidFuzz), LLM 의도 분류·답변 생성 (OpenAI / OpenAI 호환 학교 서버 / Anthropic 중 `.env`로 선택) |
 | Database | MariaDB 11.4.13 (utf8mb4), SQLAlchemy async + aiomysql. CA·체인·호스트 검증 유지. 기존 25개 테이블과 승인 가상 신원·P0 업무 CRUD의 로컬 통합 검증 완료 |
-| Infra | Docker Compose, Proxmox VM (Ubuntu 24.04), Tailscale 사설망 |
+| Infra | Docker Compose (host network, 127.0.0.1 바인딩), Nginx, Cloudflare Tunnel, Proxmox VM (Ubuntu 24.04), Tailscale 사설망 |
 | CI | GitHub Actions: 신규 웹, Python API·에이전트 설정, 챗봇, 프로토타입 보존, 브라우저 하네스 |
 | 개발 도구 | Claude Code, Codex, Git / GitHub |
 
-학번 로그인 선택은 DEC-020을 따릅니다. 승인 가상 계정의 공통 UUID·현재 권한·실DB P0 연결은 [실행 기록](docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md) 범위에서 확인했습니다. 운영 배포·실제 학생·백업 복구·나머지 기능 통합은 미검증입니다. 통합 API는 `DIT_API_` 환경 변수를 사용하고 `.env`를 자동으로 읽지 않습니다. 기존 standalone 챗봇 설정과 구분하며 인증서 검증을 해제하지 않습니다.
+학번 로그인 선택은 DEC-020을 따릅니다. 승인 가상 계정의 공통 UUID·현재 권한·실DB P0 연결은 [실행 기록](docs/dev-prep/TASK_P0_APPROVED_LIVE_E2E.md) 범위에서 확인했습니다. 운영 배포는 2026-10-30에 완료했고, 실제 학생·나머지 기능 통합은 미검증입니다. 통합 API는 `DIT_API_` 환경 변수를 사용하고 `.env`를 자동으로 읽지 않습니다. 기존 standalone 챗봇 설정과 구분하며 인증서 검증을 해제하지 않습니다.
+
+<br>
+
+## 🌐 배포
+
+| 항목 | 내용 |
+|---|---|
+| 주소 | https://dit.sunghae.xyz |
+| 배포 커밋 | `0fd923b5a4eb0cc9d15d37e88217a1358c78e96f` (#105 병합, 2026-10-30 13:09 KST) |
+| 구성 | Cloudflare Tunnel → Nginx(`127.0.0.1:18080`) → FastAPI(`127.0.0.1:18000`, worker 1) → MariaDB(같은 VM `127.0.0.1:3307`, 팀 CA TLS 검증) |
+| 컨테이너 | `ditnow-campus` 프로젝트의 web·api 2개만 추가. 같은 서버의 기존 서비스는 변경하지 않음 |
+| 설정·비밀 | 저장소 밖의 서버 전용 env 파일(권한 600)로 주입. 앱 계정은 `ditnow_app`(DML 전용), migrator·LLM 키 미주입 |
+| 절차 | [infra/deploy/README.md](infra/deploy/README.md) |
+
+**서버 측 점검 결과 (배포 직후)**
+- localhost: 웹 `/`, `/app/login`, `/health`, `/api/v1/health` 모두 200 · API `/health`, `/api/v1/health` 200
+- 외부 HTTPS: `https://dit.sunghae.xyz/`, `/app/login`, `/api/v1/health` 200 (외부와 로컬의 프런트 번들 일치)
+- 로그인 API 활성: 존재하지 않는 학번 401, 승인되지 않은 학번 403 (P0 미설정 시의 503이 아님)
+- DB: 배포 전후 공통 신원·승인 기록·가상 학생 수 동일(기존 데이터 유지), 운영 API가 `ditnow_app`으로 TLS 검증 연결 중
+- 브라우저에서 HTTPS → 로그인 → 익명 글 → 모집 → 개인 기회 준비 순서의 최종 확인은 팀이 별도로 수행합니다.
+
+**운영 메모**
+- 서버의 snap Docker에서는 `no-new-privileges` 옵션과 프로그램 실행이 충돌해, 서버 전용 override로 이 옵션만 제외했습니다. `cap_drop: ALL`, 비root 실행, 읽기 전용 루트 파일시스템은 유지합니다.
+- 컨테이너 재시작 정책이 `no`라서 서버 재부팅 후에는 운영 담당자가 다시 기동해야 합니다.
 
 <br>
 
