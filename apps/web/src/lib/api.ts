@@ -52,7 +52,7 @@ export function resolveApiUrl(path: string, configuredBase = import.meta.env.VIT
   if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) {
     throw new ApiError('CONFIGURATION', 0);
   }
-  if (configuredBase && !/^https?:\/\//.test(configuredBase)) throw new ApiError('CONFIGURATION', 0);
+  if (configuredBase && configuredBase !== '/api/v1' && !/^https?:\/\//.test(configuredBase)) throw new ApiError('CONFIGURATION', 0);
   const prefix = base.pathname.replace(/\/$/, '') + '/';
   const target = new URL(path.slice(1), base.origin + prefix);
   if (target.origin !== base.origin || !target.pathname.startsWith(prefix) || target.hash) {
