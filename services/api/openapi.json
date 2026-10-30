@@ -693,6 +693,124 @@
         "title": "LoginInput",
         "type": "object"
       },
+      "ProvenanceLabelInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "label": {
+            "enum": [
+              "DEMO",
+              "OFFICIAL_PUBLIC",
+              "PLATFORM",
+              "UNKNOWN"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "user_guidance": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "User Guidance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "title",
+          "description",
+          "user_guidance"
+        ],
+        "title": "ProvenanceLabelInfo",
+        "type": "object"
+      },
+      "ProvenanceOverview": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_version": {
+            "maxLength": 60,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Catalog Version",
+            "type": "string"
+          },
+          "feature_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Ids",
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/ProvenanceLabelInfo"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Labels",
+            "type": "array"
+          },
+          "notice": {
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Notice",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProvenanceStatus"
+          }
+        },
+        "required": [
+          "catalog_version",
+          "feature_ids",
+          "notice",
+          "status",
+          "labels"
+        ],
+        "title": "ProvenanceOverview",
+        "type": "object"
+      },
+      "ProvenanceStatus": {
+        "additionalProperties": false,
+        "description": "Fixed facts about this platform; every value is a constant, never configuration.",
+        "properties": {
+          "content_administration": {
+            "const": "NOT_IMPLEMENTED",
+            "default": "NOT_IMPLEMENTED",
+            "title": "Content Administration",
+            "type": "string"
+          },
+          "financial_effect": {
+            "const": "NONE",
+            "default": "NONE",
+            "title": "Financial Effect",
+            "type": "string"
+          },
+          "persistence": {
+            "const": "IN_PROCESS_FIXED",
+            "default": "IN_PROCESS_FIXED",
+            "title": "Persistence",
+            "type": "string"
+          },
+          "school_sso_connected": {
+            "const": false,
+            "default": false,
+            "title": "School Sso Connected",
+            "type": "boolean"
+          }
+        },
+        "title": "ProvenanceStatus",
+        "type": "object"
+      },
       "PublicGuide": {
         "additionalProperties": false,
         "properties": {
@@ -1138,6 +1256,66 @@
         "title": "SuccessResponse[LoginData]",
         "type": "object"
       },
+      "SuccessResponse_ProvenanceLabelInfo_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProvenanceLabelInfo"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[ProvenanceLabelInfo]",
+        "type": "object"
+      },
+      "SuccessResponse_ProvenanceOverview_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ProvenanceOverview"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[ProvenanceOverview]",
+        "type": "object"
+      },
       "SuccessResponse_PublicGuidePage_": {
         "additionalProperties": false,
         "properties": {
@@ -1228,6 +1406,36 @@
         "title": "SuccessResponse[SessionProfile]",
         "type": "object"
       },
+      "SuccessResponse_TravelResult_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TravelResult"
+          },
+          "resource_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessResponse[TravelResult]",
+        "type": "object"
+      },
       "SuccessResponse_dict_str__str__": {
         "additionalProperties": false,
         "properties": {
@@ -1260,6 +1468,101 @@
           "data"
         ],
         "title": "SuccessResponse[dict[str, str]]",
+        "type": "object"
+      },
+      "TravelInput": {
+        "additionalProperties": false,
+        "properties": {
+          "estimated_travel_minutes": {
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Estimated Travel Minutes",
+            "type": "integer"
+          },
+          "next_starts_at": {
+            "format": "date-time",
+            "title": "Next Starts At",
+            "type": "string"
+          },
+          "previous_ends_at": {
+            "format": "date-time",
+            "title": "Previous Ends At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "previous_ends_at",
+          "next_starts_at",
+          "estimated_travel_minutes"
+        ],
+        "title": "TravelInput",
+        "type": "object"
+      },
+      "TravelResult": {
+        "additionalProperties": false,
+        "properties": {
+          "calculation_version": {
+            "const": "manual-travel-v1",
+            "default": "manual-travel-v1",
+            "title": "Calculation Version",
+            "type": "string"
+          },
+          "estimate_source": {
+            "const": "USER_INPUT",
+            "default": "USER_INPUT",
+            "title": "Estimate Source",
+            "type": "string"
+          },
+          "gap_seconds": {
+            "title": "Gap Seconds",
+            "type": "integer"
+          },
+          "next_starts_at": {
+            "format": "date-time",
+            "title": "Next Starts At",
+            "type": "string"
+          },
+          "notice": {
+            "const": "사용자가 입력한 시각과 예상 이동 시간만 계산합니다. 실제 지도·최단 경로·공식 이동 시간·접근 가능한 동선·도착을 보장하지 않습니다. 개인 시간표는 연결하지 않습니다.",
+            "default": "사용자가 입력한 시각과 예상 이동 시간만 계산합니다. 실제 지도·최단 경로·공식 이동 시간·접근 가능한 동선·도착을 보장하지 않습니다. 개인 시간표는 연결하지 않습니다.",
+            "title": "Notice",
+            "type": "string"
+          },
+          "previous_ends_at": {
+            "format": "date-time",
+            "title": "Previous Ends At",
+            "type": "string"
+          },
+          "remaining_seconds": {
+            "title": "Remaining Seconds",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "OVERLAP",
+              "INSUFFICIENT",
+              "NO_MARGIN",
+              "HAS_MARGIN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "travel_seconds": {
+            "maximum": 86400.0,
+            "minimum": 0.0,
+            "title": "Travel Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "previous_ends_at",
+          "next_starts_at",
+          "gap_seconds",
+          "travel_seconds",
+          "remaining_seconds",
+          "status"
+        ],
+        "title": "TravelResult",
         "type": "object"
       },
       "ValidationError": {
@@ -1613,6 +1916,236 @@
         "summary": "Me",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/campus-travel/calculate": {
+      "post": {
+        "operationId": "calculate_api_v1_campus_travel_calculate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TravelResult_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Calculate",
+        "tags": [
+          "campus-travel-manual"
+        ]
+      }
+    },
+    "/api/v1/data-provenance": {
+      "get": {
+        "operationId": "get_provenance_overview_api_v1_data_provenance_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_ProvenanceOverview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Provenance Overview",
+        "tags": [
+          "data-provenance"
+        ]
+      }
+    },
+    "/api/v1/data-provenance/labels/{label}": {
+      "get": {
+        "operationId": "get_provenance_label_api_v1_data_provenance_labels__label__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "label",
+            "required": true,
+            "schema": {
+              "enum": [
+                "DEMO",
+                "OFFICIAL_PUBLIC",
+                "PLATFORM",
+                "UNKNOWN"
+              ],
+              "title": "Label",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_ProvenanceLabelInfo_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Provenance Label",
+        "tags": [
+          "data-provenance"
         ]
       }
     },

@@ -3,10 +3,18 @@
 from dataclasses import dataclass
 
 import pytest
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException
 
-from app.core.config import Settings
-from app.factory import create_app
+from app.core.errors import (
+    ApiError,
+    api_error_handler,
+    http_error_handler,
+    validation_error_handler,
+)
+from app.core.logging import SafeRequestMiddleware
 from app.features.campus_travel import CALCULATE_PATH, NOTICE, build_travel_router
 
 URL = f"/api/v1{CALCULATE_PATH}"
@@ -36,8 +44,14 @@ class SyntheticActor:
 
 
 def client_for(**kwargs) -> TestClient:
-    app = create_app(Settings(environment="test"))
+    # TEST ONLY: do not mount the factory's lazy global public router over the injected router.
+    app = FastAPI()
+    app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(HTTPException, http_error_handler)
+    app.add_middleware(SafeRequestMiddleware)
     app.include_router(build_travel_router(**kwargs), prefix="/api/v1")
+    assert set(app.openapi()["paths"]) == {URL}
     return TestClient(app)
 
 

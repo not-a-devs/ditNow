@@ -7,9 +7,19 @@ import json
 import re
 
 import pytest
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException
 
 from app.core.config import Settings
+from app.core.errors import (
+    ApiError,
+    api_error_handler,
+    http_error_handler,
+    validation_error_handler,
+)
+from app.core.logging import SafeRequestMiddleware
 from app.factory import create_app
 from app.features.data_provenance import (
     PROVENANCE_LABELS,
@@ -26,7 +36,12 @@ UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 
 def mount(feature_router) -> TestClient:
-    application = create_app(Settings(environment="test"))
+    # TEST ONLY: feature injection must not be shadowed by factory's lazy public router includes.
+    application = FastAPI()
+    application.add_exception_handler(ApiError, api_error_handler)
+    application.add_exception_handler(RequestValidationError, validation_error_handler)
+    application.add_exception_handler(HTTPException, http_error_handler)
+    application.add_middleware(SafeRequestMiddleware)
     application.include_router(feature_router, prefix=API)
     return TestClient(application, raise_server_exceptions=False)
 
@@ -156,6 +171,13 @@ def test_catalog_dependency_failure_is_hidden_as_internal_error() -> None:
     ).get(f"{API}/data-provenance")
     assert_error(response, 500, "INTERNAL")
     assert "secret" not in response.text
+
+
+def test_default_app_keeps_global_public_provenance_route() -> None:
+    with TestClient(create_app(Settings(environment="test"))) as client:
+        response = client.get(f"{API}/data-provenance")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
 
 
 def test_returned_models_are_copies_and_restart_is_identical() -> None:
