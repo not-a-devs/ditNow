@@ -60,6 +60,32 @@ describe('integrated campus shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '전체 메뉴 닫기' }));
     expect(screen.getByRole('button', { name: '전체 메뉴 열기' })).toHaveAttribute('aria-expanded', 'false');
   });
+  it.each(['header', 'bottom'])('focuses the first navigation link and returns to the %s trigger on Escape', source => {
+    render(<App />);
+    const trigger = source === 'header' ? screen.getByRole('button', { name: '전체 메뉴 열기' }) : screen.getByRole('button', { name: '전체 메뉴' });
+    trigger.focus(); fireEvent.click(trigger);
+    const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
+    const first = within(menu).getAllByRole('link')[0];
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Escape' });
+    expect(trigger).toHaveFocus(); expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+  it('keeps route navigation focus on main instead of restoring the old menu trigger', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '전체 메뉴 열기' }));
+    const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
+    fireEvent.click(within(menu).getByRole('link', { name: '익명 커뮤니티' }));
+    expect(screen.getByRole('main')).toHaveFocus();
+    expect(screen.getByRole('button', { name: '전체 메뉴 열기' })).toHaveAttribute('aria-expanded', 'false');
+    expect(window.location.pathname).toBe('/app/community');
+  });
+  it('keeps Korean words together in the AI heading without changing its label', () => {
+    window.history.replaceState(null, '', '/app/ai'); render(<App />);
+    expect(screen.getByRole('heading', { name: '캠퍼스 기회·준비 도우미' })).toHaveStyle({ wordBreak: 'keep-all', textWrap: 'balance' });
+    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+    expect(screen.getByLabelText('시설 이름 또는 질문')).toBeInTheDocument();
+    expect(document.querySelector('p p')).toBeNull();
+  });
   it('checks actual health and distinguishes liveness from database readiness', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { status: 'ok', service: 'ditnow-api' } }), { status: 200 })));
     render(<App />);
