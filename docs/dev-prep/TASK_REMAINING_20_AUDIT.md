@@ -49,6 +49,6 @@
 ## 4. 감사 검증과 남은 일
 
 - CSV `status=NOT_IMPLEMENTED` 정확히 20행을 읽고 표 20개 FR과 일대일 대응했다. CSV는 읽기만 수행했다.
-- 위 source/test 경로는 고정 기준 checkout에서 확인했다. 경로 검증·중복 FR 검사·`git diff --check` 결과는 커밋 시 기록한다.
+- 위 source/test 경로는 고정 기준 checkout에서 확인했다. 핵심 근거 24개 경로 존재 검사 PASS, 표의 20개 FR/CSV 행 대응 PASS, `node scripts/check-feature-progress.mjs` 92개 ID·오류0 PASS(기존 CSV 67 PARTIAL/20 NOT_IMPLEMENTED/5 BLOCKED 유지), `git diff --check` PASS.
 - 이번 감사의 자동 기능 테스트·실DB·미디어·브라우저·공개 HTTPS·운영 배포: **NOT_RUN**. 기존 다른 태스크의 실제 PASS 증거를 이번 재실행으로 주장하지 않는다.
 - NAV 및 진행 CSV 수정은 root 소유라 수행하지 않았다. root가 각 행을 PARTIAL/DOCUMENTED/TESTED 등 계층 상태로 정정할 때 전체 업무 완료 여부와 runtime mount 여부를 별도로 보존해야 한다.
