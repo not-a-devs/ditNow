@@ -33,6 +33,22 @@ async function demoLogin(id = 'fakeA') {
 const privateCalls = (fetcher: ReturnType<typeof vi.fn>) => fetcher.mock.calls.filter(([url]) => /\/me\/demo-/.test(String(url)));
 
 describe('demo platform route integration', () => {
+  it('opens only a local classroom preview after an explicit click without network or real capture', async () => {
+    const capture = vi.fn().mockRejectedValue(new DOMException('synthetic-denied', 'NotAllowedError'));
+    const fetcher = vi.fn(), peers = vi.fn();
+    vi.stubGlobal('fetch', fetcher); vi.stubGlobal('RTCPeerConnection', peers);
+    vi.stubGlobal('isSecureContext', true);
+    vi.stubGlobal('navigator', { userAgent: 'Desktop test', mediaDevices: { getDisplayMedia: capture } });
+    window.history.replaceState(null, '', '/app/classrooms');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: '내 강의실' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '내 화면 로컬 미리보기' })).toBeInTheDocument();
+    expect(screen.getByText(/실제 수업 시청·학생 송출·교수 권한 인증이 아닙니다/)).toBeInTheDocument();
+    expect(capture).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '화면 선택 · 로컬 미리보기 시작' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('화면 선택이 취소되었거나 허용되지 않았습니다');
+    expect(capture).toHaveBeenCalledOnce(); expect(peers).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled();
+  });
   it('shows public travel on academic but keeps private attendance unmounted while anonymous', () => {
     window.history.pushState(null, '', '/app');
     const fetcher = demoBackend();
