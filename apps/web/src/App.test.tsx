@@ -32,151 +32,67 @@ async function demoLogin(id = 'fakeA') {
 }
 const privateCalls = (fetcher: ReturnType<typeof vi.fn>) => fetcher.mock.calls.filter(([url]) => /\/me\/demo-/.test(String(url)));
 
-describe('demo platform route integration', () => {
-  it('opens only a local classroom preview after an explicit click without network or real capture', async () => {
-    const capture = vi.fn().mockRejectedValue(new DOMException('synthetic-denied', 'NotAllowedError'));
-    const fetcher = vi.fn(), peers = vi.fn();
-    vi.stubGlobal('fetch', fetcher); vi.stubGlobal('RTCPeerConnection', peers);
-    vi.stubGlobal('isSecureContext', true);
-    vi.stubGlobal('navigator', { userAgent: 'Desktop test', mediaDevices: { getDisplayMedia: capture } });
-    window.history.replaceState(null, '', '/app/classrooms');
-    render(<App />);
-    expect(screen.getByRole('heading', { name: '내 강의실' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '내 화면 로컬 미리보기' })).toBeInTheDocument();
-    expect(screen.getByText(/실제 수업 시청·학생 송출·교수 권한 인증이 아닙니다/)).toBeInTheDocument();
-    expect(capture).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '화면 선택 · 로컬 미리보기 시작' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('화면 선택이 취소되었거나 허용되지 않았습니다');
-    expect(capture).toHaveBeenCalledOnce(); expect(peers).not.toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled();
-  });
-  it('shows public travel on academic but keeps private attendance unmounted while anonymous', () => {
-    window.history.pushState(null, '', '/app');
+describe('release-visible navigation boundary', () => {
+  it.each(['academic', 'classrooms', 'department', 'support'].flatMap(id => [`/app/${id}`, `/app/${id}/`]))('replaces hidden direct route %s before any feature or request mounts', path => {
+    window.history.replaceState(null, '', path);
+    const before = window.history.length;
     const fetcher = demoBackend();
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const push = vi.spyOn(window.history, 'pushState');
     render(<App />);
-    openSection('academic');
-    expect(screen.getByRole('heading', { name: '강의 간 이동 여유 계산' })).toBeInTheDocument();
-    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
-    expect(screen.queryByText(/mock-attendance/)).toBeNull();
-    expect(privateCalls(fetcher)).toHaveLength(0);
-    vi.unstubAllGlobals();
+    expect(window.location.pathname).toBe('/app');
+    expect(screen.getByRole('heading', { name: /이번 학기도/ })).toBeInTheDocument();
+    expect(replace).toHaveBeenCalledWith(null, '', '/app');
+    expect(push).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(before);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(screen.queryByText(/mock-/)).toBeNull();
   });
-
-  it('does not mount support services while identity is still being checked', async () => {
-    window.history.pushState(null, '', '/app');
-    let release: (response: Response) => void = () => undefined;
-    const fetcher = demoBackend(() => new Promise<Response>(resolve => { release = resolve; }));
-    render(<App />);
-    openSection('login');
-    fireEvent.change(screen.getByLabelText('가상 학번'), { target: { value: 'fakeA' } });
-    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'synthetic-password' } });
-    fireEvent.click(screen.getByRole('button', { name: '가상 계정으로 로그인' }));
-    await waitFor(() => expect(fetcher.mock.calls.some(([url]) => String(url).endsWith('/auth/me'))).toBe(true));
-    openSection('support');
-    expect(screen.queryByText(/mock-services/)).toBeNull();
-    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
-    expect(privateCalls(fetcher)).toHaveLength(0);
-    release(demoOk(demoMe('가상 A')));
-    expect(await screen.findByText(/mock-services:/)).toBeInTheDocument();
-    vi.unstubAllGlobals();
+  it('replaces hidden popstate entries without pushing another history entry', () => {
+    const fetcher = demoBackend(); render(<App />);
+    for (const id of ['academic', 'classrooms', 'department', 'support']) {
+      window.history.replaceState(null, '', `/app/${id}/`);
+      const before = window.history.length;
+      fireEvent.popState(window);
+      expect(window.location.pathname).toBe('/app');
+      expect(window.history.length).toBe(before);
+      expect(screen.getByRole('heading', { name: /이번 학기도/ })).toBeInTheDocument();
+    }
+    expect(fetcher).not.toHaveBeenCalled();
   });
-
-  it('mounts private modules with the verified generation and unmounts them on user switch and logout', async () => {
-    window.history.pushState(null, '', '/app');
-    let name = '가상 A'; demoBackend(() => demoOk(demoMe(name)));
-    render(<App />);
-    await demoLogin('fakeA');
-    openSection('academic');
-    const first = (await screen.findByText(/mock-attendance:/)).textContent;
-    expect(screen.getByRole('heading', { name: '강의 간 이동 여유 계산' })).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
-    await waitFor(() => expect(screen.queryByText(/mock-attendance/)).toBeNull());
-    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
-    name = '가상 B'; await demoLogin('fakeB');
-    openSection('academic');
-    const second = (await screen.findByText(/mock-attendance:/)).textContent;
-    expect(screen.getByText('가상 B')).toBeInTheDocument();
-    expect(second).not.toBe(first);
-    openSection('support');
-    expect(await screen.findByText(/mock-services:/)).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
-    await waitFor(() => expect(screen.queryByText(/mock-services/)).toBeNull());
-    vi.unstubAllGlobals();
-  });
-
-  it('keeps department channels unmounted and quiet while anonymous', () => {
-    window.history.pushState(null, '', '/app');
-    const fetcher = demoBackend();
-    render(<App />);
-    openSection('department');
-    expect(screen.getByRole('heading', { name: '가상 학과·학년 채널 체험' })).toBeInTheDocument();
-    expect(screen.getByText(/실제 학교 공식 채널 소속이나 기관 공지 전달이 아니며/)).toBeInTheDocument();
-    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
-    expect(screen.queryByText(/mock-channels/)).toBeNull();
-    openSection('home');
-    expect(screen.getByText('나만의 하루를 준비하고 있어요')).toBeInTheDocument();
-    expect(screen.queryByText(/mock-action-center/)).toBeNull();
-    expect(privateCalls(fetcher)).toHaveLength(0);
-    vi.unstubAllGlobals();
-  });
-
-  it('mounts the profile on the login panel and removes it on logout', async () => {
-    window.history.pushState(null, '', '/app');
-    demoBackend();
-    render(<App />);
-    openSection('login');
-    expect(screen.queryByText(/mock-profile/)).toBeNull();
-    await demoLogin('fakeA');
-    expect(await screen.findByText(/mock-profile:/)).toBeInTheDocument();
+  it('keeps authenticated Home and account free of memory demos, including hidden popstate routes', async () => {
+    const fetcher = demoBackend(); render(<App />); await demoLogin();
     expect(screen.getByText('가상 A · DEMO')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
-    await waitFor(() => expect(screen.queryByText(/mock-profile/)).toBeNull());
-    vi.unstubAllGlobals();
-  });
-
-  it('shows a labelled virtual action center on home only while authenticated', async () => {
-    window.history.pushState(null, '', '/app');
-    demoBackend();
-    render(<App />);
-    await demoLogin('fakeA');
+    expect(screen.queryByText(/mock-/)).toBeNull();
     openSection('home');
-    const center = screen.getByLabelText('가상 액션 센터');
-    expect(within(center).getByText(/실제 오늘 시간표나 학교 공식 학사 마감이 아니며/)).toBeInTheDocument();
-    expect(within(center).getByText(/mock-action-center:/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '나의 캠퍼스로 바로' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('가상 액션 센터')).toBeNull();
+    for (const id of ['academic', 'classrooms', 'department', 'support']) {
+      window.history.pushState(null, '', `/app/${id}/`); fireEvent.popState(window);
+      expect(window.location.pathname).toBe('/app');
+      expect(screen.queryByText(/mock-/)).toBeNull();
+    }
+    expect(privateCalls(fetcher)).toHaveLength(0);
+    expect(fetcher.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual(['/api/v1/auth/login', '/api/v1/auth/me']);
     fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
-    await waitFor(() => expect(screen.queryByText(/mock-action-center/)).toBeNull());
-    expect(screen.getByText('나만의 하루를 준비하고 있어요')).toBeInTheDocument();
-    vi.unstubAllGlobals();
+    await screen.findByText('로그인되지 않음');
+    expect(privateCalls(fetcher)).toHaveLength(0);
   });
-
-  it('remounts department channels with a new generation after logout and account switch', async () => {
-    window.history.pushState(null, '', '/app');
-    let name = '가상 A'; demoBackend(() => demoOk(demoMe(name)));
+  it('uses the same available destinations in Home quick cards and mobile navigation', () => {
     render(<App />);
-    await demoLogin('fakeA');
-    openSection('department');
-    const first = (await screen.findByText(/mock-channels:/)).textContent;
-    fireEvent.click(screen.getAllByRole('button', { name: '로그아웃' })[0]);
-    await waitFor(() => expect(screen.queryByText(/mock-channels/)).toBeNull());
-    expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
-    name = '가상 B'; await demoLogin('fakeB');
-    openSection('department');
-    const second = (await screen.findByText(/mock-channels:/)).textContent;
-    expect(second).not.toBe(first);
-    vi.unstubAllGlobals();
-  });
-
-  it('keeps public campus information and adds data provenance', () => {
-    window.history.pushState(null, '', '/app');
-    demoBackend();
-    render(<App />);
-    openSection('information');
-    expect(screen.getByRole('heading', { name: '대학·학과 정보' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '자료 출처 표시 안내' })).toBeInTheDocument();
-    vi.unstubAllGlobals();
+    const quick = screen.getByRole('region', { name: '나의 캠퍼스로 바로' });
+    const labels = ['익명 커뮤니티', '팀원 모집', '장학 · 기회', 'AI 도우미'];
+    expect(Array.from(quick.querySelectorAll('strong'), el => el.textContent)).toEqual(labels);
+    const mobile = screen.getByRole('navigation', { name: '빠른 메뉴' });
+    expect(within(mobile).getAllByRole('button').map(button => button.querySelector('span:last-child')?.textContent)).toEqual(['홈', ...labels.slice(0, 3), '전체 메뉴']);
+    const destinations = ['community', 'recruitments', 'opportunities', 'ai'];
+    for (let i = 0; i < destinations.length; i++) {
+      fireEvent.click(within(screen.getByRole('region', { name: '나의 캠퍼스로 바로' })).getAllByRole('button')[i]);
+      expect(window.location.pathname).toBe(`/app/${destinations[i]}`);
+      if (i < 3) expect(screen.getByText('로그인이 필요한 화면입니다')).toBeInTheDocument();
+      openSection('home');
+    }
   });
 });
-
 describe('integrated campus shell', () => {
   it('connects global search to the public feature without exposing personal records', () => {
     window.history.replaceState(null, '', '/app/search');
@@ -207,7 +123,7 @@ describe('integrated campus shell', () => {
     render(<App />);
     expect(screen.getByText('로그인되지 않음')).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: '캠퍼스 전체 메뉴' });
-    expect(within(menu).getAllByRole('link')).toHaveLength(12);
+    expect(within(menu).getAllByRole('link')).toHaveLength(8);
     expect(screen.getByRole('heading', { name: /이번 학기도,\s*나답게\./ })).toBeInTheDocument();
   });
   it('changes route and clearly marks unfinished functionality', () => {
@@ -226,7 +142,8 @@ describe('integrated campus shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '캠퍼스 홈으로 이동' }));
     window.history.replaceState(null, '', '/app/classrooms');
     fireEvent.popState(window);
-    expect(screen.getByRole('heading', { name: '내 강의실' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /이번 학기도/ })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/app');
   });
   it('offers all-menu toggle controls for mobile navigation', () => {
     render(<App />);
@@ -261,24 +178,27 @@ describe('integrated campus shell', () => {
     expect(screen.getByLabelText('시설 이름 또는 질문')).toBeInTheDocument();
     expect(document.querySelector('p p')).toBeNull();
   });
-  it('checks actual health and distinguishes liveness from database readiness', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { status: 'ok', service: 'ditnow-api' } }), { status: 200 })));
+  const expectHomeActionsAndStatusAbsent = () => {
+    expect(screen.queryByText('MY ACTIONS')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '내가 챙길 일' })).not.toBeInTheDocument();
+    expect(screen.queryByText('나만의 하루를 준비하고 있어요')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '공개 서버 연결 확인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '연결 확인' })).not.toBeInTheDocument();
+  };
+  it('does not mount Home MY ACTIONS or server status for anonymous visitors', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByText('공개 서버가 응답했습니다. 인증·DB 연결 상태는 확인하지 않습니다.')).toBeInTheDocument();
+    expectHomeActionsAndStatusAbsent();
+    expect(screen.getByText('BETTER TOGETHER')).toBeInTheDocument();
+    expect(fetcher.mock.calls.filter(([url]) => /\/health|\/me\/demo/.test(String(url)))).toHaveLength(0);
   });
-  it('provides a retry action on network failure', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('secret')));
+  it('does not mount Home MY ACTIONS or server status after mocked login', async () => {
+    const fetcher = demoBackend();
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByRole('alert')).not.toHaveTextContent('secret');
-    expect(screen.getByRole('button', { name: '다시 확인' })).toBeEnabled();
-  });
-  it.each([null, {}, { status: 'unknown', service: 'ditnow-api' }, { status: 'ok', service: 'other' }])('rejects invalid health data before showing success: %j', async data => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data }), { status: 200 })));
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: '연결 확인' }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
-    expect(screen.queryByText('공개 서버가 응답했습니다. 인증·DB 연결 상태는 확인하지 않습니다.')).not.toBeInTheDocument();
+    await demoLogin();
+    openSection('home');
+    expectHomeActionsAndStatusAbsent();
+    expect(fetcher.mock.calls.filter(([url]) => /\/health|\/me\/demo/.test(String(url)))).toHaveLength(0);
   });
 });

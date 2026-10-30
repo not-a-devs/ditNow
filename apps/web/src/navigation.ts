@@ -13,3 +13,12 @@ export const navigation = [
   { id: 'ai', label: 'AI 도우미', path: '/app/ai', category: '더 넓은 캠퍼스', description: '궁금한 캠퍼스 생활을 함께 탐색' },
 ] as const;
 export type SectionId = typeof navigation[number]['id'];
+
+export const visibleSectionIds = ['home', 'login', 'discovery', 'community', 'recruitments', 'opportunities', 'information', 'ai'] as const;
+export type VisibleSectionId = typeof visibleSectionIds[number];
+export const hiddenSectionIds = ['academic', 'classrooms', 'department', 'support'] as const;
+export const visibleNavigation = navigation.filter((item): item is Extract<typeof navigation[number], { id: VisibleSectionId }> => (visibleSectionIds as readonly string[]).includes(item.id));
+export const hiddenPaths: readonly string[] = navigation.filter(item => (hiddenSectionIds as readonly string[]).includes(item.id)).map(item => item.path);
+
+export function normalizePath(pathname: string) { return pathname.replace(/\/$/, '') || '/app'; }
+export function isHiddenPath(pathname: string) { return hiddenPaths.includes(normalizePath(pathname)); }
