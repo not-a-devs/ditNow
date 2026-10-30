@@ -1,8 +1,8 @@
 """Offline configuration diagnostic, never deployment/readiness approval or a network probe.
 
-Reuse Settings and the existing DB report. No factory, SDK client, engine, secret-file loader,
-server, migration or seed is constructed. Production checks are conservative diagnostics;
-they do not change the application's accepted settings or institutional policy.
+Reuse Settings and the existing DB report. No application, SDK client or engine is constructed;
+no secret file is read and no server, migration or seed is started. Settings still constructs
+its empty dotenv/secret sources. These conservative production diagnostics change no policy.
 """
 
 import argparse
