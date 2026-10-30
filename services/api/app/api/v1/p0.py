@@ -34,6 +34,9 @@ from app.features.opportunities.schemas import (
     SavedOpportunityPatch,
     SaveOpportunityRequest,
 )
+from app.features.opportunity_matching.models import MatchPage, OpportunityBrief
+from app.features.opportunity_matching.router import InterestKeywords, InterestKinds
+from app.features.opportunity_matching.service import MAX_PAGE_LIMIT, normalize_interests
 from app.integrations.platform_runtime.dependencies import Context, Runtime
 from app.schemas.common import ErrorResponse, SuccessResponse
 
@@ -41,6 +44,52 @@ router = APIRouter(
     tags=["p0-live"],
     responses={code: {"model": ErrorResponse} for code in (400, 401, 403, 404, 409, 429, 500, 503)},
 )
+
+
+@router.get("/me/opportunity-matches", response_model=SuccessResponse[MatchPage])
+async def list_opportunity_matches(
+    ctx: Context,
+    interest_kinds: InterestKinds = [],  # noqa: B006 - FastAPI copies query defaults
+    interest_keywords: InterestKeywords = [],  # noqa: B006
+    kind: OpportunityKind | None = None,
+    include_closed: bool = False,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_LIMIT)] = 10,
+    cursor: Annotated[str | None, Query(max_length=40)] = None,
+):
+    interests = normalize_interests(interest_kinds, interest_keywords)
+    page = await ctx.runtime.run(
+        ctx.token,
+        ctx.binding.principal,
+        lambda s: s.matching.list_matches(
+            ctx.binding.principal.user_id,
+            interests,
+            kind=kind,
+            include_closed=include_closed,
+            limit=limit,
+            cursor=cursor,
+        ),
+    )
+    return SuccessResponse(data=page)
+
+
+@router.get(
+    "/me/opportunity-matches/{opportunity_id}/brief",
+    response_model=SuccessResponse[OpportunityBrief],
+)
+async def opportunity_brief(
+    opportunity_id: UUID,
+    ctx: Context,
+    interest_kinds: InterestKinds = [],  # noqa: B006
+    interest_keywords: InterestKeywords = [],  # noqa: B006
+):
+    interests = normalize_interests(interest_kinds, interest_keywords)
+    return SuccessResponse(
+        data=await ctx.runtime.run(
+            ctx.token,
+            ctx.binding.principal,
+            lambda s: s.matching.brief(ctx.binding.principal.user_id, opportunity_id, interests),
+        )
+    )
 
 
 @router.get("/anonymous-posts", response_model=SuccessResponse[AnonymousPostPage])
