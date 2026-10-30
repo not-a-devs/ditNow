@@ -32,9 +32,16 @@ function ownRow(items: SavedOpportunity[], id: string): SavedOpportunity | undef
   if (!Array.isArray(items)) throw new Error('Invalid preparation response');
   const row = items.find(item => item?.opportunity_id === id);
   if (row && (!Array.isArray(row.checks) || !Number.isSafeInteger(row.revision) || row.revision < 1
+    || typeof row.created_at !== 'string' || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(row.created_at) || !Number.isFinite(Date.parse(row.created_at))
     || row.checks.some(check => typeof check.id !== 'string' || typeof check.text !== 'string'
       || !Number.isSafeInteger(check.sort_order) || check.sort_order < 0))) throw new Error('Invalid preparation response');
   return row;
+}
+
+// Consent covers the saved row seen at review. An absent row is its own reviewed state ("[false]"),
+// distinct from never reviewed (null); deletion, recreation, revision or a new row needs re-review.
+function rowSnapshot(row: SavedOpportunity | undefined): string {
+  return stable(row ? [true, row.created_at, row.revision] : [false]);
 }
 
 export interface PreparationDraftProps {
@@ -59,6 +66,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
   const editorHeading = useRef<HTMLHeadingElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const intent = useRef<Intent | null>(null);
+  const reviewed = useRef<string | null>(null);
   const life = useRef({ alive: false, epoch: 0, busy: false, controller: null as AbortController | null });
   useLayoutEffect(() => {
     life.current.alive = true; life.current.epoch++;
@@ -71,7 +79,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
   }, [focusTarget]);
 
   function closeDraft() {
-    setOpen(false); setPhase('edit'); setConsent(false); setError(''); setFocusTarget('trigger');
+    reviewed.current = null; setOpen(false); setPhase('edit'); setConsent(false); setError(''); setFocusTarget('trigger');
   }
 
   function begin() {
@@ -94,7 +102,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
 
   function discardDenied(failure: unknown): boolean {
     if (!(failure instanceof ApiError) || ![401, 403].includes(failure.status)) return false;
-    intent.current = null; setRows([]); setMemo(''); setConsent(false); setBusy(false);
+    intent.current = null; reviewed.current = null; setRows([]); setMemo(''); setConsent(false); setBusy(false);
     setPhase('denied'); setError(message(failure));
     life.current.epoch++; life.current.controller?.abort();
     return true;
@@ -105,6 +113,7 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
     if (!selected.length || selected.some(row => !row.text.trim() || Array.from(row.text.trim()).length > 200)
       || Array.from(memo.trim()).length > 1000 || new Set(selected.map(row => row.text.trim())).size !== selected.length) { setError('서로 다른 준비 항목을 한 개 이상 선택하고 각 1~200자, 메모 1000자 이하로 입력하세요.'); return; }
     const request = begin(); if (!request) return;
+    reviewed.current = null;
     try {
       const fresh = await api.getBrief(brief.opportunity.id, interests, request.signal);
       if (!request.current()) return;
@@ -114,7 +123,9 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
       }
       const list = await savedApi.listSaved(request.signal);
       if (!request.current()) return;
-      setExisting(!!ownRow(list.items, brief.opportunity.id));
+      const saved = ownRow(list.items, brief.opportunity.id);
+      reviewed.current = rowSnapshot(saved);
+      setExisting(!!saved);
       setConsent(false); setPhase('review'); setFocusTarget('review');
     } catch (failure) { if (request.current() && !discardDenied(failure)) setError(message(failure)); }
     finally { request.finish(); }
@@ -130,13 +141,17 @@ export default function PreparationDraft({ brief, interests, onSaved }: Preparat
       if (!validBrief(fresh, brief.opportunity.id)) throw new Error('Invalid source');
       if (briefVersion(fresh) !== briefVersion(source)) {
         if (intent.current) { setPhase('partial'); setError('저장 도중 공고 정보가 바뀌었습니다. 추가 저장을 중단했습니다. 이미 반영된 항목은 내 준비 목록에서 확인하세요.'); }
-        else { setSource(fresh); setPhase('edit'); setConsent(false); setError('확인 이후 공고 또는 현재 소속 정보가 바뀌었습니다. 다시 검토해야 하며 아직 저장하지 않았습니다.'); }
+        else { reviewed.current = null; setSource(fresh); setPhase('edit'); setConsent(false); setError('확인 이후 공고 또는 현재 소속 정보가 바뀌었습니다. 다시 검토해야 하며 아직 저장하지 않았습니다.'); }
         return;
       }
       const list = await savedApi.listSaved(request.signal);
       if (!request.current()) return;
       let saved = ownRow(list.items, brief.opportunity.id);
       if (!intent.current) {
+        if (reviewed.current === null || reviewed.current !== rowSnapshot(saved)) {
+          reviewed.current = null; setConsent(false); setPhase('edit'); setFocusTarget('editor');
+          setError('검토 이후 기존 준비 기록이 바뀌었습니다(삭제·재생성·수정 또는 새 기록). 아직 저장하지 않았습니다. 작성한 초안은 유지되며, 다시 검토하고 동의해야 저장할 수 있습니다.'); return;
+        }
         let sort = saved?.checks.reduce((n, check) => Math.max(n, check.sort_order + 1), 0) ?? 0;
         const checks = rows.filter(row => row.selected).map(row => ({ text: row.text.trim(), sort: sort++, key: savedApi.newIdempotencyKey() }));
         if ((saved?.checks.length ?? 0) + checks.length > 50 || sort > 1000) throw new ApiError('CONFLICT', 409);

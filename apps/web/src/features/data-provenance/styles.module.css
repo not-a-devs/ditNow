@@ -1,0 +1,20 @@
+.page { max-width: 62rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.page h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: .4rem 0; overflow-wrap: anywhere; }
+.page h2 { font-size: 1.25rem; margin: .5rem 0; }
+.page h3 { font-size: 1.05rem; margin: .7rem 0 .3rem; }
+.page p, .page li { line-height: 1.8; overflow-wrap: anywhere; word-break: keep-all; }
+.eyebrow { color: #365b47; font-size: .85rem; font-weight: 700; }
+.notice { color: #485c4e; font-size: .9rem; }
+.live:empty { display: none; }
+.page button { justify-self: start; min-height: 2.9rem; border: 0; border-radius: .6rem; padding: .6rem 1rem; color: white; background: #195641; font-weight: 700; cursor: pointer; }
+.page button:focus-visible { outline: 3px solid #b4811e; outline-offset: 3px; }
+.panel { background: white; border: 1px solid #c8d2ca; border-radius: 1rem; padding: 1.3rem; min-width: 0; }
+.statusList { margin: 0; padding-left: 1.2rem; }
+.labels { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.badge { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; max-width: 100%; padding: .2rem .65rem; border: 1px solid currentColor; border-radius: 999px; font-size: .85rem; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.badgePrefix { font-weight: 500; }
+.DEMO { color: #7a4b00; background: #fff4dc; }
+.OFFICIAL_PUBLIC { color: #18456b; background: #e6f0fa; }
+.PLATFORM { color: #195641; background: #e5f2ea; }
+.UNKNOWN { color: #4b4b4b; background: #efefef; border-style: dashed; }
+@media (max-width: 40rem) { .labels { grid-template-columns: 1fr; } .page button { width: 100%; } }

@@ -2,6 +2,10 @@
 
 import importlib
 import json
+import os
+import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +17,54 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "infra/deploy/scripts"))
 import check_owner as owner  # noqa: E402 - standalone script directory, no installed package
 import smoke  # noqa: E402
+
+NOSNIFF = {"X-Content-Type-Options": "nosniff"}
+SHA = "a" * 40
+LOCATION_PATTERN = r"(?m)^[ \t]*location[ \t]+([^{\r\n]+?)[ \t]*\{([^{}]*)\}"
+# Pre-fix nginx shape: location add_header drops the inherited server-level nosniff.
+ORIGINAL_NGINX_LOCATIONS = """
+        add_header X-Content-Type-Options nosniff always;
+        location = /index.html {
+            add_header Cache-Control no-store always;
+            try_files $uri =404;
+        }
+        location /assets/ {
+            try_files $uri =404;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+        }
+        location / {
+            add_header Cache-Control no-store always;
+            try_files $uri $uri/ /index.html;
+        }
+"""
+# Pre-fix README bootstrap: independent lines keep running after a failed test.
+ORIGINAL_BOOTSTRAP = """
+umask 077
+test ! -e "$API_ENV_FILE"
+cp infra/deploy/api.env.example "$API_ENV_FILE"
+test ! -e "$DEPLOY_ENV_FILE"
+printf 'DITNOW_RELEASE_SHA=%s\\nDITNOW_API_ENV_FILE=%s\\nDITNOW_DB_CA_FILE=%s\\n' \
+"$RELEASE_SHA" "$API_ENV_FILE" "$CA_FILE" > "$DEPLOY_ENV_FILE"
+chmod 600 "$API_ENV_FILE" "$DEPLOY_ENV_FILE"
+"""
+
+
+def locations_missing_nosniff(text):
+    """Locations whose own add_header disables inheritance but lack nosniff always."""
+    required = "add_header X-Content-Type-Options nosniff always;"
+    missing = []
+    for name, body in re.findall(LOCATION_PATTERN, text):
+        if "add_header" in body and required not in body:
+            missing.append(name)
+    return missing
+
+
+def readme_bootstrap():
+    readme = (ROOT / "infra/deploy/README.md").read_text(encoding="utf-8")
+    match = re.search(r"# BEGIN-DITNOW-BOOTSTRAP\n(.*?)# END-DITNOW-BOOTSTRAP\n", readme, re.S)
+    if match is None:
+        raise AssertionError("README bootstrap sample markers missing")
+    return match.group(1)
 
 
 class PackagingTests(unittest.TestCase):
@@ -250,21 +302,28 @@ class PackagingTests(unittest.TestCase):
             with self.assertRaisesRegex(owner.Failure, "LOOPBACK_BIND_REQUIRED"):
                 smoke.probe(1)
 
-    def test_public_probe_checks_spa_assets_unconfigured_auth_without_db(self):
+    def _public_probe(self, without_nosniff=None):
+        """Run the probe against a mocked loopback; drop nosniff on one path prefix."""
         index = b'<div id="root"></div><script src="/assets/app.js"></script>'
         calls = []
+
+        def headers(path, extra=None):
+            base = dict(extra or {})
+            if without_nosniff is None or not path.startswith(without_nosniff):
+                base.update(NOSNIFF)
+            return base
 
         def get(path):
             calls.append(path)
             if path == "/api/v1/health":
-                return 200, {}, b'{"data":{"status":"ok","service":"ditnow-api"}}'
+                return 200, headers(path), b'{"data":{"status":"ok","service":"ditnow-api"}}'
             if path.startswith("/app"):
-                return 200, {"Cache-Control": "no-store"}, index
+                return 200, headers(path, {"Cache-Control": "no-store"}), index
             if path == "/assets/app.js":
-                return 200, {}, b"public-js"
+                return 200, headers(path), b"public-js"
             if path == "/api/v1/auth/me":
-                return 503, {}, b'{"code":"UNAVAILABLE"}'
-            return 404, {}, b'{"code":"NOT_FOUND"}'
+                return 503, headers(path), b'{"code":"UNAVAILABLE"}'
+            return 404, headers(path), b'{"code":"NOT_FOUND"}'
 
         with (
             patch.object(smoke, "get", side_effect=get),
@@ -278,9 +337,188 @@ class PackagingTests(unittest.TestCase):
             ),
         ):
             smoke.probe(1)
+        return calls
+
+    def test_public_probe_checks_spa_assets_unconfigured_auth_without_db(self):
+        calls = self._public_probe()
         self.assertIn("/app/login", calls)
         self.assertIn("/api/v1/auth/me", calls)
         self.assertIn("/assets/does-not-exist.js", calls)
+
+    def test_public_probe_rejects_missing_nosniff_on_spa_asset_and_health(self):
+        for prefix, code in (
+            ("/app/login", "SPA_NOSNIFF_MISSING"),
+            ("/app", "SPA_NOSNIFF_MISSING"),
+            ("/assets/app.js", "ASSET_NOSNIFF_MISSING"),
+            ("/api/v1/health", "API_HEALTH_NOSNIFF_MISSING"),
+        ):
+            with self.subTest(prefix=prefix):
+                with self.assertRaisesRegex(owner.Failure, code):
+                    self._public_probe(without_nosniff=prefix)
+
+    def test_nosniff_header_value_must_be_exact(self):
+        self.assertTrue(smoke.nosniff({"X-Content-Type-Options": "nosniff"}))
+        self.assertFalse(smoke.nosniff({}))
+        self.assertFalse(smoke.nosniff({"X-Content-Type-Options": "sniff"}))
+        self.assertFalse(smoke.nosniff({"X-Content-Type-Options": "nosniff, nosniff"}))
+
+    def test_nginx_locations_overriding_headers_repeat_nosniff(self):
+        text = (ROOT / "infra/deploy/nginx.conf").read_text(encoding="utf-8")
+        self.assertIn("        add_header X-Content-Type-Options nosniff always;\n", text)
+        self.assertEqual(locations_missing_nosniff(text), [])
+        overriding = [
+            name for name, body in re.findall(LOCATION_PATTERN, text) if "add_header" in body
+        ]
+        # Not vacuous: index, assets and SPA fallback all override inherited headers.
+        self.assertEqual(sorted(overriding), ["/", "/assets/", "= /index.html"])
+
+    def test_original_nginx_location_headers_are_detected_as_missing_nosniff(self):
+        self.assertEqual(
+            sorted(locations_missing_nosniff(ORIGINAL_NGINX_LOCATIONS)),
+            ["/", "/assets/", "= /index.html"],
+        )
+
+
+@unittest.skipUnless(
+    sys.platform.startswith("linux") and shutil.which("bash"),
+    "bash bootstrap sample is exercised on Linux only",
+)
+class OwnerBootstrapTests(unittest.TestCase):
+    """Runs the README sample in isolated temp dirs with synthetic template/values only."""
+
+    TEMPLATE = "SYNTHETIC_TEMPLATE_ONLY=1\n"
+    PRIVATE = "SYNTHETIC_OWNER_PRIVATE_VALUE=do-not-overwrite\n"
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.temp = Path(directory.name)
+        self.repo = self.temp / "checkout"
+        (self.repo / "infra/deploy").mkdir(parents=True)
+        (self.repo / "infra/deploy/api.env.example").write_text(self.TEMPLATE, encoding="utf-8")
+        self.private = self.temp / "private"
+        self.private.mkdir()
+        self.api = self.private / "ditnow-api.env"
+        self.deploy = self.private / "ditnow-deploy.env"
+        self.ca = self.private / "mariadb-ca.pem"
+
+    def run_shell(self, script, **overrides):
+        values = {
+            "RELEASE_SHA": SHA,
+            "API_ENV_FILE": str(self.api),
+            "DEPLOY_ENV_FILE": str(self.deploy),
+            "CA_FILE": str(self.ca),
+        }
+        values.update(overrides)
+        path = self.temp / "owner.sh"
+        path.write_text(script, encoding="utf-8")
+        return subprocess.run(
+            ["bash", "--noprofile", "--norc", str(path)],
+            cwd=self.repo,
+            env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LC_ALL": "C", **values},
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+    def bootstrap(self, call="ditnow_bootstrap\n", **overrides):
+        return self.run_shell(readme_bootstrap() + call, **overrides)
+
+    def write_private(self, path):
+        path.write_text(self.PRIVATE, encoding="utf-8")
+        path.chmod(0o600)
+
+    def assert_private_preserved(self, path, result):
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(path.read_text(encoding="utf-8"), self.PRIVATE)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertNotIn("do-not-overwrite", result.stdout + result.stderr)
+        self.assertNotIn(str(self.private), result.stdout + result.stderr)
+
+    def test_readme_no_longer_documents_independent_check_then_copy(self):
+        readme = (ROOT / "infra/deploy/README.md").read_text(encoding="utf-8")
+        self.assertNotIn("cp infra/deploy/api.env.example", readme)
+        self.assertNotIn('test ! -e "$API_ENV_FILE"\n', readme)
+        sample = readme_bootstrap()
+        self.assertIn("set -eu", sample)
+        self.assertIn("set -o noclobber", sample)
+        self.assertIn("ditnow_bootstrap() (", sample)
+
+    def test_original_sequence_overwrites_existing_runtime_env(self):
+        # Counterexample proving the pre-fix instructions were unsafe.
+        self.write_private(self.api)
+        self.run_shell(ORIGINAL_BOOTSTRAP)
+        self.assertEqual(self.api.read_text(encoding="utf-8"), self.TEMPLATE)
+
+    def test_creates_private_runtime_and_pointer_files_without_output(self):
+        result = self.bootstrap()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "DITNOW_BOOTSTRAP_CREATED\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(self.api.read_text(encoding="utf-8"), self.TEMPLATE)
+        self.assertEqual(
+            self.deploy.read_text(encoding="utf-8"),
+            f"DITNOW_RELEASE_SHA={SHA}\nDITNOW_API_ENV_FILE={self.api}\n"
+            f"DITNOW_DB_CA_FILE={self.ca}\n",
+        )
+        for path in (self.api, self.deploy):
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(self.ca.exists())
+
+    def test_existing_runtime_env_is_never_overwritten(self):
+        self.write_private(self.api)
+        result = self.bootstrap()
+        self.assert_private_preserved(self.api, result)
+        self.assertIn("TARGET_EXISTS", result.stderr)
+        self.assertFalse(self.deploy.exists())
+
+    def test_existing_pointer_blocks_before_runtime_env_is_created(self):
+        self.write_private(self.deploy)
+        result = self.bootstrap()
+        self.assert_private_preserved(self.deploy, result)
+        self.assertFalse(self.api.exists())
+
+    def test_existing_ca_is_never_used_as_a_write_target(self):
+        self.write_private(self.ca)
+        for target in ("API_ENV_FILE", "DEPLOY_ENV_FILE"):
+            with self.subTest(target=target):
+                result = self.bootstrap(**{target: str(self.ca)})
+                self.assert_private_preserved(self.ca, result)
+                self.assertIn("PATHS_NOT_DISTINCT", result.stderr)
+        self.assertFalse(self.api.exists())
+        self.assertFalse(self.deploy.exists())
+
+    def test_errexit_disabled_caller_context_still_stops(self):
+        # `f || ...` disables set -e inside f; explicit fail steps must still stop writes.
+        self.write_private(self.api)
+        result = self.bootstrap(call="ditnow_bootstrap || exit 7\n")
+        self.assertEqual(result.returncode, 7)
+        self.assert_private_preserved(self.api, result)
+        self.assertFalse(self.deploy.exists())
+
+    def test_dangling_symlink_target_is_not_followed(self):
+        outside = self.temp / "outside-target"
+        self.api.symlink_to(outside)
+        result = self.bootstrap()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(outside.exists())
+        self.assertFalse(self.deploy.exists())
+
+    def test_invalid_sha_relative_or_unsafe_paths_write_nothing(self):
+        for overrides, code in (
+            ({"RELEASE_SHA": "REPLACE_WITH_APPROVED_40_CHARACTER_SHA"}, "RELEASE_SHA_INVALID"),
+            ({"RELEASE_SHA": "a" * 39}, "RELEASE_SHA_INVALID"),
+            ({"API_ENV_FILE": "relative.env"}, "PATH_NOT_ABSOLUTE"),
+            ({"CA_FILE": ""}, "PATH_NOT_ABSOLUTE"),
+            ({"DEPLOY_ENV_FILE": str(self.deploy) + "\nINJECT=1"}, "PATH_CHARACTERS_UNSAFE"),
+        ):
+            with self.subTest(code=code, overrides=overrides):
+                result = self.bootstrap(**overrides)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(code, result.stderr)
+                self.assertEqual(list(self.private.iterdir()), [])
+                self.assertEqual(list(self.repo.glob("*.env")), [])
 
 
 if __name__ == "__main__":
