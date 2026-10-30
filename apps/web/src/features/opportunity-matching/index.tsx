@@ -6,6 +6,7 @@ import { ApiError } from '../../lib/api';
 import { KIND_LABEL, formatDateTime } from '../opportunities/status';
 import type { OpportunityKind } from '../opportunities/types';
 import * as api from './api';
+import PreparationDraft from './PreparationDraft';
 import {
   CAUTION_LABEL,
   FRESHNESS_LABEL,
@@ -135,7 +136,7 @@ function MatchCard({ item, onBrief }: { item: MatchItem; onBrief: (id: string) =
   return (
     <li className="space-y-1 rounded-md border border-slate-200 p-3">
       <p className="text-xs text-slate-500">
-        {KIND_LABEL[o.kind]} · {o.organization}
+        {KIND_LABEL[o.kind]} · {o.organization.trim() || '미확인'}
         {o.source_kind === 'DEMO' && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">DEMO 가상 공고</span>}
       </p>
       <h3 className="font-medium">{o.title}</h3>
@@ -165,7 +166,7 @@ function BriefPanel({ brief }: { brief: OpportunityBrief }) {
       <h3 className="font-semibold">{d.title}</h3>
       <p className="text-xs text-slate-600">{brief.provenance.notice}</p>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt>주관</dt><dd>{d.organization}</dd>
+        <dt>주관</dt><dd>{d.organization.trim() || '미확인'}</dd>
         <dt>접수</dt><dd>{formatDateTime(d.apply_starts_at)} ~ {formatDateTime(d.deadline_at)} ({WINDOW_LABEL[brief.window]})</dd>
         <dt>원문 확인</dt><dd>{FRESHNESS_LABEL[brief.freshness]}</dd>
         <dt>대상 범위</dt><dd>{brief.match.in_scope ? '현재 소속이 대상 범위에 포함' : '현재 소속이 대상 범위에 포함되지 않음'}</dd>
@@ -205,7 +206,7 @@ function BriefPanel({ brief }: { brief: OpportunityBrief }) {
   );
 }
 
-export default function OpportunityMatchingPage() {
+export default function OpportunityMatchingPage({ onSaved }: { onSaved?: () => void } = {}) {
   const [kinds, setKinds] = useState<OpportunityKind[]>([]);
   const [keywordText, setKeywordText] = useState('');
   const [includeClosed, setIncludeClosed] = useState(false);
@@ -296,10 +297,11 @@ export default function OpportunityMatchingPage() {
     setKinds((all) => (checked ? [...all, kind].slice(0, api.MAX_INTERESTS) : all.filter((k) => k !== kind)));
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[1fr_1fr]">
+    <section aria-label="기회 준비 도우미" className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[1fr_1fr]">
       <section aria-labelledby="match-title" className="space-y-3">
         <h2 id="match-title" className="text-xl font-semibold">맞춤 기회 찾기</h2>
         <p className="rounded bg-slate-50 p-2 text-xs text-slate-600">{DISCLAIMER}</p>
+        <p className="text-xs">질문에서 찾고 싶은 표현을 직접 키워드로 확인해 입력하세요. 자연어를 자동 해석하거나 LLM을 호출하지 않습니다.</p>
         <form onSubmit={submit} className="space-y-2 text-sm">
           <fieldset className="flex flex-wrap gap-2">
             <legend className="text-xs text-slate-600">관심 분류</legend>
@@ -377,8 +379,8 @@ export default function OpportunityMatchingPage() {
         {!brief && <p className="text-sm text-slate-500">공고를 선택하면 원문 필드 기반 요약과 절차를 보여 줍니다.</p>}
         {brief?.state === 'loading' && <p aria-busy="true" className="text-sm text-slate-500">요약을 불러오는 중…</p>}
         {brief?.state === 'error' && <ErrorBox {...brief} onRetry={() => openBrief(brief.id)} />}
-        {brief?.state === 'ready' && <BriefPanel brief={brief.data} />}
+        {brief?.state === 'ready' && <><BriefPanel brief={brief.data} />{onSaved && <PreparationDraft key={`${brief.id}:${briefSeq.current}`} brief={brief.data} interests={applied} onSaved={onSaved} />}</>}
       </section>
-    </main>
+    </section>
   );
 }
