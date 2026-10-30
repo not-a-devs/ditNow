@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runAiOpportunityE2E } = require('../src/ai-runner.cjs');
 const { assertBasis, assertMatchPage, assertBrief, ownSaved, assertNoSavedChange, assertSavedDraft } = require('../src/ai-contract.cjs');
-const { buildAiStages, watchMutations } = require('../src/ai-scenario.cjs');
+const { AI, buildAiStages, watchMutations, navigateAi, openReference, editDraft } = require('../src/ai-scenario.cjs');
 const { buildStages } = require('../src/scenario.cjs');
 const { E2EError } = require('../src/errors.cjs');
 const { baseEnv, createFakeApi, OPPORTUNITY_ID, FIXTURE_PASSWORD } = require('./fixtures/fake-api.cjs');
@@ -58,6 +58,118 @@ test('AI stages require preview/cancel before explicit save and use unchanged P0
   assert.equal(stages.at(-2).run, old.find(s => s.id === 'opportunity.remove').run);
   assert.equal(stages.at(-1).run, old.find(s => s.id === 'auth.logout_a').run);
   assert.equal(old.length, 9); // Existing P0 scenario is preserved.
+});
+
+function navigationPage({ mobile = false, href = '/app/ai' } = {}) {
+  const events = { clicks: 0, toggles: 0, inputWaits: 0 };
+  let current = 'http://127.0.0.1:5753/app/community';
+  const page = {
+    url: () => current,
+    getByRole: role => {
+      assert.equal(role, 'navigation');
+      return { getByRole: (childRole, options) => {
+        assert.equal(childRole, 'link');
+        // The real navigation link includes its visible AI badge in its accessible name.
+        const accessibleName = `${AI.navigation} AI`;
+        assert.equal(options.exact ? accessibleName === options.name : accessibleName.includes(options.name), true);
+        return {
+          isVisible: async () => !mobile || events.toggles > 0,
+          getAttribute: async name => { assert.equal(name, 'href'); return href; },
+          click: async () => { events.clicks += 1; current = new URL(href, current).href; },
+        };
+      } };
+    },
+    locator: () => ({ first: () => ({ click: async () => { events.toggles += 1; } }) }),
+    waitForURL: async predicate => { assert.equal(predicate(new URL(current)), true); },
+    getByLabel: label => {
+      assert.equal(label, AI.keyword);
+      return { waitFor: async () => { events.inputWaits += 1; } };
+    },
+  };
+  return { page, events };
+}
+
+for (const mobile of [false, true]) {
+  test(`AI badge accessible name navigates to the exact approved route (${mobile ? 'mobile' : 'desktop'})`, async () => {
+    const { page, events } = navigationPage({ mobile });
+    await navigateAi({ page, timeoutMs: 100 });
+    assert.equal(new URL(page.url()).pathname, '/app/ai');
+    assert.deepEqual(events, { clicks: 1, toggles: Number(mobile), inputWaits: 1 });
+  });
+}
+
+test('AI navigation refuses unrelated or external hrefs before clicking', async () => {
+  for (const href of ['/app/ai-other', '/app/ai?next=other', '/app/ai#other', 'https://external.invalid/app/ai', null]) {
+    const { page, events } = navigationPage({ href });
+    await assert.rejects(navigateAi({ page, timeoutMs: 100 }), error => error instanceof E2EError && error.code === 'ASSERTION');
+    assert.equal(events.clicks, 0);
+    assert.equal(events.inputWaits, 0);
+  }
+});
+
+function draftPage(failAt) {
+  const events = [];
+  const call = async label => {
+    events.push(label);
+    if (label === failAt) {
+      const error = new Error(`raw textarea content ${FIXTURE_PASSWORD}`);
+      error.name = 'TimeoutError';
+      throw error;
+    }
+    return label === 'AI draft choices count' ? 2 : undefined;
+  };
+  const region = {
+    waitFor: () => call('AI draft edit region visible'),
+    getByRole: (role, options) => {
+      if (role === 'textbox') {
+        // Exact DOM label text is "준비 항목 초안 1원문 링크 확인", but the control's
+        // accessible name is "준비 항목 초안 1". Select by role/name, not label textContent.
+        assert.equal(options.exact, true);
+        assert.ok([AI.memo, AI.firstCheck].includes(options.name));
+        return { fill: () => call(options.name === AI.memo ? 'AI draft memo fill' : 'AI draft first item fill') };
+      }
+      assert.equal(role, 'checkbox');
+      return {
+        count: () => call('AI draft choices count'),
+        nth: index => ({ check: () => call('AI draft first choice select'), uncheck: () => call('AI draft remaining choice clear') }),
+      };
+    },
+    getByLabel: () => assert.fail('DOM label textContent must not be used for populated textarea'),
+  };
+  const page = { getByRole: (role, options) => {
+    if (role === 'button') { assert.equal(options.name, AI.makeDraft); return { click: () => call('AI draft open button') }; }
+    assert.equal(role, 'region'); assert.equal(options.name, AI.draft); return region;
+  } };
+  return { page, events, region };
+}
+
+test('draft selects populated textareas by exact accessible textbox names', async () => {
+  const { page, events, region } = draftPage();
+  const result = await editDraft({ page, timeoutMs: 100, state: { ai: { memo: FIXTURE_PASSWORD, checkText: 'private draft' } } });
+  assert.equal(result, region);
+  assert.equal(events.length, 7);
+});
+
+for (const label of ['AI draft open button', 'AI draft edit region visible', 'AI draft memo fill', 'AI draft first item fill', 'AI draft choices count', 'AI draft first choice select', 'AI draft remaining choice clear']) {
+  test(`draft timeout reports only its safe execution label: ${label}`, async () => {
+    const { page } = draftPage(label);
+    await assert.rejects(editDraft({ page, timeoutMs: 100, state: { ai: { memo: FIXTURE_PASSWORD, checkText: 'private draft' } } }), error => {
+      assert.equal(error.code, 'SELECTOR_MISSING'); assert.equal(error.detail, label);
+      assert.ok(!error.message.includes(FIXTURE_PASSWORD)); assert.ok(!error.message.includes('raw textarea'));
+      return true;
+    });
+  });
+}
+
+test('keyword fill timeout identifies its safe step before making any recommendation request', async () => {
+  const error = new Error(`raw keyword ${FIXTURE_PASSWORD}`); error.name = 'TimeoutError';
+  let fills = 0;
+  const page = {
+    url: () => 'http://127.0.0.1:5753/app/ai',
+    getByLabel: () => ({ waitFor: async () => {}, fill: async () => { fills++; throw error; } }),
+  };
+  await assert.rejects(openReference({ page, timeoutMs: 100, accounts: { A: { identity } } }), failure => failure.code === 'SELECTOR_MISSING' && failure.detail === 'AI reference keyword fill' && !failure.message.includes(FIXTURE_PASSWORD));
+  assert.equal(fills, 1);
 });
 
 test('reference context must match current own department and year, not another student', () => {
