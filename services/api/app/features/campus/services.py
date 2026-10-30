@@ -16,6 +16,7 @@ from app.features.campus.domain import (
     Audience,
     CampusActor,
     Channel,
+    ChannelKind,
     ChatMessage,
     DeliveryResult,
     MessageKind,
@@ -276,8 +277,18 @@ class NoticeService:
         created_count = 0
         for target in policy.delivery_targets(notice.audience):
             channel = self._channels.find_default_channel(target.department_id, target.grade)
-            if channel is None:
-                # Kept separate from publish so a retry can complete it later.
+            expected_kind = (
+                ChannelKind.DEPARTMENT_ALL if target.grade is None else ChannelKind.DEPARTMENT_GRADE
+            )
+            if (
+                channel is None
+                or channel.department_id != target.department_id
+                or channel.kind is not expected_kind
+                or channel.grade != target.grade
+                or (target.grade is not None and type(channel.grade) is not int)
+            ):
+                # A faulty/stale lookup must not route a reference to a different audience.
+                # No card is written; keep the target pending for a corrected-store retry.
                 missing.append(target)
                 continue
             _, created = self._messages.ensure_notice_card(channel.id, notice.id, self._clock())
